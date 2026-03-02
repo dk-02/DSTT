@@ -1,0 +1,38 @@
+# --- Python ---
+__pycache__/
+*.py[cod]
+*$py.class
+.python-version
+
+# --- Virtualna okruženja (Virtual Environments) ---
+# Najčešći nazivi: .venv, venv, env
+.venv/
+venv/
+env/
+ENV/
+
+# --- Environment Variables (Jako važno!) ---
+# Ovdje stoje tvoje lozinke za bazu (@ u passwordu i slično)
+.env
+.flaskenv
+*.env
+
+# --- Distribucija / Pakiranje ---
+dist/
+build/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# --- Baze podataka (ako koristiš SQLite lokalno) ---
+*.sqlite3
+*.db
+
+# --- IDE specifični fajlovi (VS Code, PyCharm) ---
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# --- Logovi ---
+*.log
