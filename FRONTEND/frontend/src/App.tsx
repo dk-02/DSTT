@@ -1,50 +1,61 @@
-import { useState } from "react"
+import { useState, type KeyboardEvent } from "react"
 
-interface Response {
-  original_text: string;
-  processed_text: string;
+const backendURL = import.meta.env.VITE_APP_BACKEND;
+
+interface userMsg {
+    sender: string;
+    text: string;
+    ddu?: string;
 }
 
-const backend = import.meta.env.VITE_APP_BACKEND;
-
 function App() {
-  const [text, setText] = useState("");
-  const [response, setResponse] = useState<Response | null>(null);
+    const [input, setInput] = useState("");
+    const [messages, setMessages] = useState<userMsg[]>([]);
 
-  const sendText = async () => {
-    const res = await fetch(`${backend}`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({ text })
-    });
+    const handleSend = async () => {
+        const userMsg = { sender: "student", text: input };
+        setMessages([...messages, userMsg]);
 
-    const data = await res.json();
-    setResponse(data);
-  }
+        const response = await fetch(`${backendURL}/ask`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ message: input })
+        });
+        
+        const data = await response.json();
+        const aiMsg = { sender: "system", text: data.result, ddu: data.ddu_id };
+        setMessages(prev => [...prev, aiMsg]);
+        setInput("");
+    };
 
-  return (
-    <div style={{ padding: "40px" }}>
-      <h1>Test komunikacije</h1>
+    // Send text to chat with enter
+    const handleKeyDown = (event: KeyboardEvent) => {
+        if (event.key === 'Enter') {
+            event.preventDefault(); 
+            handleSend();
+        }
+    };
 
-      <input
-        type="text"
-        value={text}
-        onChange={(e) => setText(e.target.value)}
-        placeholder="Unesi tekst"
-      />
-
-      <button onClick={sendText}>Pošalji</button>
-
-      {response && (
-        <div>
-          <p>Original: {response.original_text}</p>
-          <p>Processed: {response.processed_text}</p>
+    return (
+        <div style={{ padding: '20px', maxWidth: '500px', margin: 'auto' }}>
+            <div style={{ height: '300px', border: '1px solid #ccc', overflowY: 'scroll', padding: '10px' }}>
+                {messages.map((m, i) => (
+                    <p key={i} style={{ color: m.sender === "student" ? "blue" : "green" }}>
+                        <strong>{m.sender}:</strong> {m.text} {m.ddu && `[ID: ${m.ddu}]`}
+                    </p>
+                ))}
+            </div>
+            <input 
+                type="text" 
+                value={input} 
+                onChange={(e) => setInput(e.target.value)} 
+                onKeyDown={handleKeyDown}
+                className="border rounded mr-5"
+                placeholder="Ask for DDU..."
+            />
+            <button onClick={handleSend}>Send</button>
         </div>
-      )}
-    </div>
-  )
+    );
 }
 
 export default App
