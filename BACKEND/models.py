@@ -5,7 +5,6 @@ class Case(SQLModel, table=True):
     __tablename__ = "cases"
     id: str = Field(primary_key=True)
     title: str
-    problem_description: Optional[str] = None
     initial_info: str
     correct_diagnosis: str
     
