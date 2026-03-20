@@ -61,6 +61,36 @@ export const BasicInfo = () => {
           />
           Javni slučaj
         </label>
+        <div className="h-6 w-px bg-gray-300" />
+        <p>Težina:</p>
+        <label className="flex items-center gap-2 cursor-pointer">
+          <input 
+            type="radio" 
+            className='accent-orange-500'
+            checked={caseData.level === 'novice'} 
+            onChange={() => updateCaseData({ level: 'novice' })}
+          />
+          Lagano
+        </label>
+        <label className="flex items-center gap-2 cursor-pointer">
+          <input 
+            type="radio" 
+            className='accent-orange-500'
+            checked={caseData.level === 'intermediate'} 
+            onChange={() => updateCaseData({ level: 'intermediate' })}
+          />
+          Srednje
+        </label>
+        <label className="flex items-center gap-2 cursor-pointer">
+          <input 
+            type="radio" 
+            className='accent-orange-500'
+            checked={caseData.level === 'expert'} 
+            onChange={() => updateCaseData({ level: 'expert' })}
+          />
+          Teško
+        </label>
+
 
       </div>
       <div className="flex flex-col gap-2">
