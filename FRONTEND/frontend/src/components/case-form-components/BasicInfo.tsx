@@ -94,13 +94,13 @@ export const BasicInfo = () => {
 
       </div>
       <div className="flex flex-col gap-2">
-        <label className="font-medium">Početne informacije (Opis problema)</label>
+        <label className="font-medium">Opis problema</label>
         <textarea 
           rows={5}
           className="p-3 border rounded-lg focus:ring-2 focus:ring-orange-500 outline-none"
           value={caseData.initial_info}
           onChange={(e) => updateCaseData({ initial_info: e.target.value })}
-          placeholder="Ovdje opišite što ispitanik prvo vidi/čuje..."
+          placeholder="Ovdje opišite što se već zna o slučaju..."
         />
       </div>
 

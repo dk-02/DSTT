@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Upload01, File06, X, Recording01 } from '@untitledui/icons';
 import { useCaseStore } from '../../store/useCaseStore';
 import { Modal } from '../UI/Modal';
-import { FilePreview } from './FilePreview';
+import { FileIcon } from './FileIcon';
 
 export const Media = () => {
   const { caseData, updateCaseData } = useCaseStore();
@@ -42,7 +42,7 @@ export const Media = () => {
         <input type="file" multiple className="hidden" id="file-upload" onChange={handleFileChange} />
         <label htmlFor="file-upload" className="cursor-pointer flex flex-col items-center">
           <Upload01 className="w-12 h-12 text-gray-400 mb-2" />
-          <span className="font-medium">Prenesi datoteke (Slike, Audio, Video, PDF)</span>
+          <span className="font-medium">Prijenos datoteka (Slike, Audio, Video, PDF)</span>
         </label>
       </div>
 
@@ -53,7 +53,7 @@ export const Media = () => {
             className="group flex items-center gap-3 p-3 bg-gray-200 border rounded-lg shadow-sm hover:border-orange-200 transition-colors"
           >
             <div className="p-2 bg-white rounded-md">
-              <FilePreview file={file}></FilePreview>
+              <FileIcon file={file}></FileIcon>
             </div>
 
             <div onClick={() => handleOpenPreview(file)} className="h-full flex flex-col flex-1 min-w-0">

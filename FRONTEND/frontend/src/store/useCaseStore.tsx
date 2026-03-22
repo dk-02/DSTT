@@ -3,17 +3,20 @@ import { create } from 'zustand';
 export type DUType = 'DATA' | 'ACTION';
 export type DULevel = 'L1' | 'L2' | 'L3';
 export type IncorrectDiagnosisConsequence = 'terminate' | 'penalize' | 'continue';
+export type consequenceType = 'WARNING' | 'TERMINATE';
 
 export interface DiagnosticUnit {
+  id: string;
   label: string;
   name: string;
   type: DUType;
   level: DULevel;
   result_text: string;
+  media: File[];
   provides: string[];
   resources: { money: number; time: number; time_unit: string };
   required_units: string[]; 
-  consequences: { type: 'WARNING' | 'TERMINATE'; value: string; required_id: string }[];
+  consequences: { type: consequenceType; value: string; required_id: string }[];
 }
 
 interface CaseState {
@@ -63,11 +66,13 @@ export const useCaseStore = create<CaseState>((set) => ({
       diagnostic_units: [
         ...state.caseData.diagnostic_units,
         {
+          id: crypto.randomUUID(),
           label: "label_placeholder",
           name: '',
           type: 'DATA',
           level: 'L1',
           result_text: '',
+          media: [],
           provides: ["info_placeholder"],
           resources: { money: 0, time: 0, time_unit: 'minutes' },
           required_units: [],
@@ -79,13 +84,13 @@ export const useCaseStore = create<CaseState>((set) => ({
   updateDU: (id, data) => set((state) => ({
     caseData: {
       ...state.caseData,
-      diagnostic_units: state.caseData.diagnostic_units.map(du => du.label === id ? { ...du, ...data } : du)
+      diagnostic_units: state.caseData.diagnostic_units.map(du => du.id === id ? { ...du, ...data } : du)
     }
   })),
   removeDU: (id) => set((state) => ({
     caseData: {
       ...state.caseData,
-      diagnostic_units: state.caseData.diagnostic_units.filter(du => du.label !== id)
+      diagnostic_units: state.caseData.diagnostic_units.filter(du => du.id !== id)
     }
   })),
   removeHint: (indexToRemove: number) => set((state) => {

@@ -1,6 +1,6 @@
 import { File06, Image04, Recording01, VideoRecorder, LinkBroken02 } from '@untitledui/icons';
 
-export const FilePreview = ({ file }: { file: File | null }) => {
+export const FileIcon = ({ file }: { file: File | null }) => {
     if (file) {
         const fileType = file.type;
 
