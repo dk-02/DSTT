@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 
 export type DUType = 'DATA' | 'ACTION';
-export type DULevel = 'L1' | 'L2' | 'L3';
+export type DULevel = 1 | 2 | 3;
 export type IncorrectDiagnosisConsequence = 'terminate' | 'penalize' | 'continue';
 export type consequenceType = 'WARNING' | 'TERMINATE';
 
@@ -70,7 +70,7 @@ export const useCaseStore = create<CaseState>((set) => ({
           label: "label_placeholder",
           name: '',
           type: 'DATA',
-          level: 'L1',
+          level: 1,
           result_text: '',
           media: [],
           provides: ["info_placeholder"],

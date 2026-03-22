@@ -132,11 +132,11 @@ export const DiagnosticUnits = () => {
                   disabled={du.type === "ACTION"}
                   className={`w-full p-2 border rounded bg-gray-600 ${du.type === "ACTION" && 'border border-gray-400 text-gray-400'}`}
                   value={du.level}
-                  onChange={(e) => updateDU(du.id, { level: e.target.value as DULevel })}
+                  onChange={(e) => updateDU(du.id, { level: Number(e.target.value) as DULevel })}
                 >
-                  <option value="L1">L1 - Inicijalna</option>
-                  <option value="L2">L2 - Osnovna</option>
-                  <option value="L3">L3 - Invazivna</option>
+                  <option value={1}>L1 - Inicijalna</option>
+                  <option value={2}>L2 - Osnovna</option>
+                  <option value={3}>L3 - Invazivna</option>
                 </select>
               </div>
               <div>
