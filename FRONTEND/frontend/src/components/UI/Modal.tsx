@@ -33,7 +33,7 @@ export const Modal = ({ isOpen, onClose, title, children }: ModalProps) => {
             onClick={onClose}
             className="p-2 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-50 transition-colors"
           >
-            <XClose className="w-5 h-5" />
+            <XClose className="w-5 h-5 hover:cursor-pointer" />
           </button>
         </div>
 

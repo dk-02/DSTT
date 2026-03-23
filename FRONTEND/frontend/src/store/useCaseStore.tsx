@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { persist, createJSONStorage } from 'zustand/middleware';
 
 export type DUType = 'DATA' | 'ACTION';
 export type DULevel = 1 | 2 | 3;
@@ -61,65 +62,85 @@ const initialCaseData : CaseData = {
   media: [],
 }
 
-export const useCaseStore = create<CaseState>((set) => ({
-  step: 1,
-  caseData: { ...initialCaseData },
-  setStep: (step) => set({ step }),
-  updateCaseData: (data) => set((state) => ({ caseData: { ...state.caseData, ...data } })),
-  clearCaseData: () => set({ caseData: { ...initialCaseData }, step: 1 }),
-  addDU: () => set((state) => ({
-    caseData: {
-      ...state.caseData,
-      diagnostic_units: [
-        ...state.caseData.diagnostic_units,
-        {
-          id: crypto.randomUUID(),
-          label: "label_placeholder",
-          name: '',
-          type: 'DATA',
-          level: 1,
-          result_text: '',
-          media: [],
-          provides: ["info_placeholder"],
-          resources: { money: 0, time: 0, time_unit: 'minutes' },
-          required_units: [],
-          consequences: []
+export const useCaseStore = create<CaseState>()(
+  persist(
+    (set) => ({
+      step: 1,
+      caseData: { ...initialCaseData },
+      setStep: (step) => set({ step }),
+      updateCaseData: (data) => set((state) => ({ caseData: { ...state.caseData, ...data } })),
+      clearCaseData: () => set({ caseData: { ...initialCaseData }, step: 1 }),
+      addDU: () => set((state) => ({
+        caseData: {
+          ...state.caseData,
+          diagnostic_units: [
+            ...state.caseData.diagnostic_units,
+            {
+              id: crypto.randomUUID(),
+              label: "label_placeholder",
+              name: '',
+              type: 'DATA',
+              level: 1,
+              result_text: '',
+              media: [],
+              provides: ["info_placeholder"],
+              resources: { money: 0, time: 0, time_unit: 'minutes' },
+              required_units: [],
+              consequences: []
+            }
+          ]
         }
-      ]
-    }
-  })),
-  updateDU: (id, data) => set((state) => ({
-    caseData: {
-      ...state.caseData,
-      diagnostic_units: state.caseData.diagnostic_units.map(du => du.id === id ? { ...du, ...data } : du)
-    }
-  })),
-  removeDU: (id) => set((state) => ({
-    caseData: {
-      ...state.caseData,
-      diagnostic_units: state.caseData.diagnostic_units.filter(du => du.id !== id)
-    }
-  })),
-  removeHint: (indexToRemove: number) => set((state) => {
-    const newHints = state.caseData.hints
-      .filter((_, index) => index !== indexToRemove)
-      .map((hint, index) => ({ ...hint, sequence_no: index + 1 }));
+      })),
+      updateDU: (id, data) => set((state) => ({
+        caseData: {
+          ...state.caseData,
+          diagnostic_units: state.caseData.diagnostic_units.map(du => du.id === id ? { ...du, ...data } : du)
+        }
+      })),
+      removeDU: (id) => set((state) => ({
+        caseData: {
+          ...state.caseData,
+          diagnostic_units: state.caseData.diagnostic_units.filter(du => du.id !== id)
+        }
+      })),
+      removeHint: (indexToRemove: number) => set((state) => {
+        const newHints = state.caseData.hints
+          .filter((_, index) => index !== indexToRemove)
+          .map((hint, index) => ({ ...hint, sequence_no: index + 1 }));
 
-    return {
-      caseData: { ...state.caseData, hints: newHints }
-    };
-  }),
-  addHint: () => set((state) => ({
-    caseData: {
-      ...state.caseData,
-      hints: [
-        ...state.caseData.hints, 
-        { 
-          text: '', 
-          cost: 0, 
-          sequence_no: state.caseData.hints.length + 1
+        return {
+          caseData: { ...state.caseData, hints: newHints }
+        };
+      }),
+      addHint: () => set((state) => ({
+        caseData: {
+          ...state.caseData,
+          hints: [
+            ...state.caseData.hints, 
+            { 
+              text: '', 
+              cost: 0, 
+              sequence_no: state.caseData.hints.length + 1
+            }
+          ]
         }
-      ]
+      }))
+    }),
+    {
+      name: 'case-creator-storage', 
+      storage: createJSONStorage(() => localStorage),
+      
+      partialize: (state) => ({
+        step: state.step,
+        caseData: {
+          ...state.caseData,
+          media: [],
+          diagnostic_units: state.caseData.diagnostic_units.map(du => ({
+            ...du,
+            media: []
+          }))
+        }
+      }),
     }
-  })),
-}));
+  )  
+);
