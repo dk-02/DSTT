@@ -47,7 +47,7 @@ function CaseSolving() {
         const userMsg = { sender: "student", text: input };
         setMessages([...messages, userMsg]);
 
-        const response = await fetch(`${backendURL}/ask`, {
+        const response = await fetch(`${backendURL}/llm/ask`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ message: input, case_id: caseId })
@@ -61,7 +61,7 @@ function CaseSolving() {
 
     const handleVerifyDiagnosis = async () => {
         try {
-            const response = await fetch(`${backendURL}/cases/verifyDiagnosis`, {
+            const response = await fetch(`${backendURL}/llm/verifyDiagnosis`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
@@ -107,7 +107,7 @@ function CaseSolving() {
                 <div className="h-2/3 border border-gray-400 overflow-y-scroll p-2.5 w-full">
                     {messages.map((m, i) => (
                         <p key={i} className={m.sender === "student" ? "text-orange-400" : "text-gray-100"}>
-                            <strong>{m.sender}:</strong> {m.text} {m.ddu && `[ID: ${m.ddu}]`}
+                            <strong>{m.sender}:</strong> {m.text}
                         </p>
                     ))}
                 </div>

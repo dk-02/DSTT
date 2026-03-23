@@ -4,6 +4,7 @@ export type DUType = 'DATA' | 'ACTION';
 export type DULevel = 1 | 2 | 3;
 export type IncorrectDiagnosisConsequence = 'terminate' | 'penalize' | 'continue';
 export type consequenceType = 'WARNING' | 'TERMINATE';
+export type caseType = 'EXERCISE' | 'EXAM';
 
 export interface DiagnosticUnit {
   id: string;
@@ -19,23 +20,26 @@ export interface DiagnosticUnit {
   consequences: { type: consequenceType; value: string; required_id: string }[];
 }
 
+interface CaseData {
+  title: string;
+  level: string;
+  type: caseType;
+  is_public: boolean;
+  initial_info: string;
+  correct_diagnosis: string;
+  if_incorrect: IncorrectDiagnosisConsequence;
+  category: string;
+  hints: { sequence_no: number, text: string; cost: number }[];
+  diagnostic_units: DiagnosticUnit[];
+  media: File[];
+}
+
 interface CaseState {
   step: number;
-  caseData: {
-    title: string;
-    level: string;
-    type: 'EXERCISE' | 'EXAM';
-    is_public: boolean;
-    initial_info: string;
-    correct_diagnosis: string;
-    if_incorrect: IncorrectDiagnosisConsequence;
-    category: string;
-    hints: { sequence_no: number, text: string; cost: number }[];
-    diagnostic_units: DiagnosticUnit[];
-    media: File[];
-  };
+  caseData: CaseData;
   setStep: (step: number) => void;
   updateCaseData: (data: Partial<CaseState['caseData']>) => void;
+  clearCaseData: () => void;
   addDU: () => void;
   updateDU: (id: string, data: Partial<DiagnosticUnit>) => void;
   removeDU: (id: string) => void;
@@ -43,23 +47,26 @@ interface CaseState {
   removeHint: (indexToRemove: number) => void;
 }
 
+const initialCaseData : CaseData = {
+  title: '',
+  level: 'novice',
+  type: 'EXERCISE',
+  is_public: false,
+  initial_info: '',
+  correct_diagnosis: '',
+  if_incorrect: 'terminate',
+  category: '',
+  hints: [],
+  diagnostic_units: [],
+  media: [],
+}
+
 export const useCaseStore = create<CaseState>((set) => ({
   step: 1,
-  caseData: {
-    title: '',
-    level: 'novice',
-    type: 'EXERCISE',
-    is_public: false,
-    initial_info: '',
-    correct_diagnosis: '',
-    if_incorrect: 'terminate',
-    category: '',
-    hints: [],
-    diagnostic_units: [],
-    media: [],
-  },
+  caseData: { ...initialCaseData },
   setStep: (step) => set({ step }),
   updateCaseData: (data) => set((state) => ({ caseData: { ...state.caseData, ...data } })),
+  clearCaseData: () => set({ caseData: { ...initialCaseData }, step: 1 }),
   addDU: () => set((state) => ({
     caseData: {
       ...state.caseData,

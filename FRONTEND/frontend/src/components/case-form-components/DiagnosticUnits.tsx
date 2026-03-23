@@ -22,7 +22,6 @@ export const DiagnosticUnits = () => {
 
   const handleAddMedia = (duId: string, files: FileList | null) => {
     if (!files) return;
-    console.log(Array.from(files))
     const currentDu = caseData.diagnostic_units.find(d => d.id === duId);
     const existingMedia = currentDu?.media || [];
     updateDU(duId, { media: [...existingMedia, ...Array.from(files)] });

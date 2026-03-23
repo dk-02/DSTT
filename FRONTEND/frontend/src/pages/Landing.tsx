@@ -33,6 +33,8 @@ function Landing() {
 
     return(
         <div className="w-screen h-screen p-5 bg-gray-700 text-white">
+            <button onClick={() => navigate("/case/create")} className="cursor-pointer bg-green-600 text-orange-50 font-bold px-3 py-2 rounded mb-5">New case</button>
+
             <h2 className="font-bold">Available cases:</h2>
             <div className="mt-5 flex">
                 {cases.map((c) => (
