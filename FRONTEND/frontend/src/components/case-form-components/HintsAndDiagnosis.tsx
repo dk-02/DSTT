@@ -50,10 +50,10 @@ export const HintsAndDiagnosis = () => {
                 updateCaseData({ hints: newHints });
               }}
             />
+            <label>Cijena:</label>
             <input 
               type="number"
               className="w-24 p-2 border rounded text-sm focus:ring-1 focus:ring-orange-500 outline-none"
-              placeholder="Cijena"
               value={hint.cost}
               onChange={(e) => {
                 const newHints = [...caseData.hints];

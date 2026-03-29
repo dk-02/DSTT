@@ -18,21 +18,19 @@ def get_session():
 
 @router.post("/ask")
 async def ask_llm(request: ChatRequest, session: Session = Depends(get_session)):
-    # Fetch all DDUs for current case
+    # Fetch all DUs for current case
     statement = select(DiagnosticUnit).where(DiagnosticUnit.case_id == request.case_id)
     ddus = session.exec(statement).all()
     
-    # Prepare DDU list for LLM
-    ddu_list = [{"id": d.id, "name": d.name} for d in ddus]
+    # Prepare DU list for LLM
+    ddu_list = [{"id": d.id, "label": d.label, "name": d.name} for d in ddus]
 
     # print(request.message)
     # print(ddu_list)
     
-    # HARDCODED FOR NOW - OpenRouter request 
+    # OpenRouter request 
     system_prompt = f"""
-    You are the assistant in the auto-diagnostics. The student writes what he wants to check.
-    Select the ID of the most appropriate DDU from the list: {ddu_list}
-    Answer with the ID only. If nothing matches, answer 'NONE'.
+    You are the assistant in this diagnostics case. The student writes what he wants to check. You need to check for similarities of student's request with given label and name of a diagnostic unit. Select the ID of the most appropriate (most similar to the request) DU from the list: {ddu_list}. Answer with the ID only. If nothing matches, answer 'NONE'.
     """
 
     combined_content = f"INSTRUCTION: {system_prompt}\n\nUSER QUESTION: {request.message}"
@@ -52,7 +50,7 @@ async def ask_llm(request: ChatRequest, session: Session = Depends(get_session))
 
     # print(ddu_id)
 
-    # Fetch requested DDU
+    # Fetch requested DU
     if ddu_id != "NONE":
         selected_ddu = session.get(DiagnosticUnit, ddu_id)
         
@@ -74,7 +72,7 @@ def verify_diagnosis(request: DiagnosisRequest, session: Session = Depends(get_s
         raise HTTPException(status_code=404, detail="Case not found")
     
     system_prompt = f"""
-    You are an expert automotive instructor. 
+    You are an expert instructor. 
     Correct diagnosis: {case.correct_diagnosis}
     Student's answer: {request.student_diagnosis}
     
