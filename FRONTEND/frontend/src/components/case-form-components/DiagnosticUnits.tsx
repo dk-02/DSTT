@@ -1,13 +1,19 @@
-import { Plus, Trash01, Zap, Database01, XClose, Upload01 } from '@untitledui/icons';
+import { Plus, Trash01, Zap, Database01, XClose, Upload01, X } from '@untitledui/icons';
 import { useCaseStore, type consequenceType, type DiagnosticUnit, type DULevel } from '../../store/useCaseStore';
 import { Modal } from '../UI/Modal';
 import { useState } from 'react';
 import { FileIcon } from './FileIcon';
 
+interface ProvidesElement {
+  duId: string;
+  input: string;
+}
+
 export const DiagnosticUnits = () => {
   const { caseData, addDU, updateDU, removeDU } = useCaseStore();
   const [confirmModalOpen, setConfirmModalOpen] = useState<boolean>(false);
   const [DUToDeleteId, setDUToDeleteId] = useState<string>("");
+  const [providesInput, setProvidesInput] = useState<ProvidesElement | null>(null);
 
   const handleOpenModal = (DUId : string) => {
     setDUToDeleteId(DUId);
@@ -40,10 +46,24 @@ export const DiagnosticUnits = () => {
     return findRequired(requiredId);
   };
 
+  const handleAddProvides = (du: DiagnosticUnit, value: string | undefined) => {
+    if(!value || !du) return;
+    if(!du.provides.includes(value)) updateDU(du.id, { provides: [...du.provides, value]});
+    setProvidesInput({duId: "", input: ""});
+  }
+
+  const handleRemoveProvides = (du: DiagnosticUnit, value: string | undefined) => {
+    if(!value || !du || !du.provides) return;
+
+    const updatedProvides = du.provides.filter(item => item !== value);
+
+    updateDU(du.id, { provides: updatedProvides });
+  }
+
+
   return (
     <div className="text-gray-50 space-y-6">
-      <div className="flex justify-between items-center">
-        <h2 className="text-xl font-bold">Dijagnostičke jedinice (DU)</h2>
+      <div className="flex justify-end items-center">
         <button onClick={addDU} className="flex items-center gap-2 px-4 py-2 border hover:bg-gray-500 hover:cursor-pointer text-white rounded-lg transition">
           <Plus className="w-4 h-4" /> Dodaj Jedinicu
         </button>
@@ -78,6 +98,15 @@ export const DiagnosticUnits = () => {
                 >
                   <Trash01 className="w-5 h-5" />
                 </button>
+              </div>
+              <div className='flex flex-col gap-1'>
+                <label className="text-[11px] font-bold text-gray-300 uppercase tracking-wider">Labela jedinice</label>
+                <input 
+                  className="p-2 border rounded text-sm focus:border-orange-500 outline-none"
+                  placeholder="npr. CHECK_FUEL_PRESSURE"
+                  value={du.label}
+                  onChange={(e) => updateDU(du.id, { label: e.target.value })}
+                />
               </div>
             </div>
 
@@ -169,6 +198,36 @@ export const DiagnosticUnits = () => {
                   <option value="days">Dani</option>
                 </select>
               </div>
+            </div>
+
+            <div className='border-b border-gray-400 w-full'/>
+
+            <div className='flex flex-col gap-1 w-1/2'>
+              <label className="text-[11px] font-bold text-gray-300 uppercase tracking-wider">Indikatori redundancije</label>
+              <div className='flex gap-3'>
+                <input 
+                  className="p-2 border rounded text-sm focus:border-orange-500 outline-none"
+                  placeholder="npr. FUEL_PRESSURE"
+                  value={providesInput?.duId === du.id ? providesInput?.input : ""}
+                  onChange={(e) => setProvidesInput({duId: du.id, input: e.target.value})}
+                />
+                <button onClick={() => handleAddProvides(du, providesInput?.input)} className='hover:cursor-pointer bg-gray-100 rounded-md py-2 px-4 font-semibold text-orange-700 text-sm'>Dodaj indikator</button>
+              </div>
+            </div>
+
+            <div className='w-1/2 overflow-y-scroll max-h-32'>
+              {du.provides?.map((p, idx) => (
+                <div key={idx} className='bg-gray-700 rounded w-fit pl-3 py-1 flex items-center gap-2'>
+                  <span>{p}</span>
+                  <button 
+                    onClick={() => handleRemoveProvides(du, p)}
+                    className="mr-1 p-1.5 rounded-full hover:bg-gray-600 hover:cursor-pointer text-gray-400 transition-colors"
+                    title="Ukloni datoteku"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              ))}
             </div>
 
             <div className='border-b border-gray-400 w-full'/>

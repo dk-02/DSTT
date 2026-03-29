@@ -53,7 +53,9 @@ export const JsonUploader = () => {
             diagnostic_units: importedData.diagnostic_units?.map((du: DiagnosticUnit) => ({
                 ...du,
                 id: du.id || crypto.randomUUID(), 
-                media: []
+                media: [],
+                required_units: [],
+                consequences: []
             })) || []
             };
 
@@ -71,7 +73,7 @@ export const JsonUploader = () => {
     };
 
     return (
-        <div className="mt-3 flex gap-3 w-full justify-center items-center">
+        <div className="mt-3 pb-3 flex gap-3 w-full justify-center items-center border-b-2 border-b-gray-700">
             <button onClick={handleTemplateDownload} className='hover:cursor-pointer bg-gray-100 rounded-md py-2 px-4 font-semibold text-blue-800 text-sm'>Preuzmi JSON template</button>
 
             <input 

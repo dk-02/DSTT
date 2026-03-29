@@ -10,7 +10,7 @@ export const HelpContent = () => (
                 <p className="font-bold">Učitavanje JSON datoteke:</p>            
                 <ol className="list-decimal ml-10 space-y-1">
                     <li>Preuzmite JSON obrazac</li>
-                    <li>Popunite obrazac ručno ili s pomoću AI</li>
+                    <li>Popunite obrazac ručno ili s pomoću AI (možete u promptu iskoristiti objašnjenja atributa u nastavku kako bi vam dao što bolje rezultate)</li>
                     <li>Učitajte obrazac u formu</li>
                     <li>Provjerite i po potrebi promijenite/dopunite podatke</li>
                 </ol>
