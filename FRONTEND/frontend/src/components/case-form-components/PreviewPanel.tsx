@@ -4,7 +4,7 @@ export const PreviewPanel = () => {
   const { caseData } = useCaseStore();
 
   return (
-    <div className="h-full flex flex-col pt-5">
+    <div className="h-full w-full flex flex-col pt-5">
       <h2 className="text-xl font-bold mb-6 text-gray-50 pb-2">Preview</h2>
       
       <div className="flex-1 space-y-6 overflow-y-auto">

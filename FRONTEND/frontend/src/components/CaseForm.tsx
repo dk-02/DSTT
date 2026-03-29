@@ -5,6 +5,7 @@ import { useCaseStore } from "../store/useCaseStore";
 import { useNavigate } from "react-router-dom";
 import { Modal } from "./UI/Modal";
 import { useState } from "react";
+import { JsonUploader } from "./JSONUploader";
 
 const backendURL = import.meta.env.VITE_APP_BACKEND;
 
@@ -113,6 +114,8 @@ const CaseForm = () => {
                         ))}
                     </div>
                 </header>
+                
+                <JsonUploader/>
 
                 <div className="overflow-y-scroll w-full p-10 flex-1">
                     {step === 1 && <BasicInfo/>}
@@ -126,7 +129,7 @@ const CaseForm = () => {
                 </div>
             </div>
             <Modal isOpen={resetModalOpen} onClose={() => setResetModalOpen(false)} title="Resetirati unos?">
-                <div className="flex flex-col items-center gap-5">
+                <div className="flex flex-col items-center gap-5 justify-self-center w-full">
                     <p>Ova radnja briše sve podatke upisane u obrazac za kreiranje slučaja. Želite li nastaviti?</p>
                     <button onClick={handleResetForm} className="cursor-pointer bg-red-600 text-orange-50 font-semibold px-3 py-2 rounded-lg">Potvrdi</button>
                 </div>

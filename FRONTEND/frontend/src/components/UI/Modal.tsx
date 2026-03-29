@@ -37,7 +37,7 @@ export const Modal = ({ isOpen, onClose, title, children }: ModalProps) => {
           </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-6 bg-gray-50 flex justify-center items-center">
+        <div className="flex-1 overflow-y-auto p-6 mb-5 bg-gray-50 flex">
           {children}
         </div>
       </div>
