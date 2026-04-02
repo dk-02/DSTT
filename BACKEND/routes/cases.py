@@ -1,3 +1,5 @@
+import os
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import Session, select
 from typing import List, Optional, Dict, Any
@@ -5,7 +7,7 @@ from pydantic import BaseModel
 import uuid
 
 from database import engine
-from models import Case, Hint, DiagnosticUnit, Media, UnitDependency
+from models import Case, CaseCategory, Hint, DiagnosticUnit, Media, UnitDependency
 
 router = APIRouter(prefix="/cases", tags=["Cases"])
 
@@ -40,7 +42,7 @@ class CaseCreate(BaseModel):
     initial_info: str
     correct_diagnosis: str
     if_incorrect: str
-    category: Optional[str] = None
+    category: str
     hints: List[HintCreate] = []
     diagnostic_units: List[DUCreate] = []
     media_ids: List[str] = []
@@ -62,6 +64,14 @@ def create_case(case_data: CaseCreate, session: Session = Depends(get_session)):
             if_incorrect=case_data.if_incorrect
         )
         session.add(db_case)
+
+        if case_data.category:
+            db_case_cat = CaseCategory(
+                case_id=new_case_id,
+                category_id=uuid.UUID(case_data.category)
+            )
+            session.add(db_case_cat)
+
         session.flush()
 
         for m_id in case_data.media_ids:
@@ -130,6 +140,7 @@ def get_all_cases(session: Session = Depends(get_session)):
 
     return case_list
 
+
 @router.get("/{case_id}", response_model=Case)
 def get_case_details(case_id: str, session: Session = Depends(get_session)):
     case = session.get(Case, case_id)
@@ -140,3 +151,35 @@ def get_case_details(case_id: str, session: Session = Depends(get_session)):
     case_details = {"id": case.id, "title": case.title, "initial_info": case.initial_info}
     
     return case_details
+
+
+@router.delete("/{case_id}")
+def delete_case(case_id: uuid.UUID, session: Session = Depends(get_session)):
+    db_case = session.get(Case, case_id)
+    if not db_case:
+        raise HTTPException(status_code=404, detail="Slučaj nije pronađen")
+    
+    try:
+        statement = select(Media).where(Media.case_id == case_id)
+        media_records = session.exec(statement).all()
+
+        for media in media_records:
+            if media.file_path:
+                file_full_path = os.path.normpath(media.file_path) 
+                
+                try:
+                    os.remove(file_full_path)
+                    print(f"Uspješno obrisana datoteka: {file_full_path}")
+                except Exception as e:
+                    print(f"Greška pri fizičkom brisanju datoteke: {e}")
+            else:
+                print(f"Datoteka nije pronađena na putanji: {file_full_path}")
+
+        session.delete(db_case)
+        
+        session.commit()
+        return {"status": "success", "message": f"Slučaj {case_id} je uspješno obrisan"}
+        
+    except Exception as e:
+        session.rollback()
+        raise HTTPException(status_code=500, detail=f"Greška pri brisanju: {str(e)}")

@@ -18,8 +18,8 @@ class Case(SQLModel, table=True):
     if_incorrect: str = Field(max_length=50)
     default_settings: Dict[str, Any] = Field(default={}, sa_column=SAColumn(JSONB))    
 
-    hints: List["Hint"] = Relationship(back_populates="case")
-    media: List["Media"] = Relationship(back_populates="case")
+    hints: List["Hint"] = Relationship(back_populates="case", sa_relationship_kwargs={"cascade": "all, delete-orphan"})
+    media: List["Media"] = Relationship(back_populates="case", sa_relationship_kwargs={"cascade": "all, delete-orphan"})
     diagnostic_units: List["DiagnosticUnit"] = Relationship(back_populates="case", sa_relationship_kwargs={"cascade": "all, delete-orphan"})
 
 
@@ -45,8 +45,8 @@ class CategoryRead(SQLModel):
 class CaseCategory(SQLModel, table=True):
     __tablename__ = "case_categories"
 
-    case_id: uuid.UUID = Field(foreign_key="cases.id", primary_key=True)
-    category_id: uuid.UUID = Field(foreign_key="categories.id", primary_key=True)
+    case_id: uuid.UUID = Field(foreign_key="cases.id", primary_key=True, ondelete="CASCADE")
+    category_id: uuid.UUID = Field(foreign_key="categories.id", primary_key=True, ondelete="CASCADE")
 
 
 class Hint(SQLModel, table=True):

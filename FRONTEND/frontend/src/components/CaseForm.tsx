@@ -86,9 +86,8 @@ const CaseForm = () => {
                 const errorData = await response.json();
                 throw new Error(errorData.detail || 'Failed to create case');
             }
-
-            const result = await response.json();            
-            alert('Case created successfully!' + result);
+           
+            alert('Case created successfully!');
             clearCaseData();
             navigate('/'); 
         
