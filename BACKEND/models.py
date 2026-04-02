@@ -23,6 +23,32 @@ class Case(SQLModel, table=True):
     diagnostic_units: List["DiagnosticUnit"] = Relationship(back_populates="case", sa_relationship_kwargs={"cascade": "all, delete-orphan"})
 
 
+class Category(SQLModel, table=True):
+    __tablename__= "categories"
+
+    id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
+    name: str = Field(index=True)
+    
+    parent_id: Optional[uuid.UUID] = Field(default=None, foreign_key="categories.id")
+    
+    parent: Optional["Category"] = Relationship(
+        back_populates="children", 
+        sa_relationship_kwargs={"remote_side": "Category.id"}
+    )
+    children: List["Category"] = Relationship(back_populates="parent")
+
+class CategoryRead(SQLModel):
+    id: uuid.UUID
+    name: str
+    parent_id: Optional[uuid.UUID]
+
+class CaseCategory(SQLModel, table=True):
+    __tablename__ = "case_categories"
+
+    case_id: uuid.UUID = Field(foreign_key="cases.id", primary_key=True)
+    category_id: uuid.UUID = Field(foreign_key="categories.id", primary_key=True)
+
+
 class Hint(SQLModel, table=True):
     __tablename__ = "hints"
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)

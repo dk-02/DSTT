@@ -35,9 +35,17 @@ interface CaseData {
   media: File[];
 }
 
+export interface Category {
+  id: string;
+  name: string;
+  parent_id: string;
+}
+
 interface CaseState {
   step: number;
   caseData: CaseData;
+  categories: Category[];
+  setCategories: (categories: Category[]) => void;
   setStep: (step: number) => void;
   updateCaseData: (data: Partial<CaseState['caseData']>) => void;
   clearCaseData: () => void;
@@ -67,6 +75,8 @@ export const useCaseStore = create<CaseState>()(
     (set) => ({
       step: 1,
       caseData: { ...initialCaseData },
+      categories: [],
+      setCategories: (categories) => set({ categories }),
       setStep: (step) => set({ step }),
       updateCaseData: (data) => set((state) => ({ caseData: { ...state.caseData, ...data } })),
       clearCaseData: () => set({ caseData: { ...initialCaseData }, step: 1 }),
@@ -77,13 +87,13 @@ export const useCaseStore = create<CaseState>()(
             ...state.caseData.diagnostic_units,
             {
               id: crypto.randomUUID(),
-              label: "label_placeholder",
+              label: '',
               name: '',
               type: 'DATA',
               level: 1,
               result_text: '',
               media: [],
-              provides: ["info_placeholder"],
+              provides: [],
               resources: { money: 0, time: 0, time_unit: 'minutes' },
               required_units: [],
               consequences: []

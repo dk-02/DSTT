@@ -117,7 +117,7 @@ const CaseForm = () => {
                 
                 {step === 1 && <JsonUploader/>}                
 
-                <div className="overflow-y-scroll w-full p-10 flex-1">
+                <div className={`overflow-y-scroll w-full p-10 ${step === 2 && 'pt-0'} flex-1`}>
                     {step === 1 && <BasicInfo/>}
                     {step === 2 && <DiagnosticUnits/>}
                     {step === 3 && <HintsAndDiagnosis/>}

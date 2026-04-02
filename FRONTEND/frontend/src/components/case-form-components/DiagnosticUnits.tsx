@@ -60,10 +60,29 @@ export const DiagnosticUnits = () => {
     updateDU(du.id, { provides: updatedProvides });
   }
 
+  const timeUnits = [
+    {
+      value: 'seconds',
+      name: 'Sekunde'
+    },
+    {
+      value: 'minutes',
+      name: 'Minute'
+    },
+    {
+      value: 'hours',
+      name: 'Sati'
+    },
+    {
+      value: 'days',
+      name: 'Dani'
+    }
+  ]
+
 
   return (
-    <div className="text-gray-50 space-y-6">
-      <div className="flex justify-end items-center">
+    <div className="text-gray-50 space-y-6 relative">
+      <div className="flex justify-end items-center sticky top-0 z-10 bg-gray-600 py-3">
         <button onClick={addDU} className="flex items-center gap-2 px-4 py-2 border hover:bg-gray-500 hover:cursor-pointer text-white rounded-lg transition">
           <Plus className="w-4 h-4" /> Dodaj Jedinicu
         </button>
@@ -192,10 +211,9 @@ export const DiagnosticUnits = () => {
                    value={du.resources.time_unit}
                    onChange={(e) => updateDU(du.id, { resources: { ...du.resources, time_unit: e.target.value } })}
                 >
-                  <option value="seconds">Sekunde</option>
-                  <option value="minutes">Minute</option>
-                  <option value="hours">Sati</option>
-                  <option value="days">Dani</option>
+                  {timeUnits.map((tu) => (
+                    <option value={tu.value}>{tu.name}</option>
+                  ))}
                 </select>
               </div>
             </div>
@@ -324,12 +342,14 @@ export const DiagnosticUnits = () => {
         ))}
       </div>
       <Modal isOpen={confirmModalOpen} onClose={() => setConfirmModalOpen(false)} title='Obrisati DU?'>
-        <button 
-          onClick={() => handleRemoveDU(DUToDeleteId)}
-          className={"bg-red-600 w-1/3 p-3 hover:cursor-pointer rounded-lg flex items-center justify-center gap-2 border transition"}
-        >
-          Potvrdi
-        </button>
+        <div className='flex justify-center w-full'>
+          <button 
+            onClick={() => handleRemoveDU(DUToDeleteId)}
+            className={"bg-red-600 w-1/4 p-3 hover:cursor-pointer rounded-lg flex items-center justify-center gap-2 border transition"}
+          >
+            Potvrdi
+          </button>
+        </div>
       </Modal>
     </div>
   );
