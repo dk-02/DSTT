@@ -3,7 +3,7 @@ from contextlib import asynccontextmanager
 from sqlmodel import SQLModel
 from database import engine
 from fastapi.middleware.cors import CORSMiddleware
-from routes import cases, llm, media, templates, categories
+from routes import cases, llm, media, templates, categories, auth
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -29,3 +29,4 @@ app.include_router(llm.router)
 app.include_router(media.router)
 app.include_router(templates.router)
 app.include_router(categories.router)
+app.include_router(auth.router)

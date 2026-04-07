@@ -1,8 +1,12 @@
 import uuid
 from typing import List, Optional, Dict, Any
+from pydantic import BaseModel
 from sqlmodel import SQLModel, Field, Relationship
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy import Column as SAColumn
+
+
+# --------------- CASES ---------------
 
 class Case(SQLModel, table=True):
     __tablename__ = "cases"
@@ -104,6 +108,8 @@ class Media(SQLModel, table=True):
     diagnostic_unit: Optional["DiagnosticUnit"] = Relationship(back_populates="media")
 
 
+# --------------- CASE SOLVING ---------------
+
 class ChatRequest(SQLModel):
     case_id: str
     message: str
@@ -111,3 +117,45 @@ class ChatRequest(SQLModel):
 class DiagnosisRequest(SQLModel):
     case_id: str
     student_diagnosis: str
+
+
+# --------------- USERS ---------------
+
+class User(SQLModel, table=True):
+    __tablename__ = "users"
+
+    id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
+    email: str = Field(unique=True, index=True)
+    password_hash: str
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+    is_active: bool = Field(default=True)
+    expertise_level: str = Field(default="novice")
+    xp_points: int = Field(default=0)
+
+    # aai_edu_uid: str - DODATI
+    # institution_id - relationship - DODATI
+
+class Role(SQLModel, table=True):
+    __tablename__ = "roles"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    name: str = Field(unique=True, index=True)
+
+
+class UserRole(SQLModel, table=True):
+    __tablename__ = "user_roles"
+
+    user_id: uuid.UUID = Field(foreign_key="users.id", primary_key=True)
+    role_id: int = Field(foreign_key="roles.id", primary_key=True)
+
+
+class UserRegister(BaseModel):
+    email: str
+    password: str
+    first_name: str
+    last_name: str
+
+class UserLogin(BaseModel):
+    email: str
+    password: str

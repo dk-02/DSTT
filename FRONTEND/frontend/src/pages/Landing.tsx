@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Modal } from "../components/UI/Modal";
+import { useAuthStore } from "../store/useAuthStore";
 
 interface Case {
     id: string;
@@ -13,6 +14,10 @@ function Landing() {
     const [cases, setCases] = useState<Case[]>([]);
     const [caseDeleteModalOpen, setCaseDeleteModalOpen] = useState<boolean>(false);
     const [caseToDeleteId, setCaseToDeleteId] = useState<string>("");
+
+    const navigate = useNavigate();
+
+    const user = useAuthStore((state) => state.user);
 
     useEffect(() => {
         const fetchCases = async () => {
@@ -29,7 +34,6 @@ function Landing() {
     }, []);
 
 
-    const navigate = useNavigate();
 
     const handleCaseDelete = async (caseId: string) => {
         try {
@@ -55,7 +59,22 @@ function Landing() {
 
     return(
         <div className="w-screen h-screen p-5 bg-gray-700 text-white">
-            <button onClick={() => navigate("/case/create")} className="cursor-pointer bg-green-600 text-orange-50 font-bold px-3 py-2 rounded mb-5">New case</button>
+            <div className="flex items-center justify-between">
+                <div>
+                    <button onClick={() => navigate("/case/create")} className="cursor-pointer bg-green-600 text-orange-50 font-bold px-3 py-2 rounded">New case</button>
+
+                    <button onClick={() => navigate("/user/register")} className="cursor-pointer bg-orange-500 text-orange-50 font-bold px-3 py-2 rounded">Register</button>
+
+                    <button onClick={() => navigate("/user/login")} className="cursor-pointer bg-orange-500 text-orange-50 font-bold px-3 py-2 rounded">Login</button>
+                </div>
+
+                {user && 
+                    <div onClick={() => navigate("/user/profile")} className="hover:bg-gray-800 hover:cursor-pointer flex items-center justify-center w-12.5 h-12.5 bg-gray-900 font-bold rounded-full">
+                        <span className="select-none">{user.first_name.at(0)?.toUpperCase()}{user.last_name.at(0)?.toUpperCase()}</span>
+                    </div>
+                }             
+               
+            </div>
 
             <h2 className="font-bold">Available cases:</h2>
             <div className="mt-5 flex">
