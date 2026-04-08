@@ -1,5 +1,4 @@
 from typing import List
-import uuid
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import text
 from sqlmodel import Session, select

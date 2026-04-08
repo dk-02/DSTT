@@ -29,15 +29,24 @@ interface Feedback {
     feedback: string;
 }
 
+interface Hint {
+    sequence_no: number;
+    text: string;
+    cost: number;
+}
+
 function CaseSolving() {
     const [input, setInput] = useState("");
     const [diagnosis, setDiagnosis] = useState<string>("");
     const [messages, setMessages] = useState<userMsg[]>([]);
     const [caseInfo, setCaseInfo] = useState<Case>();
     const [feedback, setFeedback] = useState<Feedback | null>(null);
+    // Fileovi
     const [viewFileModalOpen, setViewFileModalOpen] = useState<boolean>(false);
     const [viewFile, setViewFile] = useState<Media>();
     const [textContent, setTextContent] = useState<string | null>(null);
+    // Hintovi
+    const [hints, setHints] = useState<Hint[]>([]);
 
     const caseId = useParams().id;
 
@@ -132,6 +141,31 @@ function CaseSolving() {
         return `${backendURL}/${filePath}`;
     };
 
+    const handleGetHint = async () => {
+        if (!caseId) return;
+
+        try {
+            const currentLength = hints.length;
+            const response = await fetch(`${backendURL}/cases/${caseId}/hint?sequence_no=${currentLength}`);
+
+            if (!response.ok) {
+                if (response.status === 404) {
+                    alert("Nema više dostupnih hintova za ovaj slučaj."); 
+                } else {
+                    throw new Error("Neuspjelo dohvaćanje hinta");
+                }
+                return;
+            }
+
+            const newHint: Hint = await response.json();
+
+            setHints(prev => [...prev, newHint]);
+
+        } catch(err) {
+            console.error(err);
+        }
+    }
+
     return (
         <div className="p-5 flex w-screen h-screen gap-5 bg-gray-700 relative">
             <ArrowNarrowLeft onClick={() => navigate("/")} className="absolute top-5 left-5 scale-130 text-gray-50 hover:cursor-pointer" />
@@ -148,6 +182,15 @@ function CaseSolving() {
                             <button onClick={() => handleViewFile(m)}
                                 className="bg-gray-800 text-gray-50 px-3 py-2 rounded"        
                             >Pogledaj datoteku ({m.title})</button>
+                        </div>
+                    ))}
+                </div>
+                <div className="flex flex-col gap-3">
+                    {hints.map((h) => (
+                        <div key={h.sequence_no} className="border border-gray-500 bg-gray-600 text-gray-100 px-5 py-2 rounded">
+                            <p>
+                                <span className="text-orange-300">Hint {h.sequence_no}:</span> {h.text}
+                            </p>
                         </div>
                     ))}
                 </div>
@@ -192,6 +235,11 @@ function CaseSolving() {
                     <button onClick={handleVerifyDiagnosis} 
                         className="bg-orange-500 text-orange-50 font-bold px-3 py-2 rounded-2xl"
                     >Check</button>
+                </div>
+                <div className="w-1/2 mt-2 flex gap-2">
+                    <button onClick={handleGetHint} 
+                        className="bg-orange-500 text-orange-50 font-bold px-3 py-2 rounded-2xl"
+                    >Hint</button>
                 </div>
             </div>
 
