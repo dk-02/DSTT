@@ -5,7 +5,7 @@ import requests
 from fastapi import Depends, HTTPException
 from sqlmodel import Session, select
 from database import engine
-from models import Case, DiagnosticUnit, ChatRequest, DiagnosisRequest
+from models import Case, DiagnosticUnit, ChatRequest, DiagnosisRequest, Media
 
 
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
@@ -20,17 +20,17 @@ def get_session():
 async def ask_llm(request: ChatRequest, session: Session = Depends(get_session)):
     # Fetch all DUs for current case
     statement = select(DiagnosticUnit).where(DiagnosticUnit.case_id == request.case_id)
-    ddus = session.exec(statement).all()
+    dus = session.exec(statement).all()
     
     # Prepare DU list for LLM
-    ddu_list = [{"id": d.id, "label": d.label, "name": d.name} for d in ddus]
+    du_list = [{"id": d.id, "label": d.label, "name": d.name} for d in dus]
 
     # print(request.message)
     # print(ddu_list)
     
     # OpenRouter request 
     system_prompt = f"""
-    You are the assistant in this diagnostics case. The student writes what he wants to check. You need to check for similarities of student's request with given label and name of a diagnostic unit. Select the ID of the most appropriate (most similar to the request) DU from the list: {ddu_list}. Answer with the ID only. If nothing matches, answer 'NONE'.
+    You are the assistant in this diagnostics case. The student writes what he wants to check. You need to check for similarities of student's request with given label and name of a diagnostic unit. Select the ID of the most appropriate (most similar to the request) DU from the list: {du_list}. Answer with the ID only. If nothing matches, answer 'NONE'.
     """
 
     combined_content = f"INSTRUCTION: {system_prompt}\n\nUSER QUESTION: {request.message}"
@@ -46,22 +46,26 @@ async def ask_llm(request: ChatRequest, session: Session = Depends(get_session))
         })
     )    
 
-    ddu_id = response.json()['choices'][0]['message']['content'].strip()
-
-    # print(ddu_id)
+    du_id = response.json()['choices'][0]['message']['content'].strip()
 
     # Fetch requested DU
-    if ddu_id != "NONE":
-        selected_ddu = session.get(DiagnosticUnit, ddu_id)
+    if du_id != "NONE":
+        selected_du = session.get(DiagnosticUnit, du_id)
         
-        if selected_ddu:
+        if selected_du:
+            media_statement = select(Media).where(Media.du_id == du_id)
+            du_media = session.exec(media_statement).all()
+
+            media_list = [{"file_path": m.file_path, "file_type": m.file_type, "title": m.title} for m in du_media]
+
             return {
-                "ddu_id": selected_ddu.id, 
-                "result": selected_ddu.result_text,
-                "level": selected_ddu.level
+                "ddu_id": selected_du.id, 
+                "result": selected_du.result_text,
+                "level": selected_du.level,
+                "media": media_list
             }
     
-    return {"ddu_id": None, "result": "Unfortunately, i don't understand your request."}
+    return {"du_id": None, "result": "Unfortunately, i don't understand your request."}
 
 
 @router.post("/verifyDiagnosis")

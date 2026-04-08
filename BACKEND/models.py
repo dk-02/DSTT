@@ -10,6 +10,7 @@ from sqlalchemy import Column as SAColumn
 
 class Case(SQLModel, table=True):
     __tablename__ = "cases"
+
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
     original_case_id: Optional[uuid.UUID] = Field(default=None, foreign_key="cases.id")
     version: int = Field(default=1)
@@ -55,6 +56,7 @@ class CaseCategory(SQLModel, table=True):
 
 class Hint(SQLModel, table=True):
     __tablename__ = "hints"
+
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
     sequence_no: int
     cost: float = Field(default=0.0)
@@ -66,12 +68,14 @@ class Hint(SQLModel, table=True):
 
 class UnitDependency(SQLModel, table=True):
     __tablename__ = "unit_dependencies"
+
     unit_id: uuid.UUID = Field(foreign_key="diagnostic_units.id", primary_key=True)
     required_unit_id: uuid.UUID = Field(foreign_key="diagnostic_units.id", primary_key=True)
 
 
 class DiagnosticUnit(SQLModel, table=True):
     __tablename__ = "diagnostic_units"
+
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
     label: str = Field(unique=True, max_length=150)
     name: str = Field(max_length=150)
@@ -96,6 +100,7 @@ class DiagnosticUnit(SQLModel, table=True):
 
 class Media(SQLModel, table=True):
     __tablename__ = "media"
+
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
     title: str = Field(max_length=50)
     file_path: str
@@ -106,6 +111,18 @@ class Media(SQLModel, table=True):
 
     case: Optional["Case"] = Relationship(back_populates="media")
     diagnostic_unit: Optional["DiagnosticUnit"] = Relationship(back_populates="media")
+
+
+class MediaRead(BaseModel):
+    file_path: str
+    file_type: str
+    title: Optional[str] = None
+
+class CaseReadWithMedia(BaseModel):
+    id: uuid.UUID
+    title: str
+    initial_info: str
+    media: List[MediaRead]
 
 
 # --------------- CASE SOLVING ---------------
