@@ -1,16 +1,18 @@
 import { useEffect, useState } from "react";
 import { PreviewPanel } from "../components/case-form-components/PreviewPanel";
 import CaseForm from "../components/CaseForm";
-
-import { HelpCircle } from '@untitledui/icons';
+import { ArrowNarrowLeft, HelpCircle } from '@untitledui/icons';
 import { Modal } from "../components/UI/Modal";
 import { HelpContent } from "../components/UI/HelpContent";
 import { useCaseStore } from "../store/useCaseStore";
+import { useNavigate } from "react-router-dom";
 
 const backendURL = import.meta.env.VITE_APP_BACKEND;
 
 function CaseCreating() {
     const [helpModalOpen, setHelpModalOpen] = useState<boolean>(false);
+
+    const navigate = useNavigate();
 
     const setCategories = useCaseStore((state) => state.setCategories);
 
@@ -30,6 +32,7 @@ function CaseCreating() {
 
     return (
         <div className="w-screen h-screen bg-gray-700 flex">
+            <ArrowNarrowLeft onClick={() => navigate("/")} className="absolute top-5 left-5 scale-130 text-gray-50 hover:cursor-pointer" />
             <div className="w-2/3">
                 <CaseForm/>
             </div>

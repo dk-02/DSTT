@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useAuthStore } from "../store/useAuthStore";
-import { Eye, EyeOff } from "@untitledui/icons";
+import { ArrowNarrowLeft, Eye, EyeOff } from "@untitledui/icons";
 import { useNavigate } from "react-router-dom";
 
 const backendURL = import.meta.env.VITE_APP_BACKEND;
@@ -53,7 +53,8 @@ export const Register = () => {
     }
 
     return (
-        <div className="flex justify-center items-center w-full h-screen bg-gray-700">
+        <div className="flex justify-center items-center w-full h-screen bg-gray-700 relative">
+            <ArrowNarrowLeft onClick={() => navigate("/")} className="absolute top-5 left-5 scale-130 text-gray-50 hover:cursor-pointer" />
             <div className="w-1/4 flex flex-col gap-4 p-10 bg-gray-600 text-white rounded-xl shadow-2xl">
                 <div className="border-l-3 border-orange-400 flex items-center pl-2 mb-5">
                     <h2 className="font-bold text-2xl">Registracija</h2>

@@ -57,6 +57,7 @@ function Landing() {
                     <span className="text-sm text-gray-300 mb-2">Upravljanje podatcima</span>
                     <button className="cursor-pointer border border-gray-600 font-semibold px-3 py-2 rounded">Uredi podatke</button>
                     <button className="cursor-pointer border border-gray-600 font-semibold px-3 py-2 rounded">Promijeni lozinku</button>
+                    <button className="cursor-pointer border border-gray-600 font-semibold px-3 py-2 rounded text-red-400">Deaktiviraj račun</button>
                 </div>
             </div>
             

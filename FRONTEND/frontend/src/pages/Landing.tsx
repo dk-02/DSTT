@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Modal } from "../components/UI/Modal";
 import { useAuthStore } from "../store/useAuthStore";
+import { Dropdown } from "../components/UI/Dropdown";
 
 interface Case {
     id: string;
@@ -60,7 +61,7 @@ function Landing() {
     return(
         <div className="w-screen h-screen p-5 bg-gray-700 text-white">
             <div className="flex items-center justify-between">
-                <div>
+                <div className="flex gap-2">
                     <button onClick={() => navigate("/case/create")} className="cursor-pointer bg-green-600 text-orange-50 font-bold px-3 py-2 rounded">New case</button>
 
                     <button onClick={() => navigate("/user/register")} className="cursor-pointer bg-orange-500 text-orange-50 font-bold px-3 py-2 rounded">Register</button>
@@ -76,14 +77,18 @@ function Landing() {
                
             </div>
 
-            <h2 className="font-bold">Available cases:</h2>
-            <div className="mt-5 flex">
+            <h2 className="font-bold mt-10">Available cases:</h2>
+            <div className="mt-5 flex gap-5">
                 {cases.map((c) => (
-                    <div key={c.id} className="flex flex-col items-center w-64 h-32 rounded shadow-md p-5 bg-gray-600">
-                        <h3>{c.title}</h3>
+                    <div key={c.id} className="relative flex flex-col items-center justify-between w-64 h-40 rounded shadow-md p-5 bg-gray-600">
+                        <Dropdown 
+                            onDelete={() => {
+                                setCaseToDeleteId(c.id);
+                                setCaseDeleteModalOpen(true);
+                            }}
+                        />
+                        <h3 className="mt-3">{c.title}</h3>
                         <button onClick={() => navigate(`/case/${c.id}`)} className="cursor-pointer bg-orange-500 text-orange-50 font-bold px-3 py-2 rounded-2xl">Solve</button>
-
-                        <button onClick={() => {setCaseDeleteModalOpen(true); setCaseToDeleteId(c.id)}} className="cursor-pointer bg-red-500 text-orange-50 font-bold px-3 py-2 rounded-2xl">Delete</button>
                     </div>
                 ))}
             </div>

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useAuthStore } from "../store/useAuthStore";
-import { EyeOff, Eye } from "@untitledui/icons";
+import { EyeOff, Eye, ArrowNarrowLeft } from "@untitledui/icons";
 import { useNavigate } from "react-router-dom";
 
 const backendURL = import.meta.env.VITE_APP_BACKEND;
@@ -35,7 +35,8 @@ export const Login = () => {
     }
 
   return (
-    <div className="w-full h-screen bg-gray-700 flex justify-center items-center">
+    <div className="w-full h-screen bg-gray-700 flex justify-center items-center relative">
+        <ArrowNarrowLeft onClick={() => navigate("/")} className="absolute top-5 left-5 scale-130 text-gray-50 hover:cursor-pointer" />
         <div className="flex flex-col w-1/4 gap-4 p-10 bg-gray-600 text-white rounded-xl shadow-2xl">
             <div className="border-l-3 border-orange-400 flex items-center pl-2 mb-5">
                 <h2 className="font-bold text-2xl">Prijava</h2>
