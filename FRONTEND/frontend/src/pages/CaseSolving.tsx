@@ -1,6 +1,7 @@
-import { ArrowNarrowLeft } from "@untitledui/icons";
+import { ArrowNarrowLeft, File06, Recording01 } from "@untitledui/icons";
 import { useEffect, useState, type KeyboardEvent } from "react"
 import { useNavigate, useParams } from "react-router-dom";
+import { Modal } from "../components/UI/Modal";
 
 const backendURL = import.meta.env.VITE_APP_BACKEND;
 
@@ -10,10 +11,17 @@ interface userMsg {
     ddu?: string;
 }
 
+interface Media {
+    file_path: string;
+    file_type: string;
+    title: string;
+}
+
 interface Case {
     id: string;
     title: string;
     initial_info: string;
+    media: Media[];
 }
 
 interface Feedback {
@@ -27,6 +35,9 @@ function CaseSolving() {
     const [messages, setMessages] = useState<userMsg[]>([]);
     const [caseInfo, setCaseInfo] = useState<Case>();
     const [feedback, setFeedback] = useState<Feedback | null>(null);
+    const [viewFileModalOpen, setViewFileModalOpen] = useState<boolean>(false);
+    const [viewFile, setViewFile] = useState<Media>();
+    const [textContent, setTextContent] = useState<string | null>(null);
 
     const caseId = useParams().id;
 
@@ -92,12 +103,54 @@ function CaseSolving() {
         }
     };
 
+    const handleViewFile = async (file: Media) => {
+        if (!file) return;
+
+        if (file.file_type === 'text/plain' || file.file_type === 'application/json') {
+            try {
+                const url = getFileUrl(file.file_path);
+                const response = await fetch(url);
+                
+                if (!response.ok) throw new Error("Neuspjelo učitavanje datoteke");
+                
+                const text = await response.text(); 
+                setTextContent(text);
+            } catch (err) {
+                console.error("Greška pri čitanju txt datoteke:", err);
+                setTextContent("Greška: Nije moguće učitati sadržaj datoteke.");
+            }
+        } else {
+            setTextContent(null);
+        }
+
+        setViewFile(file);
+        setViewFileModalOpen(true);
+    }
+
+    const getFileUrl = (filePath: string) => {
+        if (!filePath) return "";
+        return `${backendURL}/${filePath}`;
+    };
+
     return (
         <div className="p-5 flex w-screen h-screen gap-5 bg-gray-700 relative">
             <ArrowNarrowLeft onClick={() => navigate("/")} className="absolute top-5 left-5 scale-130 text-gray-50 hover:cursor-pointer" />
             <div className="w-1/3 flex flex-col gap-5 items-center">
                 <h1 className="text-orange-400 font-bold text-2xl">{caseInfo?.title}</h1>
                 <p className="text-white">{caseInfo?.initial_info}</p>
+                <div>
+                    {caseInfo?.media.map((m, idx) => (
+                        // <div key={idx}>{backendURL + "/" + m.file_path}</div>
+                        <div key={idx}>
+                            {m.file_type.startsWith("image") && (
+                                <img src={getFileUrl(m.file_path)} alt="Nalaz" className="w-full h-auto" />
+                            )}
+                            <button onClick={() => handleViewFile(m)}
+                                className="bg-gray-800 text-gray-50 px-3 py-2 rounded"        
+                            >Pogledaj datoteku ({m.title})</button>
+                        </div>
+                    ))}
+                </div>
                 <div>
                     {feedback && (
                         <div className={feedback.verdict === "CORRECT" ? "mt-5 p-3 bg-green-200 rounded" : feedback.verdict === "INCORRECT" ? "mt-5 p-3 bg-red-200 rounded" : "mt-5 p-3 bg-orange-200 rounded"}>
@@ -141,6 +194,77 @@ function CaseSolving() {
                     >Check</button>
                 </div>
             </div>
+
+            <Modal 
+                isOpen={viewFileModalOpen} 
+                onClose={() => setViewFileModalOpen(false)} 
+                title={viewFile?.title || 'Preview'}
+            >
+                {viewFile && (
+                <div className="w-full h-full flex items-center justify-center">
+                    {viewFile.file_type === 'text/plain' || viewFile.file_type === 'application/json' ? (
+                    <div className="w-full max-h-[70vh] bg-white border border-gray-100 rounded-xl overflow-hidden flex flex-col shadow-sm">
+                        <div className="bg-gray-50 px-4 py-2 border-b border-gray-100">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400 font-mono">
+                            Text/JSON Document Preview
+                        </span>
+                        </div>
+                        <pre className="p-6 overflow-auto text-sm text-gray-700 font-mono leading-relaxed whitespace-pre-wrap bg-white">
+                        {textContent}
+                        </pre>
+                    </div>
+                    ) : viewFile.file_type === 'audio' ? (
+                    <div className="w-full max-w-md bg-white p-8 rounded-2xl border border-gray-100 shadow-sm flex flex-col items-center">
+                        <div className="w-20 h-20 bg-orange-50 rounded-full flex items-center justify-center mb-6">
+                        <Recording01 className="w-10 h-10 text-orange-600" />
+                        </div>
+                        
+                        <div className="text-center mb-8">
+                        <h4 className="text-gray-900 font-semibold mb-1 truncate max-w-xs">
+                            {viewFile.title}
+                        </h4>
+                        {/* <p className="text-sm text-gray-500">Audio datoteka • {(viewFile.size / (1024 * 1024)).toFixed(2)} MB</p> */}
+                        </div>
+
+                        <audio 
+                        controls 
+                        className="w-full h-10 custom-audio-player" 
+                        autoPlay={false}
+                        >
+                        <source src={getFileUrl(viewFile.file_path)} type={viewFile.file_type} />
+                        Vaš preglednik ne podržava audio element.
+                        </audio>
+                        
+                        <p className="mt-6 text-[11px] text-gray-400 italic text-center">
+                        Pritisnite play za preslušavanje snimke slučaja
+                        </p>
+                    </div>
+                    ) : viewFile.file_type === 'video' ? (
+                    <video controls className="max-w-full max-h-full rounded-lg">
+                        <source src={getFileUrl(viewFile.file_path)} type={viewFile.file_type} />
+                    </video>
+                    ) : viewFile.file_type === 'application/pdf' ? (
+                    <iframe 
+                        src={getFileUrl(viewFile.file_path)} 
+                        className="w-full h-[75vh] rounded-lg border border-gray-200 shadow-sm"
+                    />
+                    ) : (
+                    <div className="text-center p-12 bg-white rounded-2xl border border-dashed border-gray-200">
+                        <File06 className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+                        <p className="text-gray-500 font-medium">Preview nije dostupan za ovaj format.</p>
+                        <a 
+                        href={getFileUrl(viewFile.file_path)} 
+                        download={viewFile.title}
+                        className="mt-4 px-4 py-2 bg-orange-50 text-orange-600 rounded-lg font-semibold hover:bg-orange-100 transition-colors inline-block"
+                        >
+                        Preuzmi datoteku
+                        </a>
+                    </div>
+                    )}
+                </div>
+                )}
+            </Modal>
+
         </div>
     );
 }

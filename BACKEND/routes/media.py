@@ -5,11 +5,9 @@ from fastapi import APIRouter, UploadFile, File, Depends, HTTPException
 from sqlmodel import Session
 from database import engine
 from models import Media
+from config import UPLOAD_DIR
 
 router = APIRouter(prefix="/media", tags=["Media"])
-
-UPLOAD_DIR = "uploads"
-os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 def get_session():
     with Session(engine) as session:
