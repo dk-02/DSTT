@@ -53,13 +53,13 @@ async def ask_llm(request: ChatRequest, session: Session = Depends(get_session))
         selected_du = session.get(DiagnosticUnit, du_id)
         
         if selected_du:
-            media_statement = select(Media).where(Media.du_id == du_id)
+            media_statement = select(Media).where(Media.du_id == selected_du.id)
             du_media = session.exec(media_statement).all()
 
             media_list = [{"file_path": m.file_path, "file_type": m.file_type, "title": m.title} for m in du_media]
 
             return {
-                "ddu_id": selected_du.id, 
+                "du_id": selected_du.id, 
                 "result": selected_du.result_text,
                 "level": selected_du.level,
                 "media": media_list

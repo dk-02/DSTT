@@ -4,8 +4,9 @@ from sqlmodel import Session, select
 from typing import List, Dict, Any
 from pydantic import BaseModel
 import uuid
+from routes.auth import get_current_active_user
 from database import engine
-from models import Case, CaseCategory, CaseReadWithMedia, Hint, DiagnosticUnit, Media, UnitDependency
+from models import Case, CaseCategory, CaseReadWithMedia, Hint, DiagnosticUnit, Media, UnitDependency, User
 
 router = APIRouter(prefix="/cases", tags=["Cases"])
 
@@ -40,16 +41,35 @@ class CaseCreate(BaseModel):
     initial_info: str
     correct_diagnosis: str
     if_incorrect: str
-    category: str
+    category_id: str
     hints: List[HintReadCreate] = []
     diagnostic_units: List[DUCreate] = []
     media_ids: List[str] = []
 
 
 @router.post("/")
-def create_case(case_data: CaseCreate, session: Session = Depends(get_session)):
+def create_case(case_data: CaseCreate, current_user: User = Depends(get_current_active_user), session: Session = Depends(get_session)):
     try:
         new_case_id = uuid.uuid4()
+
+        if case_data.type.upper() == "EXERCISE":
+            computed_defaults = {
+                "enable_hints": True,
+                "ignore_hint_cost": True,
+                "enable_undo": True,
+                "enable_LLM_mentor": True,
+                "ignore_terminating_consequences": True,
+                "show_result_immediately": True
+            }
+        else:
+            computed_defaults = {
+                "enable_hints": False,
+                "ignore_hint_cost": False,
+                "enable_undo": False,
+                "enable_LLM_mentor": False,
+                "ignore_terminating_consequences": False,
+                "show_result_immediately": False
+            }
         
         db_case = Case(
             id=new_case_id,
@@ -59,14 +79,16 @@ def create_case(case_data: CaseCreate, session: Session = Depends(get_session)):
             is_public=case_data.is_public,
             initial_info=case_data.initial_info,
             correct_diagnosis=case_data.correct_diagnosis,
-            if_incorrect=case_data.if_incorrect
+            if_incorrect=case_data.if_incorrect,
+            default_settings=computed_defaults,
+            created_by=current_user.id
         )
         session.add(db_case)
 
-        if case_data.category:
+        if case_data.category_id:
             db_case_cat = CaseCategory(
                 case_id=new_case_id,
-                category_id=uuid.UUID(case_data.category)
+                category_id=uuid.UUID(case_data.category_id)
             )
             session.add(db_case_cat)
 

@@ -2,13 +2,14 @@ import { ArrowNarrowLeft, File06, Recording01 } from "@untitledui/icons";
 import { useEffect, useState, type KeyboardEvent } from "react"
 import { useNavigate, useParams } from "react-router-dom";
 import { Modal } from "../components/UI/Modal";
+import { useCaseSolvingStore } from "../store/useCaseSolveStore";
 
 const backendURL = import.meta.env.VITE_APP_BACKEND;
 
 interface userMsg {
     sender: string;
     text: string;
-    ddu?: string;
+    du?: string;
 }
 
 interface Media {
@@ -50,6 +51,8 @@ function CaseSolving() {
 
     const caseId = useParams().id;
 
+    const { attemptId } = useCaseSolvingStore();
+
     const navigate = useNavigate();
 
     useEffect(() => {
@@ -70,25 +73,24 @@ function CaseSolving() {
         const userMsg = { sender: "student", text: input };
         setMessages([...messages, userMsg]);
 
-        const response = await fetch(`${backendURL}/llm/ask`, {
+        const response = await fetch(`${backendURL}/attempts/${attemptId}/getDU`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ message: input, case_id: caseId })
         });
         
         const data = await response.json();
-        const aiMsg = { sender: "system", text: data.result, ddu: data.ddu_id };
+        const aiMsg = { sender: "system", text: data.result, du: data.du_id };
         setMessages(prev => [...prev, aiMsg]);
         setInput("");
     };
 
     const handleVerifyDiagnosis = async () => {
         try {
-            const response = await fetch(`${backendURL}/llm/verifyDiagnosis`, {
+            const response = await fetch(`${backendURL}/attempts/${attemptId}/submit`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
-                    case_id: caseId,
                     student_diagnosis: diagnosis
                 })
             });
@@ -174,7 +176,6 @@ function CaseSolving() {
                 <p className="text-white">{caseInfo?.initial_info}</p>
                 <div>
                     {caseInfo?.media.map((m, idx) => (
-                        // <div key={idx}>{backendURL + "/" + m.file_path}</div>
                         <div key={idx}>
                             {m.file_type.startsWith("image") && (
                                 <img src={getFileUrl(m.file_path)} alt="Nalaz" className="w-full h-auto" />

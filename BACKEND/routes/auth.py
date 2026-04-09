@@ -1,11 +1,13 @@
 import os
 from datetime import datetime, timedelta, timezone
+import uuid
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from jose import jwt
 from passlib.context import CryptContext
 from sqlmodel import Session, select
 from database import engine
-from models import User, UserRole, Role, UserRegister, UserLogin
+from models import User, UserRole, Role, UserRegister
 
 SECRET_KEY = os.getenv("SECRET_KEY")
 ALGORITHM = "HS256"
@@ -14,10 +16,41 @@ ACCESS_TOKEN_EXPIRE_MINUTES = 1440  # 24 sata
 router = APIRouter(prefix="/auth", tags=["Auth"])
 pwd_context = CryptContext(schemes=["argon2"], deprecated="auto")
 
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/login")
 
 def get_session():
     with Session(engine) as session:
         yield session
+
+
+async def get_current_user(
+    token: str = Depends(oauth2_scheme), 
+    session: Session = Depends(get_session)
+):
+    credentials_exception = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Nije moguće potvrditi identitet",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        user_id: str = payload.get("sub")
+        if user_id is None:
+            raise credentials_exception
+    except Exception:
+        raise credentials_exception
+        
+    user = session.get(User, uuid.UUID(user_id))
+    if user is None:
+        raise credentials_exception
+    return user
+
+
+async def get_current_active_user(current_user: User = Depends(get_current_user)):
+    if not current_user.is_active:
+        raise HTTPException(status_code=400, detail="Korisnički račun nije aktivan")
+    return current_user
+
 
 def hash_password(password: str):
     return pwd_context.hash(password)
@@ -73,8 +106,8 @@ def register(user_data: UserRegister, session: Session = Depends(get_session)):
 
 
 @router.post("/login")
-def login(user_data: UserLogin, session: Session = Depends(get_session)):
-    statement = select(User).where(User.email == user_data.email)
+def login(user_data: OAuth2PasswordRequestForm = Depends(), session: Session = Depends(get_session)):
+    statement = select(User).where(User.email == user_data.username) #OAuth zbog Swagger testiranja; username = email
     user = session.exec(statement).first()
 
     if not user or not verify_password(user_data.password, user.password_hash):
