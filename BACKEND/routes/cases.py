@@ -6,7 +6,7 @@ from pydantic import BaseModel
 import uuid
 from routes.auth import get_current_active_user
 from database import engine
-from models import Case, CaseCategory, CaseReadWithMedia, Hint, DiagnosticUnit, Media, UnitDependency, User
+from models import Case, CaseCategory, CaseReadWithMedia, Hint, DiagnosticUnit, Media, UnitDependency, User, HintReadCreate
 
 router = APIRouter(prefix="/cases", tags=["Cases"])
 
@@ -15,10 +15,6 @@ def get_session():
         yield session
 
 # --- PYDANTIC SCHEMES FOR FRONTEND JSON ---
-class HintReadCreate(BaseModel):
-    sequence_no: int
-    cost: float
-    text: str
 
 class DUCreate(BaseModel):
     id: str
@@ -208,19 +204,3 @@ def delete_case(case_id: uuid.UUID, session: Session = Depends(get_session)):
     except Exception as e:
         session.rollback()
         raise HTTPException(status_code=500, detail=f"Greška pri brisanju: {str(e)}")
-    
-
-@router.get("/{case_id}/hint", response_model=HintReadCreate)
-def get_hint(case_id: str, sequence_no: int, session: Session = Depends(get_session)):
-    case = session.get(Case, case_id)
-
-    if not case:
-        raise HTTPException(status_code=404, detail="Slučaj nije pronađen")
-    
-    statement = select(Hint).where(Hint.case_id == case_id, Hint.sequence_no == sequence_no + 1)
-    hint = session.exec(statement).first()
-
-    if not hint:
-        raise HTTPException(status_code=404, detail="Nema više dostupnih hintova")
-    
-    return hint

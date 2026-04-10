@@ -9,7 +9,7 @@ from pydantic import BaseModel
 from sqlmodel import Session, select
 from routes.auth import get_current_active_user
 from database import engine
-from models import Assignment, AttemptLog, Case, ChatRequest, DiagnosisRequest, DiagnosisSubmission, DiagnosticUnit, Media, SolveAttempt, User
+from models import Assignment, AttemptLog, Case, ChatRequest, DiagnosisRequest, DiagnosisSubmission, DiagnosticUnit, Hint, Media, SolveAttempt, User
 
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 
@@ -87,7 +87,6 @@ async def get_DU(attempt_id: uuid.UUID, request: ChatRequest, session: Session =
     attempt = session.get(SolveAttempt, attempt_id)
     if not attempt or attempt.status != "in_progress":
         raise HTTPException(status_code=400, detail="Attempt not active")
-
 
     statement = select(DiagnosticUnit).where(DiagnosticUnit.case_id == attempt.case_id)
     dus = session.exec(statement).all()
@@ -170,8 +169,8 @@ async def get_DU(attempt_id: uuid.UUID, request: ChatRequest, session: Session =
 async def submit_diagnosis(attempt_id: uuid.UUID, data: DiagnosisRequest, session: Session = Depends(get_session)
 ):
     attempt = session.get(SolveAttempt, attempt_id)
-    if not attempt or attempt.status == "completed":
-        raise HTTPException(status_code=400, detail="Attempt not active or already completed")
+    if not attempt or attempt.status != "in_progress":
+        raise HTTPException(status_code=400, detail="Attempt doesn't exist or is not active")
 
     case = session.get(Case, attempt.case_id)
     if not case:
@@ -189,11 +188,11 @@ async def submit_diagnosis(attempt_id: uuid.UUID, data: DiagnosisRequest, sessio
         """
     else:
         system_prompt = f"""
-        You are an expert instructor. 
+        You are an expert instructor.
         Correct diagnosis: {case.correct_diagnosis}
         Student's answer: {data.student_diagnosis}
         
-        Compare them. If the student correctly identified the issue, respond with 'CORRECT.' and a short feedback paragraph. 
+        Compare them. Be strict but fair. If the student correctly identified the issue, respond with 'CORRECT.' and a short feedback paragraph (note that the student's answer MUST contain keywords from the correct diagnosis, it should not be too vague, e.g. student says 'sensor' and the correct diagnosis is 'faulty crankshaft sensor (coil break)' your verdict should not be 'CORRECT'). 
         If they are wrong or missed key parts, respond with 'INCORRECT.'. 
         If they are partially correct, respond with 'PARTIAL.'.
         """
@@ -285,3 +284,103 @@ async def cancel_attempt(attempt_id: uuid.UUID, session: Session = Depends(get_s
     session.commit()
     
     return {"status": "success", "message": "Rješavanje je otkazano."}
+
+
+@router.get("/{attempt_id}/hint")
+def get_hint(attempt_id: uuid.UUID, sequence_no: int, session: Session = Depends(get_session)):
+    attempt = session.get(SolveAttempt, attempt_id)
+
+    if not attempt or attempt.status != "in_progress":
+        raise HTTPException(status_code=400, detail="Attempt not active")
+    
+    if not attempt.settings.get("enable_hints", True):
+        raise HTTPException(status_code=403, detail="Pomoć je isključena za ovaj pokušaj.")
+
+    case_id = attempt.case_id
+    case = session.get(Case, case_id)
+
+    if not case:
+        raise HTTPException(status_code=404, detail="Slučaj nije pronađen")
+    
+    statement = select(Hint).where(Hint.case_id == case_id, Hint.sequence_no == sequence_no + 1)
+    hint = session.exec(statement).first()
+
+    if not hint:
+        raise HTTPException(status_code=404, detail="Nema dostupnih hintova")
+    
+    ignore_cost = attempt.settings.get("ignore_hint_cost", False)
+
+    if not ignore_cost:
+        attempt.score = max(0, attempt.score - hint.cost)
+
+
+    new_log = AttemptLog(
+        attempt_id=attempt_id,
+        event_type="hint_request",
+        event_result_data={"hint_id": str(hint.id), "penalty": 0 if ignore_cost else hint.cost},
+        status="no_mistake"
+    )
+    session.add(new_log)
+    session.commit()
+    
+    return {
+        "hint_text": hint.text,
+        "hint_seq_no": hint.sequence_no,
+        "new_score": attempt.score
+    }
+
+
+@router.post("/{attempt_id}/undo")
+async def undo_last_action(attempt_id: uuid.UUID, session: Session = Depends(get_session)):
+    attempt = session.get(SolveAttempt, attempt_id)
+    
+    if not attempt or attempt.status != "in_progress":
+        raise HTTPException(status_code=400, detail="Pokušaj nije aktivan.")
+
+    if not attempt.settings.get("enable_undo", True):
+        raise HTTPException(status_code=403, detail="Poništavanje radnji je onemogućeno za ovaj pokušaj.")
+
+    statement = select(AttemptLog).where(
+        AttemptLog.attempt_id == attempt_id,
+        AttemptLog.event_type == "du_request"
+    ).order_by(AttemptLog.id.desc())
+    
+    last_log = session.exec(statement).first()
+
+    if not last_log:
+        raise HTTPException(status_code=404, detail="Nema radnji koje se mogu poništiti.")
+
+    if last_log.diagnostic_unit_id:
+        du = session.get(DiagnosticUnit, last_log.diagnostic_unit_id)
+        if du:
+            attempt.total_cost_money -= du.resources.get("money", 0)
+            
+            unit = du.resources.get("time_unit")
+            time = du.resources.get("time", 0)
+            if unit == "days": time *= 86400
+            elif unit == "hours": time *= 3600
+            elif unit == "minutes": time *= 60
+            
+            attempt.total_cost_time -= time
+
+    undo_log = AttemptLog(
+        attempt_id=attempt_id,
+        event_type="undo_request",
+        event_result_data={
+            "undone_log_id": str(last_log.id),
+            "undone_du_id": str(last_log.diagnostic_unit_id) if last_log.diagnostic_unit_id else None
+        },
+        status="no_mistake"
+    )
+    session.add(undo_log)
+
+    last_log.status = "undone" 
+    
+    session.commit()
+    session.refresh(attempt)
+
+    return {
+        "message": "Zadnja radnja je poništena.",
+        "total_cost_money": attempt.total_cost_money,
+        "total_cost_time": attempt.total_cost_time
+    }

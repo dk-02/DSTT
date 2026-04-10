@@ -126,12 +126,15 @@ class CaseReadWithMedia(BaseModel):
     initial_info: str
     media: List[MediaRead]
 
+class HintReadCreate(BaseModel):
+    sequence_no: int
+    cost: float
+    text: str
 
 # --------------- CASE SOLVING ---------------
 
 class ChatRequest(SQLModel):
     message: str
-    case_id: str
 
 class DiagnosisRequest(SQLModel):
     student_diagnosis: str

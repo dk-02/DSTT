@@ -148,7 +148,7 @@ function CaseSolving() {
 
         try {
             const currentLength = hints.length;
-            const response = await fetch(`${backendURL}/cases/${caseId}/hint?sequence_no=${currentLength}`);
+            const response = await fetch(`${backendURL}/attempts/${attemptId}/hint?sequence_no=${currentLength}`);
 
             if (!response.ok) {
                 if (response.status === 404) {
