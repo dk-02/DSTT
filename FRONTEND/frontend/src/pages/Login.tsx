@@ -32,7 +32,11 @@ export const Login = () => {
         alert("Dobrodošli!");
         navigate("/");
       } else {
-        alert("Prijava neuspješna");
+        if (res.status === 429) {
+          alert("Pokušajte ponovno kasnije.")
+        } else {
+          alert("Prijava neuspješna");
+        }
       }
 
     } catch (error) {

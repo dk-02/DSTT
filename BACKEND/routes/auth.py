@@ -1,17 +1,21 @@
 import os
 from datetime import datetime, timedelta, timezone
 import uuid
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from jose import jwt
 from passlib.context import CryptContext
 from sqlmodel import Session, select
 from database import engine
 from models import User, UserRole, Role, UserRegister
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 
 SECRET_KEY = os.getenv("SECRET_KEY")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 1440  # 24 sata
+
+limiter = Limiter(key_func=get_remote_address)
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
 pwd_context = CryptContext(schemes=["argon2"], deprecated="auto")
@@ -106,7 +110,8 @@ def register(user_data: UserRegister, session: Session = Depends(get_session)):
 
 
 @router.post("/login")
-def login(user_data: OAuth2PasswordRequestForm = Depends(), session: Session = Depends(get_session)):
+@limiter.limit("2/minute")
+def login(request: Request, user_data: OAuth2PasswordRequestForm = Depends(), session: Session = Depends(get_session)):
     statement = select(User).where(User.email == user_data.username) #OAuth zbog Swagger testiranja; username = email
     user = session.exec(statement).first()
 

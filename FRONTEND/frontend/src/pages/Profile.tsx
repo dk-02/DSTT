@@ -1,5 +1,6 @@
 import { useNavigate } from "react-router-dom";
 import { useAuthStore } from "../store/useAuthStore";
+import { ArrowNarrowLeft } from "@untitledui/icons";
 
 function Landing() {
     const user = useAuthStore((state) => state.user);
@@ -14,7 +15,8 @@ function Landing() {
     }
 
     return(
-        <div className="flex justify-center items-center w-screen h-screen bg-gray-700 text-white">
+        <div className="flex justify-center items-center w-screen h-screen bg-gray-700 text-white relative">
+            <ArrowNarrowLeft onClick={() => navigate("/")} className="absolute top-5 left-5 scale-130 text-gray-50 hover:cursor-pointer" />
             <div className="w-1/4 p-10 bg-gray-800  h-full flex flex-col justify-between items-center">
                 <div className="flex flex-col items-center gap-5 w-full">
                     <div className="flex items-center justify-center w-40 h-40 text-4xl bg-gray-900 border-2 border-orange-500 font-bold rounded-full">

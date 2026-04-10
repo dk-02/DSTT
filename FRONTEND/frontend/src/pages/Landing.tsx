@@ -121,7 +121,7 @@ function Landing() {
                             }}
                         />
                         <h3 className="mt-3">{c.title}</h3>
-                        <button onClick={() => handleStartCase(c.id)} className="cursor-pointer bg-orange-500 text-orange-50 font-bold px-3 py-2 rounded-2xl">Solve</button>
+                        <button onClick={() => handleStartCase(c.id)} className="cursor-pointer bg-orange-500 text-orange-50 font-bold px-3 py-2 rounded-lg">Solve</button>
                     </div>
                 ))}
             </div>
