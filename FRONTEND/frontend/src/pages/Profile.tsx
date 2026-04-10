@@ -6,8 +6,30 @@ import { useState } from "react";
 
 const backendURL = import.meta.env.VITE_APP_BACKEND;
 
-function Landing() {
+interface FormData {
+    oldPassword: string;
+    newPassword: string;
+    confirmNewPassword: string;
+}
+
+function Profile() {
     const [deactivateModalOpen, setDeactivateModalOpen] = useState<boolean>(false);
+    const [changePasswordModalOpen, setChangePasswordModalOpen] = useState<boolean>(false);
+
+    const [formData, setFormData] = useState<FormData>({
+        oldPassword: "",
+        newPassword: "",
+        confirmNewPassword: ""
+    });
+
+    const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const { name, value } = e.target;
+        
+        setFormData((prev) => ({
+            ...prev,
+            [name]: value 
+        }));
+    };
 
     const user = useAuthStore((state) => state.user);
     const token = useAuthStore((state) => state.token);
@@ -45,6 +67,62 @@ function Landing() {
             alert("Došlo je do pogreške pri povezivanju s poslužiteljem.");
         }
     }
+
+    const handleChangePassword = async () => {
+        if (formData.newPassword !== formData.confirmNewPassword) {
+            alert("Nove lozinke se ne podudaraju!");
+            return;
+        }
+
+        try {
+            const res = await fetch(`${backendURL}/auth/change-password`, {
+                method: "POST",
+                headers: { 
+                    "Content-Type": "application/json",
+                    "Authorization": `Bearer ${token}` 
+                },
+                body: JSON.stringify({
+                    old_password: formData.oldPassword,
+                    new_password: formData.newPassword
+                })
+            });
+
+            if (res.ok) {
+                alert("Lozinka je promijenjena!");
+                setFormData({
+                    oldPassword: "",
+                    newPassword: "",
+                    confirmNewPassword: ""
+                });
+                setChangePasswordModalOpen(false);
+            } else {
+                const errorData = await res.json();
+                alert(errorData.detail || "Došlo je do pogreške.");
+            }
+        } catch (error) {
+            console.error(error);
+            alert("Pogreška u komunikaciji s poslužiteljem.");
+        }
+    }
+
+    const passwordChangeInputs = [
+        {
+            label: "Stara lozinka",
+            name: "oldPassword",
+            value: formData.oldPassword
+
+        }, 
+        {
+            label: "Nova lozinka",
+            name: "newPassword",
+            value: formData.newPassword
+        },
+        {
+            label: "Potvrdi novu lozinku",
+            name: "confirmNewPassword",
+            value: formData.confirmNewPassword
+        }
+    ]
 
     return(
         <div className="flex justify-center items-center w-screen h-screen bg-gray-700 text-white relative">
@@ -90,11 +168,33 @@ function Landing() {
                 <div className="w-1/3 flex flex-col gap-2">
                     <span className="text-sm text-gray-300 mb-2">Upravljanje podatcima</span>
                     <button className="cursor-pointer border border-gray-600 font-semibold px-3 py-2 rounded">Uredi podatke</button>
-                    <button className="cursor-pointer border border-gray-600 font-semibold px-3 py-2 rounded">Promijeni lozinku</button>
+                    <button onClick={() => setChangePasswordModalOpen(true)} className="cursor-pointer border border-gray-600 font-semibold px-3 py-2 rounded">Promijeni lozinku</button>
                     <button onClick={() => setDeactivateModalOpen(true)} className="cursor-pointer border border-gray-600 font-semibold px-3 py-2 rounded text-red-400">Deaktiviraj račun</button>
                 </div>
             </div>
             
+            <Modal
+                isOpen={changePasswordModalOpen}
+                onClose={() => setChangePasswordModalOpen(false)}
+                title="Promjena lozinke"
+            >
+                <div className="w-full flex flex-col items-center gap-3">
+                    {passwordChangeInputs.map((i, idx) => (
+                        <div key={idx} className="relative flex items-center w-1/2">
+                            <input 
+                                type={"password"} 
+                                placeholder={i.label} 
+                                name={i.name} 
+                                value={i.value}
+                                onChange={handleChange} 
+                                className="p-2 bg-gray-200 text-gray-600 border border-gray-400 rounded focus:ring-2 focus:ring-orange-500 outline-none w-full"
+                            />
+                        </div>
+                    ))}
+                    <button onClick={handleChangePassword} className="cursor-pointer border bg-red-600 font-semibold px-3 py-2 rounded-md">Potvrdi</button>
+                </div>
+            </Modal>
+
             <Modal
                 isOpen={deactivateModalOpen}
                 onClose={() => setDeactivateModalOpen(false)}
@@ -108,4 +208,4 @@ function Landing() {
     );
 }
 
-export default Landing;
+export default Profile;

@@ -47,8 +47,8 @@ export const Login = () => {
   };
 
   const togglePassword = () => {
-        setPasswordVisible(prev => !prev);
-    }
+    setPasswordVisible(prev => !prev);
+  }
 
   return (
     <div className="w-full h-screen bg-gray-700 flex justify-center items-center relative">

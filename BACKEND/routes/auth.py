@@ -7,7 +7,7 @@ from jose import jwt
 from passlib.context import CryptContext
 from sqlmodel import Session, select
 from database import engine
-from models import User, UserRole, Role, UserRegister
+from models import PasswordChange, User, UserRole, Role, UserRegister
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 
@@ -180,3 +180,18 @@ def reactivate_user(user_id: uuid.UUID, current_admin: User = Depends(get_curren
     session.commit()
 
     return {"message": f"Korisnik {target_user.email} je ponovno aktiviran."}
+
+
+@router.post("/change-password")
+def change_password(data: PasswordChange, current_user: User = Depends(get_current_active_user), session: Session = Depends(get_session)):
+    if not verify_password(data.old_password, current_user.password_hash):
+        raise HTTPException(
+            status_code=400, 
+            detail="Trenutna lozinka nije ispravna."
+        )
+
+    current_user.password_hash = hash_password(data.new_password)
+    session.add(current_user)
+    session.commit()
+
+    return {"message": "Lozinka uspješno promijenjena."}
