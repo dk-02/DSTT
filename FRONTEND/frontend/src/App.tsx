@@ -12,7 +12,7 @@ function App() {
         <Router>
             <Routes>
                 <Route path="/" element={<Landing />} />
-                <Route path="/case/:id" element={<CaseSolving />} />
+                <Route path="/case/solve/:id" element={<CaseSolving />} />
                 <Route path="/case/:id/results" element={<Results />} />
                 <Route path="/case/create" element={<CaseCreating />} />
                 <Route path="/user/register" element={<Register />} />

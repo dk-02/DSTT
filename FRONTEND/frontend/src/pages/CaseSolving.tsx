@@ -2,14 +2,16 @@ import { ArrowNarrowLeft, File06, Recording01 } from "@untitledui/icons";
 import { useEffect, useState, type KeyboardEvent } from "react"
 import { useNavigate, useParams } from "react-router-dom";
 import { Modal } from "../components/UI/Modal";
+import { useAuthStore } from "../store/useAuthStore";
 import { useCaseSolvingStore } from "../store/useCaseSolveStore";
 
 const backendURL = import.meta.env.VITE_APP_BACKEND;
 
 interface userMsg {
-    sender: string;
-    text: string;
-    du?: string;
+  sender: 'user' | 'assistant' | 'system';
+  text: string;
+  du?: string;
+  media?: Media[];
 }
 
 interface Media {
@@ -39,39 +41,45 @@ interface Hint {
 function CaseSolving() {
     const [input, setInput] = useState("");
     const [diagnosis, setDiagnosis] = useState<string>("");
-    const [messages, setMessages] = useState<userMsg[]>([]);
     const [caseInfo, setCaseInfo] = useState<Case>();
     const [feedback, setFeedback] = useState<Feedback | null>(null);
     // Fileovi
     const [viewFileModalOpen, setViewFileModalOpen] = useState<boolean>(false);
     const [viewFile, setViewFile] = useState<Media>();
     const [textContent, setTextContent] = useState<string | null>(null);
-    // Hintovi
-    const [hints, setHints] = useState<Hint[]>([]);
+    
+    const attemptId = useParams().id;
+    const [caseId, setCaseId] = useState<string | null>(null);
 
-    const caseId = useParams().id;
-
-    const { attemptId } = useCaseSolvingStore();
+    // Cancel
+    const [cancelModalOpen, setCancelModalOpen] = useState<boolean>(false);
 
     const navigate = useNavigate();
 
-    useEffect(() => {
-        const getCaseDetails = async () => {
-            const response = await fetch(`${backendURL}/cases/${caseId}`, {
-                method: "GET",
-                headers: { "Content-Type": "application/json" }
-            });
-        
-            const data = await response.json();
-            setCaseInfo(data);
-        }
+    const token = useAuthStore((state) => state.token);
+    const { unlockedHints, addHint, reset, messages, addMessage } = useCaseSolvingStore();
 
-        getCaseDetails();
-    }, [caseId])
+    useEffect(() => {
+        const fetchIds = async () => {
+            const attRes = await fetch(`${backendURL}/attempts/${attemptId}`, {
+                headers: { "Authorization": `Bearer ${token}` }
+            });
+            const attemptData = await attRes.json();
+            setCaseId(attemptData.case_id);
+
+            const caseRes = await fetch(`${backendURL}/cases/${attemptData.case_id}`);
+            const caseData = await caseRes.json();
+            setCaseInfo(caseData);
+        };
+
+        if (attemptId) fetchIds();
+
+    }, [attemptId, token]);
+
 
     const handleSend = async () => {
-        const userMsg = { sender: "student", text: input };
-        setMessages([...messages, userMsg]);
+        const userMsg: userMsg = { sender: "user", text: input };
+        addMessage(userMsg);
 
         const response = await fetch(`${backendURL}/attempts/${attemptId}/getDU`, {
             method: "POST",
@@ -80,8 +88,8 @@ function CaseSolving() {
         });
         
         const data = await response.json();
-        const aiMsg = { sender: "system", text: data.result, du: data.du_id };
-        setMessages(prev => [...prev, aiMsg]);
+        const aiMsg: userMsg = { sender: "system", text: data.result, du: data.du_id };
+        addMessage(aiMsg);
         setInput("");
     };
 
@@ -96,9 +104,6 @@ function CaseSolving() {
             });
 
             const data = await response.json()
-
-            // console.log(data)
-
             setFeedback(data);
 
         } catch(err) {
@@ -147,7 +152,7 @@ function CaseSolving() {
         if (!caseId) return;
 
         try {
-            const currentLength = hints.length;
+            const currentLength = unlockedHints.length;
             const response = await fetch(`${backendURL}/attempts/${attemptId}/hint?sequence_no=${currentLength}`);
 
             if (!response.ok) {
@@ -161,7 +166,31 @@ function CaseSolving() {
 
             const newHint: Hint = await response.json();
 
-            setHints(prev => [...prev, newHint]);
+            addHint(newHint);
+
+        } catch(err) {
+            console.error(err);
+        }
+    }
+
+    const handleQuit = async () => {
+        try {
+            const response = await fetch(`${backendURL}/attempts/${attemptId}/cancel`, {
+                method: "POST",
+                headers: { 
+                    "Content-Type": "application/json",
+                }
+            });
+
+            if (response.ok) {
+                reset(); 
+                
+                navigate("/"); 
+                alert("Rješavanje je otkazano.");
+            } else {
+                const errorData = await response.json();
+                console.error("Greška pri otkazivanju:", errorData.detail);
+            }
 
         } catch(err) {
             console.error(err);
@@ -187,7 +216,7 @@ function CaseSolving() {
                     ))}
                 </div>
                 <div className="flex flex-col gap-3">
-                    {hints.map((h) => (
+                    {unlockedHints.map((h) => (
                         <div key={h.sequence_no} className="border border-gray-500 bg-gray-600 text-gray-100 px-5 py-2 rounded">
                             <p>
                                 <span className="text-orange-300">Hint {h.sequence_no}:</span> {h.text}
@@ -207,7 +236,7 @@ function CaseSolving() {
             <div className="w-2/3 h-full flex flex-col items-center">
                 <div className="h-2/3 border border-gray-400 overflow-y-scroll p-2.5 w-full">
                     {messages.map((m, i) => (
-                        <p key={i} className={m.sender === "student" ? "text-orange-400" : "text-gray-100"}>
+                        <p key={i} className={m.sender === "user" ? "text-orange-400" : "text-gray-100"}>
                             <strong>{m.sender}:</strong> {m.text}
                         </p>
                     ))}
@@ -222,7 +251,7 @@ function CaseSolving() {
                         placeholder="Ask for DDU..."
                     />
                     <button onClick={handleSend} 
-                        className="bg-orange-500 text-orange-50 font-bold px-3 py-2 rounded-2xl"
+                        className="bg-orange-500 text-orange-50 font-bold px-3 py-2 rounded-2xl hover:cursor-pointer"
                     >Send</button>
                 </div>
                 <div className="w-1/2 mt-2 flex gap-2">
@@ -234,15 +263,30 @@ function CaseSolving() {
                         placeholder="Diagnosis attempt..."
                     />
                     <button onClick={handleVerifyDiagnosis} 
-                        className="bg-orange-500 text-orange-50 font-bold px-3 py-2 rounded-2xl"
+                        className="bg-orange-500 text-orange-50 font-bold px-3 py-2 rounded-2xl hover:cursor-pointer"
                     >Check</button>
                 </div>
                 <div className="w-1/2 mt-2 flex gap-2">
                     <button onClick={handleGetHint} 
-                        className="bg-orange-500 text-orange-50 font-bold px-3 py-2 rounded-2xl"
+                        className="bg-orange-500 text-orange-50 font-bold px-3 py-2 rounded-2xl hover:cursor-pointer"
                     >Hint</button>
+                    <button onClick={() => setCancelModalOpen(true)} 
+                        className="bg-orange-500 text-orange-50 font-bold px-3 py-2 rounded-2xl hover:cursor-pointer"
+                    >Prekini rješavanje</button>
                 </div>
             </div>
+
+            <Modal 
+                isOpen={cancelModalOpen}
+                onClose={() => setCancelModalOpen(false)}
+                title={"Prekinuti rješavanje?"}
+            >
+                <div className="w-full flex justify-center">
+                    <button onClick={handleQuit} 
+                        className="bg-red-600 text-orange-50 font-bold px-3 py-2 rounded hover:cursor-pointer"
+                    >Potvrdi</button>
+                </div>
+            </Modal>
 
             <Modal 
                 isOpen={viewFileModalOpen} 
@@ -265,14 +309,13 @@ function CaseSolving() {
                     ) : viewFile.file_type === 'audio' ? (
                     <div className="w-full max-w-md bg-white p-8 rounded-2xl border border-gray-100 shadow-sm flex flex-col items-center">
                         <div className="w-20 h-20 bg-orange-50 rounded-full flex items-center justify-center mb-6">
-                        <Recording01 className="w-10 h-10 text-orange-600" />
+                            <Recording01 className="w-10 h-10 text-orange-600" />
                         </div>
                         
                         <div className="text-center mb-8">
-                        <h4 className="text-gray-900 font-semibold mb-1 truncate max-w-xs">
-                            {viewFile.title}
-                        </h4>
-                        {/* <p className="text-sm text-gray-500">Audio datoteka • {(viewFile.size / (1024 * 1024)).toFixed(2)} MB</p> */}
+                            <h4 className="text-gray-900 font-semibold mb-1 truncate max-w-xs">
+                                {viewFile.title}
+                            </h4>
                         </div>
 
                         <audio 

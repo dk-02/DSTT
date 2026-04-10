@@ -15,18 +15,29 @@ export const Login = () => {
   const setAuth = useAuthStore(state => state.setAuth);
 
   const handleLogin = async () => {
-    const res = await fetch(`${backendURL}/auth/login`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, password })
-    });
-    if (res.ok) {
-      const data = await res.json();
-      setAuth(data.access_token, data.user);
-      alert("Dobrodošli!");
-      navigate("/");
-    } else {
-      alert("Prijava neuspješna");
+    const formData = new URLSearchParams();
+    formData.append("username", email);
+    formData.append("password", password);
+
+    try {
+      const res = await fetch(`${backendURL}/auth/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: formData
+      });
+  
+      if (res.ok) {
+        const data = await res.json();
+        setAuth(data.access_token, data.user);
+        alert("Dobrodošli!");
+        navigate("/");
+      } else {
+        alert("Prijava neuspješna");
+      }
+
+    } catch (error) {
+      console.error(error);
+      alert("Došlo je do pogreške pri povezivanju s poslužiteljem.");
     }
   };
 
@@ -60,7 +71,7 @@ export const Login = () => {
 
             </div>
 
-            <button onClick={handleLogin} className="bg-orange-500 p-2 rounded">Prijavi se</button>
+            <button onClick={handleLogin} className="bg-orange-500 p-2 rounded hover:cursor-pointer">Prijavi se</button>
         </div>
     </div>
   );

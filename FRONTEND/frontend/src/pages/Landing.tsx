@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { Modal } from "../components/UI/Modal";
 import { useAuthStore } from "../store/useAuthStore";
 import { Dropdown } from "../components/UI/Dropdown";
+import { useCaseSolvingStore } from "../store/useCaseSolveStore";
 
 interface Case {
     id: string;
@@ -19,6 +20,8 @@ function Landing() {
     const navigate = useNavigate();
 
     const user = useAuthStore((state) => state.user);
+    const token = useAuthStore((state) => state.token);
+    const setAttempt = useCaseSolvingStore((state) => state.setAttempt);
 
     useEffect(() => {
         const fetchCases = async () => {
@@ -33,7 +36,6 @@ function Landing() {
 
         fetchCases();
     }, []);
-
 
 
     const handleCaseDelete = async (caseId: string) => {
@@ -56,6 +58,37 @@ function Landing() {
             alert("Nije uspjelo brisanje slučaja.");
         }
     };
+
+    
+    const handleStartCase = async (caseId: string, assignmentId: string | null = null) => {
+        try {
+            const response = await fetch(`${backendURL}/attempts/start`, {
+                method: "POST",
+                headers: { 
+                    "Content-Type": "application/json", 
+                    "Authorization": `Bearer ${token}` 
+                },
+                body: JSON.stringify({
+                    case_id: caseId,
+                    assignment_id: assignmentId,
+                    is_free_practice: true // DODATI PODRŠKU ZA OSTALE VRSTE
+                })
+            });
+            
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.detail || "Greška pri pokretanju slučaja");
+            }
+
+            const data = await response.json();
+
+            setAttempt(data.attempt_id, Date.now());
+            navigate(`/case/solve/${data.attempt_id}`);
+
+        } catch (error) {
+            console.error("Greška", error);
+        }
+    }
     
 
     return(
@@ -88,7 +121,7 @@ function Landing() {
                             }}
                         />
                         <h3 className="mt-3">{c.title}</h3>
-                        <button onClick={() => navigate(`/case/${c.id}`)} className="cursor-pointer bg-orange-500 text-orange-50 font-bold px-3 py-2 rounded-2xl">Solve</button>
+                        <button onClick={() => handleStartCase(c.id)} className="cursor-pointer bg-orange-500 text-orange-50 font-bold px-3 py-2 rounded-2xl">Solve</button>
                     </div>
                 ))}
             </div>

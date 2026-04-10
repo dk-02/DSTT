@@ -26,8 +26,31 @@ class AttemptStart(BaseModel):
     is_free_practice: bool = True
 
 
+@router.get("/{attempt_id}")
+async def get_attempt_details(attempt_id: uuid.UUID, session: Session = Depends(get_session)):
+    attempt = session.get(SolveAttempt, attempt_id)
+    if not attempt:
+        raise HTTPException(status_code=404, detail="Attempt not found")
+    return attempt
+
+
 @router.post("/start")
 async def start_attempt(data: AttemptStart, current_user: User = Depends(get_current_active_user), session: Session = Depends(get_session)):
+    existing_attempt_stmt = select(SolveAttempt).where(
+        SolveAttempt.user_id == current_user.id,
+        SolveAttempt.case_id == data.case_id,
+        SolveAttempt.status == "in_progress"
+    )
+    existing_attempt = session.exec(existing_attempt_stmt).first()
+
+    if existing_attempt:
+        return { 
+            "attempt_id": existing_attempt.id, 
+            "settings": existing_attempt.settings, 
+            "started_at": existing_attempt.started_at,
+            "message": "Nastavak postojećeg rješavanja."
+        }
+    
     case = session.get(Case, data.case_id)
     if not case:
         raise HTTPException(status_code=404, detail="Case not found")
@@ -324,8 +347,8 @@ def get_hint(attempt_id: uuid.UUID, sequence_no: int, session: Session = Depends
     session.commit()
     
     return {
-        "hint_text": hint.text,
-        "hint_seq_no": hint.sequence_no,
+        "text": hint.text,
+        "sequence_no": hint.sequence_no,
         "new_score": attempt.score
     }
 
