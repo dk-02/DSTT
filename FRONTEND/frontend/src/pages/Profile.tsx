@@ -1,17 +1,49 @@
 import { useNavigate } from "react-router-dom";
 import { useAuthStore } from "../store/useAuthStore";
 import { ArrowNarrowLeft } from "@untitledui/icons";
+import { Modal } from "../components/UI/Modal";
+import { useState } from "react";
+
+const backendURL = import.meta.env.VITE_APP_BACKEND;
 
 function Landing() {
+    const [deactivateModalOpen, setDeactivateModalOpen] = useState<boolean>(false);
+
     const user = useAuthStore((state) => state.user);
+    const token = useAuthStore((state) => state.token);
+    const { logout } = useAuthStore();
 
     const navigate = useNavigate();
-
-    const { logout } = useAuthStore();
 
     const handleLogout = () => {
         logout();
         navigate("/user/login");
+    }
+
+    const handleDeactivate = async () => {
+        try {
+            const res = await fetch(`${backendURL}/auth/deactivate?user_id=${user?.id}`, {
+                method: "POST",
+                headers: { 
+                    "Content-Type": "application/json", 
+                    "Authorization": `Bearer ${token}` 
+                },
+            });
+        
+            if (res.ok) {
+                alert("Profil uspješno deaktiviran.");
+
+                logout();
+                navigate("/user/login");
+            } else {
+                const errorData = await res.json();
+                alert(`Greška: ${errorData.detail}`);
+            }
+
+        } catch (error) {
+            console.error(error);
+            alert("Došlo je do pogreške pri povezivanju s poslužiteljem.");
+        }
     }
 
     return(
@@ -59,10 +91,19 @@ function Landing() {
                     <span className="text-sm text-gray-300 mb-2">Upravljanje podatcima</span>
                     <button className="cursor-pointer border border-gray-600 font-semibold px-3 py-2 rounded">Uredi podatke</button>
                     <button className="cursor-pointer border border-gray-600 font-semibold px-3 py-2 rounded">Promijeni lozinku</button>
-                    <button className="cursor-pointer border border-gray-600 font-semibold px-3 py-2 rounded text-red-400">Deaktiviraj račun</button>
+                    <button onClick={() => setDeactivateModalOpen(true)} className="cursor-pointer border border-gray-600 font-semibold px-3 py-2 rounded text-red-400">Deaktiviraj račun</button>
                 </div>
             </div>
             
+            <Modal
+                isOpen={deactivateModalOpen}
+                onClose={() => setDeactivateModalOpen(false)}
+                title="Deaktivirati račun?"
+            >
+                <div className="w-full flex justify-center">
+                    <button onClick={handleDeactivate} className="cursor-pointer border bg-red-600 font-semibold px-3 py-2 rounded-md">Potvrdi</button>
+                </div>
+            </Modal>
         </div>
     );
 }

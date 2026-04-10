@@ -56,6 +56,16 @@ async def get_current_active_user(current_user: User = Depends(get_current_user)
     return current_user
 
 
+async def get_current_admin(current_user: User = Depends(get_current_active_user), session: Session = Depends(get_session)):
+    admin_role = session.exec(
+        select(UserRole).join(Role).where(UserRole.user_id == current_user.id, Role.name == "admin")
+    ).first()
+    
+    if not admin_role:
+        raise HTTPException(status_code=403, detail="Pristup dopušten samo administratorima.")
+    return current_user
+
+
 def hash_password(password: str):
     return pwd_context.hash(password)
 
@@ -110,7 +120,7 @@ def register(user_data: UserRegister, session: Session = Depends(get_session)):
 
 
 @router.post("/login")
-@limiter.limit("2/minute")
+@limiter.limit("5/minute")
 def login(request: Request, user_data: OAuth2PasswordRequestForm = Depends(), session: Session = Depends(get_session)):
     statement = select(User).where(User.email == user_data.username) #OAuth zbog Swagger testiranja; username = email
     user = session.exec(statement).first()
@@ -139,3 +149,34 @@ def login(request: Request, user_data: OAuth2PasswordRequestForm = Depends(), se
             "xp_points": user.xp_points
         }
     }
+
+
+@router.post("/deactivate")
+async def deactivate_user(user_id: uuid.UUID = None, current_user: User = Depends(get_current_active_user), session: Session = Depends(get_session)):
+    if user_id and user_id != current_user.id:
+        await get_current_admin(current_user, session)
+
+        target_user = session.get(User, user_id)
+        if not target_user:
+            raise HTTPException(status_code=404, detail="Korisnik nije pronađen.")
+        
+    else:
+        target_user = current_user
+
+    target_user.is_active = False
+    session.add(current_user)
+    session.commit()
+
+    return {"message": "Profil je uspješno deaktiviran."}
+
+@router.post("/reactivate/{user_id}")
+def reactivate_user(user_id: uuid.UUID, current_admin: User = Depends(get_current_admin), session: Session = Depends(get_session)):
+    target_user = session.get(User, user_id)
+    if not target_user:
+        raise HTTPException(status_code=404, detail="Korisnik nije pronađen.")
+    
+    target_user.is_active = True
+    session.add(target_user)
+    session.commit()
+
+    return {"message": f"Korisnik {target_user.email} je ponovno aktiviran."}

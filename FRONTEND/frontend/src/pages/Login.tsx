@@ -29,13 +29,14 @@ export const Login = () => {
       if (res.ok) {
         const data = await res.json();
         setAuth(data.access_token, data.user);
-        alert("Dobrodošli!");
         navigate("/");
       } else {
         if (res.status === 429) {
           alert("Pokušajte ponovno kasnije.")
+        } else if (res.status === 400) {
+          alert("Račun nije aktivan.");
         } else {
-          alert("Prijava neuspješna");
+          alert("Prijava neuspješna.");
         }
       }
 
