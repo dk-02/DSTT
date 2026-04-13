@@ -134,8 +134,10 @@ def login(request: Request, user_data: OAuth2PasswordRequestForm = Depends(), se
 
     if not user.is_active:
         raise HTTPException(status_code=400, detail="Korisnički račun je deaktiviran")
+    
+    user_roles = session.exec(select(Role.name).join(UserRole).where(UserRole.user_id == user.id)).all()
 
-    access_token = create_access_token(data={"sub": str(user.id), "email": user.email})
+    access_token = create_access_token(data={"sub": str(user.id), "email": user.email, "roles": user_roles})
 
     return {
         "access_token": access_token,

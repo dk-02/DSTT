@@ -6,6 +6,8 @@ import CaseCreating from "./pages/CaseCreating";
 import { Register } from "./pages/Register";
 import { Login } from "./pages/Login";
 import Profile from "./pages/Profile";
+import { AdminDashboard } from "./pages/AdminDashboard";
+import { ProtectedAdminRoute } from "./components/auth/ProtectedAdminRoute";
 
 function App() {
     return(
@@ -18,6 +20,13 @@ function App() {
                 <Route path="/user/register" element={<Register />} />
                 <Route path="/user/login" element={<Login />} />
                 <Route path="/user/profile" element={<Profile />} />
+                <Route 
+                    path="/admin/dashboard" 
+                    element={
+                        <ProtectedAdminRoute>
+                            <AdminDashboard />
+                        </ProtectedAdminRoute>
+                    } />
             </Routes>
         </Router>
     )

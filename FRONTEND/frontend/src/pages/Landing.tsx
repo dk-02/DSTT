@@ -4,6 +4,7 @@ import { Modal } from "../components/UI/Modal";
 import { useAuthStore } from "../store/useAuthStore";
 import { Dropdown } from "../components/UI/Dropdown";
 import { useCaseSolvingStore } from "../store/useCaseSolveStore";
+import { useAdmin } from "../hooks/useAdmin";
 
 interface Case {
     id: string;
@@ -22,6 +23,8 @@ function Landing() {
     const user = useAuthStore((state) => state.user);
     const token = useAuthStore((state) => state.token);
     const setAttempt = useCaseSolvingStore((state) => state.setAttempt);
+
+    const isAdmin = useAdmin();
 
     useEffect(() => {
         const fetchCases = async () => {
@@ -100,13 +103,18 @@ function Landing() {
                     <button onClick={() => navigate("/user/register")} className="cursor-pointer bg-orange-500 text-orange-50 font-bold px-3 py-2 rounded">Register</button>
 
                     <button onClick={() => navigate("/user/login")} className="cursor-pointer bg-orange-500 text-orange-50 font-bold px-3 py-2 rounded">Login</button>
+                
+                    {isAdmin && 
+                        <button onClick={() => navigate("/admin/dashboard")} className="cursor-pointer border border-gray-500 text-gray-50 font-bold px-3 py-2 rounded">Admin dash</button>
+                    }             
                 </div>
 
                 {user && 
                     <div onClick={() => navigate("/user/profile")} className="hover:bg-gray-800 hover:cursor-pointer flex items-center justify-center w-12.5 h-12.5 bg-gray-900 font-bold rounded-full">
                         <span className="select-none">{user.first_name.at(0)?.toUpperCase()}{user.last_name.at(0)?.toUpperCase()}</span>
                     </div>
-                }             
+                }
+
                
             </div>
 
