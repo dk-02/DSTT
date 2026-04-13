@@ -6,7 +6,7 @@ import CaseCreating from "./pages/CaseCreating";
 import { Register } from "./pages/Register";
 import { Login } from "./pages/Login";
 import Profile from "./pages/Profile";
-import { AdminDashboard } from "./pages/AdminDashboard";
+import AdminDashboard from "./pages/AdminDashboard";
 import { ProtectedAdminRoute } from "./components/auth/ProtectedAdminRoute";
 
 function App() {
