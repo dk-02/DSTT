@@ -1,4 +1,4 @@
-import { ArrowNarrowLeft, CheckCircle, Edit01, SearchMd, Trash01, UserPlus01, XCircle } from "@untitledui/icons";
+import { ArrowNarrowLeft, Edit01, SearchMd, Trash01, UserPlus01 } from "@untitledui/icons";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuthStore } from "../store/useAuthStore";
@@ -9,7 +9,7 @@ import { Register } from "./Register";
 const backendURL = import.meta.env.VITE_APP_BACKEND;
 
 interface User {
-    id: number; 
+    id: string; 
     first_name: string;
     last_name: string; 
     email: string;
@@ -27,7 +27,15 @@ interface MyTokenPayload {
 function AdminDashboard() {
     const [searchTerm, setSearchTerm] = useState<string>("");
     const [users, setUsers] = useState<User[]>();
+    const [userToEditId, setUserToEditId] = useState<string>("");
+    const [formData, setFormData] = useState({
+        email: "",
+        firstName: "",
+        lastName: ""
+    });
+    // MODALS
     const [addUserModalOpen, setAddUserModalOpen] = useState<boolean>(false);
+    const [editUserModalOpen, setEditUserModalOpen] = useState<boolean>(false);
 
     const token = useAuthStore((state) => state.token);
 
@@ -63,6 +71,15 @@ function AdminDashboard() {
             const decoded = jwtDecode<MyTokenPayload>(token!);
             setUsers(data.filter((u: User) => String(u.id) !== String(decoded.sub)));
         }
+    };
+
+    const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const { name, value } = e.target;
+        
+        setFormData((prev) => ({
+            ...prev,
+            [name]: value 
+        }));
     };
 
     const handleDeactivate = async (targetUser : User) => {
@@ -119,6 +136,38 @@ function AdminDashboard() {
         }
     }
 
+    const handleEditUser = async (userId: string) => {
+        try {
+            const res = await fetch(`${backendURL}/users/edit/${userId}`, {
+                method: "PUT",
+                headers: { 
+                    "Content-Type": "application/json",
+                    "Authorization": `Bearer ${token}`
+                },
+                body: JSON.stringify({
+                    first_name: formData.firstName,
+                    last_name: formData.lastName,
+                    email: formData.email
+                })
+            });
+
+            if (res.ok) {
+                setUsers(prevUsers => 
+                    prevUsers?.map(user => 
+                        user.id === userId ? { ...user, first_name: formData.firstName, last_name: formData.lastName, email: formData.email } : user
+                    )
+                );
+                setEditUserModalOpen(false); 
+
+            } else {
+                const errorData = await res.json();
+                alert(`Greška pri uređivanju: ${errorData.detail}`);
+            }
+        } catch (error) {
+            console.error("Mrežna greška:", error);
+        }
+    };
+
     const filteredUsers = users?.filter(user => 
         user.first_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
         user.last_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -126,7 +175,7 @@ function AdminDashboard() {
     );
 
     return (
-        <div className="flex w-full h-screen bg-gray-900 text-gray-100 overflow-hidden">
+        <div className="flex w-full h-screen bg-gray-700 text-gray-100 overflow-hidden">
             {/* Sidebar */}
             <div className="w-1/5 p-8 bg-gray-800 border-r border-gray-700 flex flex-col justify-between items-center">
                 <div className="flex flex-col items-center gap-6 w-full">
@@ -149,7 +198,7 @@ function AdminDashboard() {
                         <h1 className="text-3xl font-semibold">Upravljanje korisnicima</h1>
                         <p className="text-gray-400">Pregled, uređivanje i aktivacija korisničkih računa.</p>
                     </div>
-                    <button onClick={() => setAddUserModalOpen(true)} className="flex items-center gap-2 bg-blue-600 hover:bg-blue-500 hover:cursor-pointer text-white px-4 py-2 rounded-lg transition-all font-medium">
+                    <button onClick={() => setAddUserModalOpen(true)} className="flex items-center gap-2 bg-orange-500 hover:bg-blue-500 hover:cursor-pointer text-white px-4 py-2 rounded-lg transition-all font-medium">
                         <UserPlus01 className="w-5 h-5" />
                         Dodaj korisnika
                     </button>
@@ -161,13 +210,13 @@ function AdminDashboard() {
                     <input 
                         type="text" 
                         placeholder="Pretraži po imenu ili mailu..." 
-                        className="w-full bg-gray-800 border border-gray-700 rounded-xl py-2.5 pl-10 pr-4 focus:ring-2 focus:ring-blue-500 focus:outline-none transition-all"
+                        className="w-full bg-gray-700 border border-gray-500 rounded-lg py-2.5 pl-10 pr-4 focus:ring-2 focus:ring-orange-500 focus:outline-none transition-all"
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
                     />
                 </div>
 
-                <div className="bg-gray-800 rounded-2xl border border-gray-700 shadow-xl flex flex-col flex-1 min-h-0">
+                <div className="bg-gray-800 rounded-lg border border-gray-800 shadow-xl flex flex-col flex-1 min-h-0">
                     {/* Table Header */}
                     <div className="grid grid-cols-6 p-4 bg-gray-750 border-b border-gray-700 text-sm font-bold text-gray-400 uppercase tracking-wider">
                         <div className="col-span-1">Ime i prezime</div>
@@ -202,22 +251,22 @@ function AdminDashboard() {
                                 </div>
                                 <div className="col-span-2 flex justify-end gap-2 px-2">
                                     {user.is_active ? (
-                                        <button onClick={() => handleDeactivate(user)} className="flex items-center gap-2 px-3 py-1.5 hover:bg-red-500/10 text-red-400 rounded-lg transition-all" title="Deaktiviraj">
-                                            <XCircle className="w-5 h-5" />
+                                        <button onClick={() => handleDeactivate(user)} className="flex items-center gap-2 px-3 py-1.5 hover:bg-red-500/20 hover:cursor-pointer text-red-400 rounded-lg transition-all" title="Deaktiviraj">
+                                            {/* <XCircle className="w-5 h-5 text-red-400" /> */}
                                             <span className="text-sm">Deaktiviraj</span>
                                         </button>
                                     ) : (
-                                        <button onClick={() => handleReactivate(user)} className="flex items-center gap-2 px-3 py-1.5 hover:bg-green-500/10 text-green-400 rounded-lg transition-all" title="Aktiviraj">
-                                            <CheckCircle className="w-5 h-5" />
+                                        <button onClick={() => handleReactivate(user)} className="flex items-center gap-2 px-3 py-1.5 hover:bg-green-500/10 hover:cursor-pointer text-green-400 rounded-lg transition-all" title="Aktiviraj">
+                                            {/* <CheckCircle className="w-5 h-5" /> */}
                                             <span className="text-sm">Aktiviraj</span>
                                         </button>
                                     )}
 
-                                    <button className="p-2 hover:bg-gray-700 rounded-lg text-gray-500 transition-colors" title="Uredi">
+                                    <button onClick={() => {setEditUserModalOpen(true); setFormData({firstName: user.first_name, lastName: user.last_name, email: user.email}); setUserToEditId(user.id)}} className="p-2 hover:bg-gray-700 hover:cursor-pointer rounded-lg text-gray-500 transition-colors" title="Uredi">
                                         <Edit01 className="w-5 h-5" />
                                     </button>
 
-                                    <button className="p-2 hover:bg-gray-700 rounded-lg text-gray-500 hover:text-red-500 transition-colors" title="Obriši trajno">
+                                    <button className="p-2 hover:bg-gray-700 hover:cursor-pointer rounded-lg text-gray-500 transition-colors" title="Obriši trajno">
                                         <Trash01 className="w-5 h-5" />
                                     </button>
                                 </div>
@@ -229,6 +278,38 @@ function AdminDashboard() {
             <Modal isOpen={addUserModalOpen} onClose={() => setAddUserModalOpen(false)} title="Novi korisnik">
                 <Register isAdminMode={true} onSuccess={() => {setAddUserModalOpen(false); refreshUsers();}} />
             </Modal>
+            <Modal isOpen={editUserModalOpen} onClose={() => setEditUserModalOpen(false)} title="Uredi korisnika">
+                <div className="flex flex-col w-full gap-2">
+                    <input 
+                        type="text" 
+                        placeholder="Ime" 
+                        name="firstName" 
+                        value={formData.firstName} 
+                        onChange={handleChange} 
+                        className={"p-2 bg-gray-200 text-gray-600 border border-gray-400 rounded focus:ring-2 focus:ring-orange-500 outline-none w-full"}/>
+                    <input 
+                        type="text" 
+                        placeholder="Prezime" 
+                        name="lastName" 
+                        value={formData.lastName} 
+                        onChange={handleChange} 
+                        className={"p-2 bg-gray-200 text-gray-600 border border-gray-400 rounded focus:ring-2 focus:ring-orange-500 outline-none w-full"}/>
+                    <input 
+                        type="email" 
+                        placeholder="Email" 
+                        name="email" 
+                        value={formData.email} 
+                        onChange={handleChange} 
+                        className={"p-2 bg-gray-200 text-gray-600 border border-gray-400 rounded focus:ring-2 focus:ring-orange-500 outline-none w-full"}/>
+
+                    <button onClick={() => handleEditUser(userToEditId)} className="bg-orange-500 p-2 rounded hover:cursor-pointer">
+                        Potvrdi
+                    </button>
+                </div>
+            </Modal>
+            {/* <Modal>
+                
+            </Modal> */}
         </div>
     );
 };

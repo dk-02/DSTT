@@ -31,7 +31,7 @@ function CaseCreating() {
     }, [setCategories]);
 
     return (
-        <div className="w-screen h-screen bg-gray-700 flex">
+        <div className="w-screen min-h-screen bg-gray-700 flex">
             <ArrowNarrowLeft onClick={() => navigate("/")} className="absolute top-5 left-5 scale-130 text-gray-50 hover:cursor-pointer" />
             <div className="w-2/3">
                 <CaseForm/>

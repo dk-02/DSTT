@@ -167,7 +167,6 @@ function Profile() {
 
                 <div className="w-1/3 flex flex-col gap-2">
                     <span className="text-sm text-gray-300 mb-2">Upravljanje podatcima</span>
-                    <button className="cursor-pointer border border-gray-600 font-semibold px-3 py-2 rounded">Uredi podatke</button>
                     <button onClick={() => setChangePasswordModalOpen(true)} className="cursor-pointer border border-gray-600 font-semibold px-3 py-2 rounded">Promijeni lozinku</button>
                     <button onClick={() => setDeactivateModalOpen(true)} className="cursor-pointer border border-gray-600 font-semibold px-3 py-2 rounded text-red-400">Deaktiviraj račun</button>
                 </div>

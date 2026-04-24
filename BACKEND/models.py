@@ -231,6 +231,11 @@ class UserRegister(BaseModel):
     first_name: str
     last_name: str
 
+class UserEdit(BaseModel):
+    email: str
+    first_name: str
+    last_name: str
+
 class PasswordChange(BaseModel):
     old_password: str
     new_password: str

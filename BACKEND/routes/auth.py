@@ -81,9 +81,6 @@ def create_access_token(data: dict):
 
 @router.post("/register")
 def register(user_data: UserRegister, session: Session = Depends(get_session)):
-
-    print(user_data)
-
     statement = select(User).where(User.email == user_data.email)
     existing_user = session.exec(statement).first()
     if existing_user:
