@@ -1,4 +1,4 @@
-import { ArrowNarrowLeft, Edit01, SearchMd, Trash01, UserPlus01 } from "@untitledui/icons";
+import { ArrowNarrowLeft, Edit01, SearchMd, Trash01, UserPlus01, ChevronSelectorVertical, ChevronDown, ChevronUp } from "@untitledui/icons";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuthStore } from "../store/useAuthStore";
@@ -24,9 +24,14 @@ interface MyTokenPayload {
     exp: number;
 }
 
+type SortConfig = { key: keyof User | ""; direction: "asc" | "desc" };
+
 function AdminDashboard() {
-    const [searchTerm, setSearchTerm] = useState<string>("");
     const [users, setUsers] = useState<User[]>();
+    // SORT AND SEARCH
+    const [sortConfig, setSortConfig] = useState<SortConfig>({ key: "", direction: "asc" });
+    const [searchTerm, setSearchTerm] = useState<string>("");
+    // EDIT
     const [userToEditId, setUserToEditId] = useState<string>("");
     const [formData, setFormData] = useState({
         email: "",
@@ -38,7 +43,6 @@ function AdminDashboard() {
     const [editUserModalOpen, setEditUserModalOpen] = useState<boolean>(false);
 
     const token = useAuthStore((state) => state.token);
-
     const navigate = useNavigate(); 
 
     useEffect(() => {
@@ -168,11 +172,34 @@ function AdminDashboard() {
         }
     };
 
+    const requestSort = (key: keyof User) => {
+        let direction: "asc" | "desc" = "asc";
+        if (sortConfig.key === key && sortConfig.direction === "asc") {
+            direction = "desc";
+        }
+        setSortConfig({ key, direction });
+    };
+
     const filteredUsers = users?.filter(user => 
         user.first_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
         user.last_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
         user.email.toLowerCase().includes(searchTerm.toLowerCase())
     );
+
+    const sortedUsers = [...(filteredUsers || [])].sort((a, b) => {
+        if (sortConfig.key === "") return 0;
+
+        const aValue = a[sortConfig.key];
+        const bValue = b[sortConfig.key];
+
+        if (aValue < bValue) {
+            return sortConfig.direction === "asc" ? -1 : 1;
+        }
+        if (aValue > bValue) {
+            return sortConfig.direction === "asc" ? 1 : -1;
+        }
+        return 0;
+    });
 
     return (
         <div className="flex w-full h-screen bg-gray-700 text-gray-100 overflow-hidden">
@@ -218,17 +245,20 @@ function AdminDashboard() {
 
                 <div className="bg-gray-800 rounded-lg border border-gray-800 shadow-xl flex flex-col flex-1 min-h-0">
                     {/* Table Header */}
-                    <div className="grid grid-cols-6 p-4 bg-gray-750 border-b border-gray-700 text-sm font-bold text-gray-400 uppercase tracking-wider">
-                        <div className="col-span-1">Ime i prezime</div>
-                        <div className="col-span-1">Email</div>
-                        <div className="col-span-1 text-center">Status</div>
-                        <div className="col-span-1">Uloge</div>
+                    <div className="grid grid-cols-6 p-4 bg-gray-750 border-b border-gray-700 text-sm font-bold text-gray-400 uppercase tracking-wider select-none">
+                        <div onClick={() => requestSort("first_name")} className="col-span-1 flex items-center"
+                        >
+                            Ime i prezime {sortConfig.key === "first_name" ? (sortConfig.direction === "asc" ? <ChevronUp className="scale-70"/> : <ChevronDown className="scale-70"/>) : <ChevronSelectorVertical className="scale-70"/>}
+                        </div>
+                        <div onClick={() => requestSort("email")} className="col-span-1 flex items-center">Email {sortConfig.key === "email" ? (sortConfig.direction === "asc" ? <ChevronUp className="scale-70"/> : <ChevronDown className="scale-70"/>) : <ChevronSelectorVertical className="scale-70"/>}</div>
+                        <div className="col-span-1 flex justify-center items-center">Status</div>
+                        <div className="col-span-1 flex items-center">Uloge</div>
                     </div>
 
                     {/* Table Body */}
-                    <div className="divide-y divide-gray-700 overflow-y-scroll">
-                        {filteredUsers?.map((user) => (
-                            <div key={user.id} className="grid grid-cols-6 p-4 items-center hover:bg-gray-750 transition-colors">
+                    <div className="overflow-y-scroll">
+                        {sortedUsers?.map((user) => (
+                            <div key={user.id} className="grid grid-cols-6 p-4 items-center hover:bg-gray-750 border-b border-gray-700/50 transition-colors">
                                 <div className="font-medium">{user.first_name} {user.last_name}</div>
                                 <div className="text-gray-400 truncate pr-4">{user.email}</div>
                                 <div className="flex justify-center">
