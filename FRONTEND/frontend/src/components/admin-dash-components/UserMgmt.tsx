@@ -247,7 +247,7 @@ export const UserMgmt = () => {
                         <h1 className="text-3xl font-semibold">Upravljanje korisnicima</h1>
                         <p className="text-gray-400">Pregled, uređivanje i aktivacija korisničkih računa.</p>
                     </div>
-                    <button onClick={() => setAddUserModalOpen(true)} className="flex items-center gap-2 bg-orange-500 hover:bg-blue-500 hover:cursor-pointer text-white px-4 py-2 rounded-lg transition-all font-medium">
+                    <button onClick={() => setAddUserModalOpen(true)} className="flex items-center gap-2 bg-orange-500 hover:bg-orange-400 hover:cursor-pointer text-white px-4 py-2 rounded-lg transition-all font-medium">
                         <UserPlus01 className="w-5 h-5" />
                         Dodaj korisnika
                     </button>
@@ -339,27 +339,36 @@ export const UserMgmt = () => {
             </Modal>
             <Modal isOpen={editUserModalOpen} onClose={() => setEditUserModalOpen(false)} title="Uredi korisnika">
                 <div className="flex flex-col w-full gap-2">
-                    <input 
-                        type="text" 
-                        placeholder="Ime" 
-                        name="firstName" 
-                        value={formData.firstName} 
-                        onChange={handleChange} 
-                        className={"p-2 bg-gray-200 text-gray-600 border border-gray-400 rounded focus:ring-2 focus:ring-orange-500 outline-none w-full"}/>
-                    <input 
-                        type="text" 
-                        placeholder="Prezime" 
-                        name="lastName" 
-                        value={formData.lastName} 
-                        onChange={handleChange} 
-                        className={"p-2 bg-gray-200 text-gray-600 border border-gray-400 rounded focus:ring-2 focus:ring-orange-500 outline-none w-full"}/>
-                    <input 
-                        type="email" 
-                        placeholder="Email" 
-                        name="email" 
-                        value={formData.email} 
-                        onChange={handleChange} 
-                        className={"p-2 bg-gray-200 text-gray-600 border border-gray-400 rounded focus:ring-2 focus:ring-orange-500 outline-none w-full"}/>
+                    <label className="text-gray-600">
+                        Ime
+                        <input 
+                            type="text" 
+                            placeholder="Ime" 
+                            name="firstName" 
+                            value={formData.firstName} 
+                            onChange={handleChange} 
+                            className={"p-2 bg-gray-200 text-gray-600 border border-gray-400 rounded focus:ring-2 focus:ring-orange-500 outline-none w-full"}/>
+                    </label>
+                    <label className="text-gray-600">
+                        Prezime
+                        <input 
+                            type="text" 
+                            placeholder="Prezime" 
+                            name="lastName" 
+                            value={formData.lastName} 
+                            onChange={handleChange} 
+                            className={"p-2 bg-gray-200 text-gray-600 border border-gray-400 rounded focus:ring-2 focus:ring-orange-500 outline-none w-full"}/>
+                    </label>
+                    <label className="text-gray-600">
+                        Email
+                        <input 
+                            type="email" 
+                            placeholder="Email" 
+                            name="email" 
+                            value={formData.email} 
+                            onChange={handleChange} 
+                            className={"p-2 bg-gray-200 text-gray-600 border border-gray-400 rounded focus:ring-2 focus:ring-orange-500 outline-none w-full"}/>
+                    </label>
 
                     <button onClick={() => handleEditUser(userToEditId)} className="bg-orange-500 p-2 rounded hover:cursor-pointer">
                         Potvrdi

@@ -205,8 +205,8 @@ class User(SQLModel, table=True):
     first_name: Optional[str] = None
     last_name: Optional[str] = None
     is_active: bool = Field(default=True)
-    expertise_level: str = Field(default="novice")
-    xp_points: int = Field(default=0)
+    expertise_level: Optional[str] = Field(default=None)
+    xp_points: Optional[int] = Field(default=None)
 
     # aai_edu_uid: str - DODATI
     # institution_id - relationship - DODATI
@@ -224,6 +224,13 @@ class UserRole(SQLModel, table=True):
     user_id: uuid.UUID = Field(foreign_key="users.id", primary_key=True)
     role_id: int = Field(foreign_key="roles.id", primary_key=True)
 
+
+class AdminUserRegister(BaseModel):
+    email: str
+    password: str
+    first_name: str
+    last_name: str
+    roles: List[str]
 
 class UserRegister(BaseModel):
     email: str

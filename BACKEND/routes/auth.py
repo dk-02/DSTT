@@ -7,7 +7,7 @@ from jose import jwt
 from passlib.context import CryptContext
 from sqlmodel import Session, select
 from database import engine
-from models import PasswordChange, User, UserRole, Role, UserRegister
+from models import AdminUserRegister, PasswordChange, User, UserRole, Role, UserRegister
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 
@@ -114,6 +114,45 @@ def register(user_data: UserRegister, session: Session = Depends(get_session)):
     except Exception as e:
         session.rollback()
         raise HTTPException(status_code=500, detail=f"Greška pri registraciji: {str(e)}")
+
+
+@router.post("/admin-register")
+def admin_register(user_data: AdminUserRegister, current_admin: User = Depends(get_current_admin), session: Session = Depends(get_session)):
+    statement = select(User).where(User.email == user_data.email)
+    existing_user = session.exec(statement).first()
+    if existing_user:
+        raise HTTPException(
+            status_code=400, 
+            detail="Korisnik s ovim emailom već postoji"
+        )
+
+    try:
+        is_examinee = "examinee" in user_data.roles
+
+        new_user = User(
+            email=user_data.email,
+            password_hash=hash_password(user_data.password),
+            first_name=user_data.first_name,
+            last_name=user_data.last_name,
+            is_active=True,
+            expertise_level="novice" if is_examinee else None,
+            xp_points=0 if is_examinee else None
+        )
+        session.add(new_user)
+        session.flush()
+
+        for role_name in user_data.roles:
+            role = session.exec(select(Role).where(Role.name == role_name)).first()
+            if role:
+                new_user_role = UserRole(user_id=new_user.id, role_id=role.id)
+                session.add(new_user_role)
+
+        session.commit()
+        return {"status": "success", "message": "Korisnik uspješno kreiran s ulogama"}
+
+    except Exception as e:
+        session.rollback()
+        raise HTTPException(status_code=500, detail=f"Greška pri kreiranju korisnika: {str(e)}")
 
 
 @router.post("/login")

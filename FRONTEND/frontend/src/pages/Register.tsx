@@ -1,6 +1,8 @@
 import { useState } from "react";
-import { ArrowNarrowLeft, Eye, EyeOff } from "@untitledui/icons";
+import { ArrowNarrowLeft, Eye, EyeOff, HelpCircle } from "@untitledui/icons";
 import { useNavigate } from "react-router-dom";
+import { useAuthStore } from "../store/useAuthStore";
+import { Tooltip, TooltipTrigger } from "../components/base/tooltip/tooltip";
 
 const backendURL = import.meta.env.VITE_APP_BACKEND;
 
@@ -15,10 +17,43 @@ export const Register = ({ isAdminMode = false, onSuccess } : RegisterProps) => 
         email: "",
         password: "",
         firstName: "",
-        lastName: ""
+        lastName: "",
+        roles: [""]
     });
 
+    const token = useAuthStore((state) => state.token);
     const navigate = useNavigate();
+
+    const availableRoles = [
+        { id: "admin", label: "Administrator" },
+        { id: "examinee", label: "Ispitanik" },
+        { id: "expert", label: "Stručnjak" },
+        { id: "teacher", label: "Nastavnik" }
+    ];
+
+    const handleRoleToggle = (roleId: string) => {
+        setFormData(prev => {
+        const isExaminee = roleId === "examinee";
+        const alreadyHasRole = prev.roles.includes(roleId);
+
+        if (isExaminee) {
+            return {
+                ...prev,
+                roles: alreadyHasRole ? [] : ["examinee"]
+            };
+        } else {
+            let newRoles = prev.roles.filter(r => r !== "examinee");
+            
+            if (alreadyHasRole) {
+                newRoles = newRoles.filter(r => r !== roleId);
+            } else {
+                newRoles = [...newRoles, roleId];
+            }
+
+            return { ...prev, roles: newRoles };
+        }
+    });
+    };
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const { name, value } = e.target;
@@ -30,15 +65,32 @@ export const Register = ({ isAdminMode = false, onSuccess } : RegisterProps) => 
     };
 
     const handleRegister = async () => {
-        const res = await fetch(`${backendURL}/auth/register`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ 
+        const endpoint = isAdminMode ? `${backendURL}/auth/admin-register` : `${backendURL}/auth/register`;
+
+        const headers: HeadersInit = { "Content-Type": "application/json" };
+        if (isAdminMode && token) {
+            headers["Authorization"] = `Bearer ${token}`;
+        }
+
+        const body = isAdminMode 
+            ? JSON.stringify({ 
+                email: formData.email,
+                password: formData.password,
+                first_name: formData.firstName,
+                last_name: formData.lastName,
+                roles: formData.roles
+            })
+            : JSON.stringify({ 
                 email: formData.email,
                 password: formData.password,
                 first_name: formData.firstName,
                 last_name: formData.lastName
-            })
+            });
+
+        const res = await fetch(endpoint, {
+            method: "POST",
+            headers: headers,
+            body: body
         });
 
         if (res.ok) {            
@@ -48,7 +100,8 @@ export const Register = ({ isAdminMode = false, onSuccess } : RegisterProps) => 
                 navigate("/user/login");
             }
         } else {
-            alert("Registracija neuspješna");
+            const errorData = await res.json();
+            alert(`Registracija neuspješna: ${errorData.detail || "Nepoznata greška"}`);
         }
     };
 
@@ -116,6 +169,43 @@ export const Register = ({ isAdminMode = false, onSuccess } : RegisterProps) => 
                     {passwordVisible ? <EyeOff className={`${isAdminMode && 'text-gray-500'} absolute right-2 hover:cursor-pointer`} onClick={togglePassword} /> : <Eye className={`${isAdminMode && 'text-gray-500'} absolute right-2 hover:cursor-pointer`} onClick={togglePassword} />}
 
                 </div>
+
+                {isAdminMode && (
+                    <div className="flex flex-col gap-2 mt-2">
+                        <div className="flex items-center gap-1">
+                            <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Uloge</label>
+                            <Tooltip style={{ backgroundColor: "#6a7282", borderRadius: "6px" }} placement="top left" title="Ispitanik ne može imati nijednu drugu ulogu.">
+                                <TooltipTrigger className="group relative flex cursor-pointer flex-col items-center gap-2 text-gray-600 transition duration-100 ease-linear hover:text-gray-700 focus:text-gray-700">
+                                    <HelpCircle className="size-4 text-gray-500" />
+                                </TooltipTrigger>
+                            </Tooltip>
+                        </div>
+                        <div className="flex gap-3">
+                            {availableRoles.map(role => {
+                                const isActive = formData.roles.includes(role.id);    
+                                const isDisabled = formData.roles.includes("examinee") && role.id !== "examinee";
+                                const isExamineeDisabled = !formData.roles.includes("examinee") && formData.roles.length > 0 && !formData.roles.includes("") && role.id === "examinee";
+
+                                return (
+                                <div
+                                    key={role.id}                                    
+                                    onClick={() => handleRoleToggle(role.id)}
+                                    className={`
+                                        px-4 py-2 rounded-lg border-2 text-sm font-semibold transition-all cursor-pointer
+                                        ${isActive
+                                            ? "border-orange-500 bg-orange-500/10 text-orange-500 shadow-sm" 
+                                            : "border-gray-400 bg-transparent text-gray-500 hover:border-gray-300"
+                                        }
+                                        ${(isDisabled || isExamineeDisabled) ? "opacity-50" : "opacity-100"}
+                                    `}
+                                >
+                                    <p>{role.label}</p>
+                                </div>
+                            )})}
+                        </div>
+                    </div>
+                )}
+
                 <button onClick={handleRegister} className="bg-orange-500 p-2 rounded hover:cursor-pointer">
                     {isAdminMode ? "Kreiraj račun" : "Registriraj se"}
                 </button>
