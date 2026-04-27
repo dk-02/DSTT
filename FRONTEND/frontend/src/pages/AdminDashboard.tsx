@@ -32,7 +32,7 @@ function AdminDashboard() {
     // SORT, SEARCH AND FILTER
     const [sortConfig, setSortConfig] = useState<SortConfig>({ key: "", direction: "asc" });
     const [searchTerm, setSearchTerm] = useState<string>("");
-    const [activeFilter, setActiveFilter] = useState<string>("all");
+    const [filters, setFilters] = useState({ status: "all", role: "all" });
     // EDIT
     const [userToEditId, setUserToEditId] = useState<string>("");
     const [formData, setFormData] = useState({
@@ -174,6 +174,39 @@ function AdminDashboard() {
         }
     };
 
+    
+    // FILTERING
+    const handleFilterChange = (category: "status" | "role", value: string) => {
+        setFilters(prev => ({
+            ...prev,
+            [category]: value
+        }));
+    };
+    
+    const handleClearFilters = () => {
+        setFilters({ status: "all", role: "all" });
+    };
+    
+    const filteredUsers = users?.filter(user => {
+        const matchesSearch = 
+        user.first_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        user.last_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        user.email.toLowerCase().includes(searchTerm.toLowerCase());
+        
+        let matchesStatus = true;
+        if (filters.status === "active") matchesStatus = user.is_active === true;
+        if (filters.status === "inactive") matchesStatus = user.is_active === false;
+        
+        let matchesRole = true;
+        if (filters.role !== "all") {
+            matchesRole = user.roles.includes(filters.role);
+        }
+        
+        return matchesSearch && matchesStatus && matchesRole;
+    });
+    
+
+    // SORT
     const requestSort = (key: keyof User) => {
         let direction: "asc" | "desc" = "asc";
         if (sortConfig.key === key && sortConfig.direction === "asc") {
@@ -182,28 +215,12 @@ function AdminDashboard() {
         setSortConfig({ key, direction });
     };
 
-    const filteredUsers = users?.filter(user => {
-        const matchesSearch = user.first_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            user.last_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            user.email.toLowerCase().includes(searchTerm.toLowerCase());
-
-        let matchesFilter = true;
-        if (activeFilter === "active") matchesFilter = user.is_active === true;
-        if (activeFilter === "inactive") matchesFilter = user.is_active === false;
-        if (activeFilter === "admin") matchesFilter = user.roles.includes("admin");
-        if (activeFilter === "examinee") matchesFilter = user.roles.includes("examinee");
-        if (activeFilter === "examinee") matchesFilter = user.roles.includes("expert");
-        if (activeFilter === "examinee") matchesFilter = user.roles.includes("teacher");
-
-        return matchesSearch && matchesFilter;
-    });
-
     const sortedUsers = [...(filteredUsers || [])].sort((a, b) => {
         if (sortConfig.key === "") return 0;
-
+        
         const aValue = a[sortConfig.key];
         const bValue = b[sortConfig.key];
-
+        
         if (aValue < bValue) {
             return sortConfig.direction === "asc" ? -1 : 1;
         }
@@ -212,7 +229,7 @@ function AdminDashboard() {
         }
         return 0;
     });
-
+    
     return (
         <div className="flex w-full h-screen bg-gray-700 text-gray-100 overflow-hidden">
             {/* Sidebar */}
@@ -255,7 +272,7 @@ function AdminDashboard() {
                             onChange={(e) => setSearchTerm(e.target.value)}
                         />
                     </div>
-                    <FilterDropdown onFilterChange={(type) => setActiveFilter(type)} />
+                    <FilterDropdown filters={filters} onFilterChange={(status, role) => handleFilterChange(status, role)} onClearAll={handleClearFilters} />                    
                 </div>
 
                 <div className="bg-gray-800 rounded-lg border border-gray-800 shadow-xl flex flex-col flex-1 min-h-0">
@@ -271,7 +288,8 @@ function AdminDashboard() {
                     </div>
 
                     {/* Table Body */}
-                    <div className="overflow-y-scroll">
+                    <div className="overflow-y-scroll h-full">
+                        {sortedUsers?.length === 0 && <div className="flex justify-center items-center h-full"><p className="text-gray-300 p-4">Nema korisnika.</p></div>}
                         {sortedUsers?.map((user) => (
                             <div key={user.id} className="grid grid-cols-6 p-4 items-center hover:bg-gray-750 border-b border-gray-700/50 transition-colors">
                                 <div className="font-medium">{user.first_name} {user.last_name}</div>
