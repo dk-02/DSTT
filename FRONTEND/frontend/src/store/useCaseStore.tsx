@@ -138,7 +138,26 @@ export const useCaseStore = create<CaseState>()(
     }),
     {
       name: 'case-creator-storage', 
-      storage: createJSONStorage(() => localStorage),
+      // storage: createJSONStorage(() => localStorage),
+      storage: createJSONStorage(() => {
+        const authData = localStorage.getItem('auth-storage');
+        let userId = 'guest';
+        
+        if (authData) {
+          try {
+            const parsed = JSON.parse(authData);
+            userId = parsed.state?.user?.id || 'guest';
+          } catch (e) {
+            console.error("Greška pri čitanju korisnika za storage key", e);
+          }
+        }
+        
+        return {
+          getItem: (name) => localStorage.getItem(`${name}-${userId}`),
+          setItem: (name, value) => localStorage.setItem(`${name}-${userId}`, value),
+          removeItem: (name) => localStorage.removeItem(`${name}-${userId}`),
+        };
+      }),
       
       partialize: (state) => ({
         step: state.step,

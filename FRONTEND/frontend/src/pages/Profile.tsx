@@ -3,6 +3,7 @@ import { useAuthStore } from "../store/useAuthStore";
 import { ArrowNarrowLeft } from "@untitledui/icons";
 import { Modal } from "../components/UI/Modal";
 import { useState } from "react";
+import { useCaseStore } from "../store/useCaseStore";
 
 const backendURL = import.meta.env.VITE_APP_BACKEND;
 
@@ -38,6 +39,8 @@ function Profile() {
     const navigate = useNavigate();
 
     const handleLogout = () => {
+        if(!window.confirm("Odjavom se poništavaju svi nespremljeni podatci (npr. u kreatoru slučaja). Želite li nastaviti?")) return;
+        useCaseStore.getState().clearCaseData();
         logout();
         navigate("/user/login");
     }

@@ -5,6 +5,7 @@ import { useAuthStore } from "../store/useAuthStore";
 import { jwtDecode } from "jwt-decode";
 import { Modal } from "../components/UI/Modal";
 import { Register } from "./Register";
+import { FilterDropdown } from "../components/UI/FilterDropdown";
 
 const backendURL = import.meta.env.VITE_APP_BACKEND;
 
@@ -28,9 +29,10 @@ type SortConfig = { key: keyof User | ""; direction: "asc" | "desc" };
 
 function AdminDashboard() {
     const [users, setUsers] = useState<User[]>();
-    // SORT AND SEARCH
+    // SORT, SEARCH AND FILTER
     const [sortConfig, setSortConfig] = useState<SortConfig>({ key: "", direction: "asc" });
     const [searchTerm, setSearchTerm] = useState<string>("");
+    const [activeFilter, setActiveFilter] = useState<string>("all");
     // EDIT
     const [userToEditId, setUserToEditId] = useState<string>("");
     const [formData, setFormData] = useState({
@@ -180,11 +182,21 @@ function AdminDashboard() {
         setSortConfig({ key, direction });
     };
 
-    const filteredUsers = users?.filter(user => 
-        user.first_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        user.last_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        user.email.toLowerCase().includes(searchTerm.toLowerCase())
-    );
+    const filteredUsers = users?.filter(user => {
+        const matchesSearch = user.first_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            user.last_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            user.email.toLowerCase().includes(searchTerm.toLowerCase());
+
+        let matchesFilter = true;
+        if (activeFilter === "active") matchesFilter = user.is_active === true;
+        if (activeFilter === "inactive") matchesFilter = user.is_active === false;
+        if (activeFilter === "admin") matchesFilter = user.roles.includes("admin");
+        if (activeFilter === "examinee") matchesFilter = user.roles.includes("examinee");
+        if (activeFilter === "examinee") matchesFilter = user.roles.includes("expert");
+        if (activeFilter === "examinee") matchesFilter = user.roles.includes("teacher");
+
+        return matchesSearch && matchesFilter;
+    });
 
     const sortedUsers = [...(filteredUsers || [])].sort((a, b) => {
         if (sortConfig.key === "") return 0;
@@ -231,16 +243,19 @@ function AdminDashboard() {
                     </button>
                 </header>
 
-                {/* Search Bar */}
-                <div className="relative w-full max-w-md shrink-0">
-                    <SearchMd className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5" />
-                    <input 
-                        type="text" 
-                        placeholder="Pretraži po imenu ili mailu..." 
-                        className="w-full bg-gray-700 border border-gray-500 rounded-lg py-2.5 pl-10 pr-4 focus:ring-2 focus:ring-orange-500 focus:outline-none transition-all"
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                    />
+                {/* Search Bar & Filter */}
+                <div className="flex items-center gap-4 shrink-0">
+                    <div className="relative w-full max-w-md">
+                        <SearchMd className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5" />
+                        <input 
+                            type="text" 
+                            placeholder="Pretraži po imenu ili mailu..." 
+                            className="w-full bg-gray-700 border border-gray-500 rounded-lg py-2.5 pl-10 pr-4 focus:ring-2 focus:ring-orange-500 focus:outline-none transition-all"
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                        />
+                    </div>
+                    <FilterDropdown onFilterChange={(type) => setActiveFilter(type)} />
                 </div>
 
                 <div className="bg-gray-800 rounded-lg border border-gray-800 shadow-xl flex flex-col flex-1 min-h-0">
