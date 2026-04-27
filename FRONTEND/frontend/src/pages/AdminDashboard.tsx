@@ -229,6 +229,14 @@ function AdminDashboard() {
         }
         return 0;
     });
+
+    const roleStyles: Record<string, string> = {
+        admin: "bg-purple-500/10 text-purple-400 border-purple-500/20",
+        examinee: "bg-blue-500/10 text-blue-400 border-blue-500/20",
+        expert: "bg-orange-500/10 text-orange-400 border-orange-500/20",
+        teacher: "bg-teal-500/10 text-teal-400 border-teal-500/20",
+        default: "bg-gray-500/10 text-gray-400 border-gray-500/20"
+    };
     
     return (
         <div className="flex w-full h-screen bg-gray-700 text-gray-100 overflow-hidden">
@@ -305,14 +313,17 @@ function AdminDashboard() {
                                         </span>
                                     )}
                                 </div>
-                                <div className="text-gray-400 truncate pr-4 flex flex-wrap gap-1 overflow-x-scroll">
-                                    {user.roles.map((role, idx) => (
-                                        <span key={idx} className="flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-blue-500/10 text-blue-400 border border-blue-500/20">
-                                            {role}
-                                        </span>
-                                    ))}
+                                <div className="text-gray-400 truncate pr-4 flex gap-1 col-span-2">
+                                    {user.roles.map((role, idx) => {
+                                        const colorClasses = roleStyles[role] || roleStyles.default;
+                                        return(
+                                            <span key={idx} className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium border ${colorClasses}`}>
+                                                {role}
+                                            </span>
+                                        )
+                                    })}
                                 </div>
-                                <div className="col-span-2 flex justify-end gap-2 px-2">
+                                <div className="col-span-1 flex justify-end gap-2 px-2">
                                     {user.is_active ? (
                                         <button onClick={() => handleDeactivate(user)} className="flex items-center gap-2 px-3 py-1.5 hover:bg-red-500/20 hover:cursor-pointer text-red-400 rounded-lg transition-all" title="Deaktiviraj">
                                             {/* <XCircle className="w-5 h-5 text-red-400" /> */}
