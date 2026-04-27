@@ -41,9 +41,14 @@ export const UserMgmt = () => {
         firstName: "",
         lastName: ""
     });
+
+    // DELETE
+    const [userToDelete, setUserToDelete] = useState<User | null>(null);
+
     // MODALS
     const [addUserModalOpen, setAddUserModalOpen] = useState<boolean>(false);
     const [editUserModalOpen, setEditUserModalOpen] = useState<boolean>(false);
+    const [deleteUserModalOpen, setDeleteUserModalOpen] = useState<boolean>(false);
 
     const token = useAuthStore((state) => state.token);
 
@@ -171,6 +176,29 @@ export const UserMgmt = () => {
             }
         } catch (error) {
             console.error("Mrežna greška:", error);
+        }
+    };
+
+    const handleDeleteUser = async (targetUser: User) => {
+        try {
+            const res = await fetch(`${backendURL}/users/delete/${targetUser.id}`, {
+                method: "DELETE",
+                headers: {
+                    "Authorization": `Bearer ${token}`,
+                    "Content-Type": "application/json"
+                }
+            });
+
+            if (res.ok) {
+                setUsers(prevUsers => prevUsers?.filter(user => user.id !== targetUser.id));
+                setDeleteUserModalOpen(false);
+            } else {
+                const errorData = await res.json();
+                alert(`Greška: ${errorData.detail}`);
+            }
+        } catch (error) {
+            console.error("Greška pri brisanju:", error);
+            alert("Došlo je do pogreške pri komunikaciji s poslužiteljem.");
         }
     };
 
@@ -325,7 +353,7 @@ export const UserMgmt = () => {
                                         <Edit01 className="w-5 h-5" />
                                     </button>
 
-                                    <button className="p-2 hover:bg-gray-700 hover:cursor-pointer rounded-lg text-gray-500 transition-colors" title="Obriši trajno">
+                                    <button onClick={() => {setDeleteUserModalOpen(true); setUserToDelete(user)}} className="p-2 hover:bg-gray-700 hover:cursor-pointer rounded-lg text-gray-500 transition-colors" title="Obriši trajno">
                                         <Trash01 className="w-5 h-5" />
                                     </button>
                                 </div>
@@ -371,6 +399,16 @@ export const UserMgmt = () => {
                     </label>
 
                     <button onClick={() => handleEditUser(userToEditId)} className="bg-orange-500 p-2 rounded hover:cursor-pointer">
+                        Potvrdi
+                    </button>
+                </div>
+            </Modal>
+            <Modal isOpen={deleteUserModalOpen} onClose={() => setDeleteUserModalOpen(false)} title={`Izbrisati korisnika ${userToDelete?.email}`}>
+                <div className='flex justify-center w-full'>
+                    <button 
+                        onClick={userToDelete ? () => handleDeleteUser(userToDelete) : () => undefined}
+                        className={"bg-red-600 w-1/4 p-3 hover:cursor-pointer rounded-lg flex items-center justify-center gap-2 border transition"}
+                    >
                         Potvrdi
                     </button>
                 </div>

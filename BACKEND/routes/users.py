@@ -71,3 +71,32 @@ def register(user_id: uuid.UUID, user_data: UserEdit, current_admin: User = Depe
     except Exception as e:
         session.rollback()
         raise HTTPException(status_code=500, detail=f"Greška pri uređivanju: {str(e)}")
+    
+
+@router.delete("/delete/{user_id}")
+def delete_user(
+    user_id: uuid.UUID, 
+    current_admin: User = Depends(get_current_admin), 
+    session: Session = Depends(get_session)
+):
+    target_user = session.get(User, user_id)
+    if not target_user:
+        raise HTTPException(status_code=404, detail="Korisnik nije pronađen")
+
+    if target_user.id == current_admin.id:
+        raise HTTPException(status_code=400, detail="Ne možete obrisati vlastiti račun")
+
+    try:
+        roles_statement = select(UserRole).where(UserRole.user_id == user_id)
+        user_roles = session.exec(roles_statement).all()
+        for role in user_roles:
+            session.delete(role)
+        
+        session.delete(target_user)
+        session.commit()
+        
+        return {"message": f"Korisnik {target_user.email} je uspješno obrisan."}
+        
+    except Exception as e:
+        session.rollback()
+        raise HTTPException(status_code=500, detail=f"Greška pri brisanju: {str(e)}")
