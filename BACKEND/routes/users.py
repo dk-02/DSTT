@@ -47,8 +47,8 @@ def get_all_users(
         
     return result
 
-@router.put("/edit/{user_id}")
-def register(user_id: uuid.UUID, user_data: UserEdit, current_admin: User = Depends(get_current_admin), session: Session = Depends(get_session)):
+@router.patch("/edit/{user_id}")
+def edit_user(user_id: uuid.UUID, user_data: UserEdit, current_admin: User = Depends(get_current_admin), session: Session = Depends(get_session)):
     existing_user = session.get(User, user_id)
     
     if not existing_user:
@@ -58,15 +58,19 @@ def register(user_id: uuid.UUID, user_data: UserEdit, current_admin: User = Depe
         )
 
     try:
-        existing_user.email = user_data.email
-        existing_user.first_name = user_data.first_name
-        existing_user.last_name = user_data.last_name
+        update_data = user_data.model_dump(exclude_unset=True)
+
+        for key, value in update_data.items():
+            setattr(existing_user, key, value)
 
         session.add(existing_user)
         session.commit()
         session.refresh(existing_user)
 
-        return {"status": "success", "message": "Uspješno uređeni podatci."}
+        return {
+            "status": "success", 
+            "message": "Uspješno uređeni podatci."
+        }
 
     except Exception as e:
         session.rollback()

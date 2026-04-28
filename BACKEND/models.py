@@ -185,13 +185,63 @@ class DiagnosisSubmission(SQLModel, table=True):
     attempt_id: uuid.UUID = Field(foreign_key="solve_attempts.id")
 
 
-# --------------- ASSIGNMENTS ---------------
+# --------- INSTITUTIONS --------------
 
-class Assignment(SQLModel, table=True):
-    __tablename__ = "assignments"
-
+class Institution(SQLModel, table=True):
+    __tablename__ = "institutions"
+    
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
-    settings: Dict[str, Any] = Field(default={}, sa_column=SAColumn(JSONB))
+    name: str = Field(max_length=150)
+    name_short: Optional[str] = Field(default=None, max_length=50)
+    domain: Optional[str] = Field(default=None, max_length=50)
+    logo_url: Optional[str] = None
+    idp_metadata_url: Optional[str] = None
+    is_active: bool = Field(default=True)
+    registered_at: datetime = Field(default_factory=datetime.now)
+
+    users: List["User"] = Relationship(back_populates="institution")
+    groups: List["Group"] = Relationship(back_populates="institution")
+
+
+class InstitutionCreate(BaseModel):
+    name: str
+    name_short: Optional[str] = None
+    domain: Optional[str] = None
+    logo_url: Optional[str] = None
+    idp_metadata_url: Optional[str] = None
+
+class InstitutionUpdate(BaseModel):
+    name: Optional[str] = None
+    name_short: Optional[str] = None
+    domain: Optional[str] = None
+    logo_url: Optional[str] = None
+    idp_metadata_url: Optional[str] = None
+
+
+# ------------ GROUPS --------------
+
+class GroupMember(SQLModel, table=True):
+    __tablename__ = "group_members"
+    
+    student_id: uuid.UUID = Field(foreign_key="users.id", primary_key=True)
+    group_id: uuid.UUID = Field(foreign_key="groups.id", primary_key=True)
+    joined_at: datetime = Field(default_factory=datetime.now)
+
+
+class Group(SQLModel, table=True):
+    __tablename__ = "groups"
+    
+    id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
+    name: str = Field(max_length=100)
+    teacher_id: uuid.UUID = Field(foreign_key="users.id")
+    institution_id: uuid.UUID = Field(foreign_key="institutions.id")
+
+
+    institution: Institution = Relationship(back_populates="groups")
+    assignments: List["Assignment"] = Relationship(back_populates="group")
+
+    teacher: "User" = Relationship(back_populates="managed_groups")
+    students: List["User"] = Relationship(link_model=GroupMember)
 
 
 # --------------- USERS ---------------
@@ -208,8 +258,16 @@ class User(SQLModel, table=True):
     expertise_level: Optional[str] = Field(default=None)
     xp_points: Optional[int] = Field(default=None)
 
-    # aai_edu_uid: str - DODATI
-    # institution_id - relationship - DODATI
+    institution_id: Optional[uuid.UUID] = Field(default=None, foreign_key="institutions.id")
+
+    institution: Optional["Institution"] = Relationship(back_populates="users")
+    
+    groups: List["Group"] = Relationship(back_populates="students", link_model=GroupMember)
+    
+    managed_groups: List["Group"] = Relationship(back_populates="teacher")
+
+    # aai_edu_uid: str - DODATI KAD SE OSPOSOBI AAI_EDU
+
 
 class Role(SQLModel, table=True):
     __tablename__ = "roles"
@@ -239,10 +297,62 @@ class UserRegister(BaseModel):
     last_name: str
 
 class UserEdit(BaseModel):
-    email: str
-    first_name: str
-    last_name: str
+    email: Optional[str] = None
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+    institution_id: Optional[uuid.UUID] = None
 
 class PasswordChange(BaseModel):
     old_password: str
     new_password: str
+
+
+# ------------ ASSIGNMENTS --------------
+
+class AssignmentCase(SQLModel, table=True):
+    __tablename__ = "assignment_cases"
+    
+    assignment_id: uuid.UUID = Field(foreign_key="assignments.id", primary_key=True)
+    case_id: uuid.UUID = Field(foreign_key="cases.id", primary_key=True)
+    sequence_no: int = Field(default=1)
+
+
+class Assignment(SQLModel, table=True):
+    __tablename__ = "assignments"
+    
+    id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
+    title: str = Field(max_length=100)
+    instructions: Optional[str] = None
+    type: str = Field(max_length=20) # 'practice', 'practice-exam', 'exam'
+    assigned_at: datetime = Field(default_factory=datetime.now)
+    available_until: Optional[datetime] = None
+    
+    settings: Dict[str, Any] = Field(default={}, sa_column=SAColumn(JSONB))
+    
+    teacher_id: uuid.UUID = Field(foreign_key="users.id")
+    group_id: uuid.UUID = Field(foreign_key="groups.id")
+
+    group: Group = Relationship(back_populates="assignments")
+    cases: List["Case"] = Relationship(link_model=AssignmentCase)
+
+
+# ----------- UPDATES & NOTIFICATIONS -------------
+
+class CaseUpdate(SQLModel, table=True):
+    __tablename__ = "case_updates"
+    
+    id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
+    case_id: uuid.UUID = Field(foreign_key="cases.id")
+    change_log: str
+    new_version: int
+    created_at: datetime = Field(default_factory=datetime.now)
+
+
+class UpdateNotification(SQLModel, table=True):
+    __tablename__ = "update_notifications"
+    
+    id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
+    update_id: uuid.UUID = Field(foreign_key="case_updates.id")
+    user_id: uuid.UUID = Field(foreign_key="users.id")
+    status: str = Field(default="decision_pending") # 'decision_pending', 'accepted', 'declined'
+    decision_at: Optional[datetime] = None

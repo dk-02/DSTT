@@ -153,12 +153,8 @@ export const UserMgmt = () => {
 
     const handleEditUser = async (userId: string) => {
         try {
-            const res = await fetch(`${backendURL}/users/edit/${userId}`, {
-                method: "PUT",
-                headers: { 
-                    "Content-Type": "application/json",
-                    "Authorization": `Bearer ${token}`
-                },
+            const res = await apiRequest(`/users/edit/${userId}`, {
+                method: "PATCH",
                 body: JSON.stringify({
                     first_name: formData.firstName,
                     last_name: formData.lastName,
@@ -166,15 +162,16 @@ export const UserMgmt = () => {
                 })
             });
 
-            if (res.ok) {
+            if (res && res.ok) {
                 setUsers(prevUsers => 
                     prevUsers?.map(user => 
                         user.id === userId ? { ...user, first_name: formData.firstName, last_name: formData.lastName, email: formData.email } : user
                     )
                 );
+
                 setEditUserModalOpen(false); 
 
-            } else {
+            } else if (res) {
                 const errorData = await res.json();
                 alert(`Greška pri uređivanju: ${errorData.detail}`);
             }

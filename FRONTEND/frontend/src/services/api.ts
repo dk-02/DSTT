@@ -31,13 +31,13 @@ export const apiRequest = async (endpoint: string, options: RequestInit = {}) =>
             useCaseStore.getState().clearCaseData();
 
             window.location.href = "/user/login";
-            return;
+            return null;
         }
 
         return response;
 
     } catch (error) {
         console.error("Mrežna greška:", error);
-        return;
+        return null;
     }
 };
