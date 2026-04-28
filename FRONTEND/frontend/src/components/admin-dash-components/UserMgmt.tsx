@@ -5,6 +5,7 @@ import { useState, useEffect } from "react";
 import { useAuthStore } from "../../store/useAuthStore";
 import { Modal } from "../UI/Modal";
 import { Register } from "../../pages/Register";
+import { apiRequest } from "../../services/api";
 
 interface User {
     id: string; 
@@ -75,21 +76,24 @@ export const UserMgmt = () => {
 
     const handleDeactivate = async (targetUser : User) => {
         try {
-            const res = await fetch(`${backendURL}/auth/deactivate?user_id=${targetUser?.id}`, {
-                method: "POST",
-                headers: { 
-                    "Content-Type": "application/json", 
-                    "Authorization": `Bearer ${token}` 
-                },
+            // const res = await fetch(`${backendURL}/auth/deactivate?user_id=${targetUser?.id}`, {
+            //     method: "POST",
+            //     headers: { 
+            //         "Content-Type": "application/json", 
+            //         "Authorization": `Bearer ${token}` 
+            //     },
+            // });
+            const res = await apiRequest(`/auth/deactivate?user_id=${targetUser.id}`, {
+                method: "POST"
             });
         
-            if (res.ok) {
+            if (res && res.ok) {
                 setUsers(prevUsers => 
                     prevUsers?.map(user => 
                         user.id === targetUser.id ? { ...user, is_active: false } : user
                     )
                 );
-            } else {
+            } else if (res) {
                 const errorData = await res.json();
                 alert(`Greška: ${errorData.detail}`);
             }
