@@ -59,9 +59,26 @@ def edit_user(user_id: uuid.UUID, user_data: UserEdit, current_admin: User = Dep
 
     try:
         update_data = user_data.model_dump(exclude_unset=True)
+        new_roles = update_data.pop("roles", None)
 
         for key, value in update_data.items():
             setattr(existing_user, key, value)
+
+        if new_roles is not None:
+            delete_statement = select(UserRole).where(UserRole.user_id == user_id)
+            existing_roles = session.exec(delete_statement).all()
+            for r in existing_roles:
+                session.delete(r)
+            
+            for role_name in new_roles:
+                role_stmt = select(Role).where(Role.name == role_name)
+                role_obj = session.exec(role_stmt).first()
+                
+                if role_obj:
+                    new_user_role = UserRole(user_id=user_id, role_id=role_obj.id)
+                    session.add(new_user_role)
+                else:
+                    print(f"Upozorenje: Uloga {role_name} ne postoji.")
 
         session.add(existing_user)
         session.commit()

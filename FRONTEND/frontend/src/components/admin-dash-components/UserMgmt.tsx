@@ -40,7 +40,8 @@ export const UserMgmt = () => {
     const [formData, setFormData] = useState({
         email: "",
         firstName: "",
-        lastName: ""
+        lastName: "",
+        roles: [""]
     });
 
     // DELETE
@@ -158,14 +159,15 @@ export const UserMgmt = () => {
                 body: JSON.stringify({
                     first_name: formData.firstName,
                     last_name: formData.lastName,
-                    email: formData.email
+                    email: formData.email,
+                    roles: formData.roles
                 })
             });
 
             if (res && res.ok) {
                 setUsers(prevUsers => 
                     prevUsers?.map(user => 
-                        user.id === userId ? { ...user, first_name: formData.firstName, last_name: formData.lastName, email: formData.email } : user
+                        user.id === userId ? { ...user, first_name: formData.firstName, last_name: formData.lastName, email: formData.email, roles: formData.roles } : user
                     )
                 );
 
@@ -267,6 +269,37 @@ export const UserMgmt = () => {
         default: "bg-gray-500/10 text-gray-400 border-gray-500/20"
     };
 
+    const availableRoles = [
+        { id: "admin", label: "Administrator" },
+        { id: "examinee", label: "Ispitanik" },
+        { id: "expert", label: "Stručnjak" },
+        { id: "teacher", label: "Nastavnik" }
+    ];
+
+    const handleRoleToggle = (roleId: string) => {
+        setFormData(prev => {
+            const isExaminee = roleId === "examinee";
+            const alreadyHasRole = prev.roles.includes(roleId);
+
+            if (isExaminee) {
+                return {
+                    ...prev,
+                    roles: alreadyHasRole ? [] : ["examinee"]
+                };
+            } else {
+                let newRoles = prev.roles.filter(r => r !== "examinee");
+                
+                if (alreadyHasRole) {
+                    newRoles = newRoles.filter(r => r !== roleId);
+                } else {
+                    newRoles = [...newRoles, roleId];
+                }
+
+                return { ...prev, roles: newRoles };
+            }
+        });
+    };
+
     return(
         <>
         {/* Main Content */}
@@ -350,7 +383,7 @@ export const UserMgmt = () => {
                                         </button>
                                     )}
 
-                                    <button onClick={() => {setEditUserModalOpen(true); setFormData({firstName: user.first_name, lastName: user.last_name, email: user.email}); setUserToEditId(user.id)}} className="p-2 hover:bg-gray-700 hover:cursor-pointer rounded-lg text-gray-500 transition-colors" title="Uredi">
+                                    <button onClick={() => {setEditUserModalOpen(true); setFormData({firstName: user.first_name, lastName: user.last_name, email: user.email, roles: user.roles}); setUserToEditId(user.id)}} className="p-2 hover:bg-gray-700 hover:cursor-pointer rounded-lg text-gray-500 transition-colors" title="Uredi">
                                         <Edit01 className="w-5 h-5" />
                                     </button>
 
@@ -398,6 +431,30 @@ export const UserMgmt = () => {
                             onChange={handleChange} 
                             className={"p-2 bg-gray-200 text-gray-600 border border-gray-400 rounded focus:ring-2 focus:ring-orange-500 outline-none w-full"}/>
                     </label>
+
+                    <div className="flex gap-3 my-3">
+                        {availableRoles.map(role => {
+                            const isActive = formData.roles.includes(role.id);    
+                            const isDisabled = formData.roles.includes("examinee") && role.id !== "examinee";
+                            const isExamineeDisabled = !formData.roles.includes("examinee") && formData.roles.length > 0 && !formData.roles.includes("") && role.id === "examinee";
+
+                            return (
+                            <div
+                                key={role.id}                                    
+                                onClick={() => handleRoleToggle(role.id)}
+                                className={`
+                                    px-4 py-2 rounded-lg border-2 text-sm font-semibold transition-all cursor-pointer
+                                    ${isActive
+                                        ? "border-orange-500 bg-orange-500/10 text-orange-500 shadow-sm" 
+                                        : "border-gray-400 bg-transparent text-gray-500 hover:border-gray-300"
+                                    }
+                                    ${(isDisabled || isExamineeDisabled) ? "opacity-50" : "opacity-100"}
+                                `}
+                            >
+                                <p>{role.label}</p>
+                            </div>
+                        )})}
+                    </div>
 
                     <button onClick={() => handleEditUser(userToEditId)} className="bg-orange-500 p-2 rounded hover:cursor-pointer">
                         Potvrdi

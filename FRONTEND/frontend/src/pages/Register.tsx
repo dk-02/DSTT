@@ -33,26 +33,26 @@ export const Register = ({ isAdminMode = false, onSuccess } : RegisterProps) => 
 
     const handleRoleToggle = (roleId: string) => {
         setFormData(prev => {
-        const isExaminee = roleId === "examinee";
-        const alreadyHasRole = prev.roles.includes(roleId);
+            const isExaminee = roleId === "examinee";
+            const alreadyHasRole = prev.roles.includes(roleId);
 
-        if (isExaminee) {
-            return {
-                ...prev,
-                roles: alreadyHasRole ? [] : ["examinee"]
-            };
-        } else {
-            let newRoles = prev.roles.filter(r => r !== "examinee");
-            
-            if (alreadyHasRole) {
-                newRoles = newRoles.filter(r => r !== roleId);
+            if (isExaminee) {
+                return {
+                    ...prev,
+                    roles: alreadyHasRole ? [] : ["examinee"]
+                };
             } else {
-                newRoles = [...newRoles, roleId];
-            }
+                let newRoles = prev.roles.filter(r => r !== "examinee");
+                
+                if (alreadyHasRole) {
+                    newRoles = newRoles.filter(r => r !== roleId);
+                } else {
+                    newRoles = [...newRoles, roleId];
+                }
 
-            return { ...prev, roles: newRoles };
-        }
-    });
+                return { ...prev, roles: newRoles };
+            }
+        });
     };
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {

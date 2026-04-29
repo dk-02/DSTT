@@ -4,7 +4,7 @@ from typing import List, Optional, Dict, Any
 from pydantic import BaseModel
 from sqlmodel import JSON, SQLModel, Field, Relationship
 from sqlalchemy.dialects.postgresql import JSONB
-from sqlalchemy import Column as SAColumn
+from sqlalchemy import Column as SAColumn, UniqueConstraint
 
 
 # --------------- CASES ---------------
@@ -230,18 +230,36 @@ class GroupMember(SQLModel, table=True):
 
 class Group(SQLModel, table=True):
     __tablename__ = "groups"
+
+    __table_args__ = (
+        UniqueConstraint("name", "teacher_id", "academic_year", name="uq_group_name_teacher_year"),
+    )
     
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
     name: str = Field(max_length=100)
+    academic_year: str = Field(max_length=20)
     teacher_id: uuid.UUID = Field(foreign_key="users.id")
     institution_id: uuid.UUID = Field(foreign_key="institutions.id")
-
 
     institution: Institution = Relationship(back_populates="groups")
     assignments: List["Assignment"] = Relationship(back_populates="group")
 
     teacher: "User" = Relationship(back_populates="managed_groups")
     students: List["User"] = Relationship(link_model=GroupMember)
+
+
+class GroupCreate(BaseModel):
+    name: str
+    teacher_id: Optional[uuid.UUID] = None
+    academic_year: Optional[str] = None
+
+class GroupUpdate(BaseModel):
+    name: Optional[str] = None
+    teacher_id: Optional[uuid.UUID] = None
+    academic_year: Optional[str] = None
+
+class AddStudentToGroup(BaseModel):
+    student_id: uuid.UUID
 
 
 # --------------- USERS ---------------
@@ -300,6 +318,7 @@ class UserEdit(BaseModel):
     email: Optional[str] = None
     first_name: Optional[str] = None
     last_name: Optional[str] = None
+    roles: Optional[List[str]] = None
     institution_id: Optional[uuid.UUID] = None
 
 class PasswordChange(BaseModel):
