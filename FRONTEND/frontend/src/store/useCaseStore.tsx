@@ -1,11 +1,11 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 
-export type DUType = 'DATA' | 'ACTION';
+export type DUType = 'data' | 'action';
 export type DULevel = 1 | 2 | 3;
 export type IncorrectDiagnosisConsequence = 'terminate' | 'penalize' | 'continue';
-export type consequenceType = 'WARNING' | 'TERMINATE';
-export type caseType = 'EXERCISE' | 'EXAM';
+export type consequenceType = 'warning' | 'terminate';
+export type caseType = 'practice' | 'exam';
 
 export interface DiagnosticUnit {
   id: string;
@@ -29,7 +29,7 @@ interface CaseData {
   initial_info: string;
   correct_diagnosis: string;
   if_incorrect: IncorrectDiagnosisConsequence;
-  category: string;
+  category_id: string;
   hints: { sequence_no: number, text: string; cost: number }[];
   diagnostic_units: DiagnosticUnit[];
   media: File[];
@@ -59,12 +59,12 @@ interface CaseState {
 const initialCaseData : CaseData = {
   title: '',
   level: 'novice',
-  type: 'EXERCISE',
+  type: 'practice',
   is_public: false,
   initial_info: '',
   correct_diagnosis: '',
   if_incorrect: 'terminate',
-  category: '',
+  category_id: '',
   hints: [],
   diagnostic_units: [],
   media: [],
@@ -89,7 +89,7 @@ export const useCaseStore = create<CaseState>()(
               id: crypto.randomUUID(),
               label: '',
               name: '',
-              type: 'DATA',
+              type: 'data',
               level: 1,
               result_text: '',
               media: [],

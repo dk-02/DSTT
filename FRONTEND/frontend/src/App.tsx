@@ -11,6 +11,9 @@ import { ProtectedAdminRoute } from "./components/auth/ProtectedAdminRoute";
 import { useAuthStore } from "./store/useAuthStore";
 import { useEffect } from "react";
 import { jwtDecode } from "jwt-decode";
+import Dashboard from "./pages/Dashboard";
+import About from "./pages/About";
+import Contact from "./pages/Contact";
 
 interface MyTokenPayload {
     sub: string;
@@ -50,6 +53,9 @@ function App() {
                 <Route path="/user/register" element={<Register />} />
                 <Route path="/user/login" element={<Login />} />
                 <Route path="/user/profile" element={<Profile />} />
+                <Route path="/user/dashboard" element={<Dashboard />} />
+                <Route path="/about" element={<About />} />
+                <Route path="/contact" element={<Contact />} />
                 <Route 
                     path="/admin/dashboard" 
                     element={

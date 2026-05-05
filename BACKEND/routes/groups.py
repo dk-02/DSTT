@@ -3,7 +3,7 @@ import uuid
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlmodel import Session, select
 from typing import List
-from models import AddStudentToGroup, Group, GroupCreate, GroupUpdate, GroupMember, Role, User, Institution, UserRole
+from models import AddStudentToGroup, Assignment, Group, GroupAssignment, GroupCreate, GroupUpdate, GroupMember, Role, User, UserRole
 from sqlalchemy.exc import IntegrityError
 from routes.auth import get_current_active_user
 from database import engine
@@ -24,6 +24,27 @@ def get_current_academic_year():
         return f"{current_year - 1}/{current_year}"
 
 
+@router.get("/", response_model=List[Group])
+def get_groups(session: Session = Depends(get_session), current_user: User = Depends(get_current_active_user)):
+    user_roles = session.exec(select(Role.name).join(UserRole).where(UserRole.user_id == current_user.id)).all()
+
+    is_examinee = "examinee" in user_roles
+    is_teacher = "teacher" in user_roles
+    is_admin = "admin"
+
+    if is_teacher:
+        return current_user.managed_groups
+
+    if is_examinee:
+        return current_user.groups
+
+    if is_admin:
+        return session.exec(select(Group)).all()
+
+    
+    raise HTTPException(status_code=403, detail="Nemate ovlasti za ovu akciju.")
+
+
 @router.get("/{group_id}/members", response_model=List[User])
 def get_group_members(group_id: uuid.UUID, session: Session = Depends(get_session), current_user: User = Depends(get_current_active_user)):
     group = session.get(Group, group_id)
@@ -37,51 +58,82 @@ def get_group_members(group_id: uuid.UUID, session: Session = Depends(get_sessio
 
     if not is_teacher and not is_admin:
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Nemate ovlasti za ovu akciju (potrebna je uloga nastavnika ili administratora)."
-        )
+            status_code=403, detail="Nemate ovlasti za ovu akciju (potrebna je uloga nastavnika ili administratora).")
+    
+    if is_teacher and group.teacher_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Niste vlasnik ove grupe.")
 
     return group.students
 
 
+@router.get("/{group_id}/assignments", response_model=List[Assignment])
+def get_assignments_by_group(group_id: uuid.UUID, session: Session = Depends(get_session), current_user: User = Depends(get_current_active_user)):
+    user_roles = session.exec(select(Role.name).join(UserRole).where(UserRole.user_id == current_user.id)).all()
+
+    is_examinee = "examinee" in user_roles
+    is_teacher = "teacher" in user_roles
+
+    if is_examinee:
+        stmt = select(GroupMember).where(GroupMember.group_id == group_id, GroupMember.student_id == current_user.id)
+        membership = session.exec(stmt).first()
+
+        if not membership:
+            raise HTTPException(status_code=403, detail="Niste član ove grupe.")
+
+    if is_teacher:
+        group = session.get(Group, group_id)
+
+        if not group or group.teacher_id != current_user.id:
+            raise HTTPException(status_code=403, detail="Niste vlasnik ove grupe.")
+        
+    stmt = (
+        select(Assignment)
+        .join(GroupAssignment)
+        .where(GroupAssignment.group_id == group_id)
+    )
+
+    assignments = session.exec(stmt).all()
+    return assignments
+
+
 @router.post("/")
 def create_group(data: GroupCreate, session: Session = Depends(get_session), current_user: User = Depends(get_current_active_user)):
-    try:
-        user_roles = session.exec(select(Role.name).join(UserRole).where(UserRole.user_id == current_user.id)).all()
+    user_roles = session.exec(select(Role.name).join(UserRole).where(UserRole.user_id == current_user.id)).all()
 
-        is_admin = "admin" in user_roles
-        is_teacher = "teacher" in user_roles
+    is_admin = "admin" in user_roles
+    is_teacher = "teacher" in user_roles
 
-        if not is_teacher and not is_admin:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Nemate ovlasti za ovu akciju (potrebna je uloga nastavnika ili administratora)."
-            )
-
-        if is_admin and data.teacher_id:
-            target_teacher = session.get(User, data.teacher_id)
-            if not target_teacher:
-                raise HTTPException(status_code=404, detail="Odabrani nastavnik ne postoji")
-            
-            assigned_teacher_id = target_teacher.id
-            assigned_inst_id = target_teacher.institution_id
-
-        elif is_teacher:
-            assigned_teacher_id = current_user.id
-            assigned_inst_id = current_user.institution_id     
-
-        else:
-            raise HTTPException(status_code=403, detail="Greška pri kreiranju grupe: nije dozvoljeno kreiranje grupe kojom upravlja administrator.")       
-
-        ac_year = data.academic_year or get_current_academic_year()
-
-        new_group = Group(
-            name=data.name,
-            teacher_id=assigned_teacher_id,
-            institution_id=assigned_inst_id,
-            academic_year=ac_year
+    if not is_teacher and not is_admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Nemate ovlasti za ovu akciju (potrebna je uloga nastavnika ili administratora)."
         )
 
+    if is_admin and data.teacher_id:
+        target_teacher = session.get(User, data.teacher_id)
+        if not target_teacher:
+            raise HTTPException(status_code=404, detail="Odabrani nastavnik ne postoji")
+        
+        assigned_teacher_id = target_teacher.id
+        assigned_inst_id = target_teacher.institution_id
+
+    elif is_teacher:
+        assigned_teacher_id = current_user.id
+        assigned_inst_id = current_user.institution_id     
+
+    else:
+        raise HTTPException(status_code=403, detail="Greška pri kreiranju grupe: nije dozvoljeno kreiranje grupe kojom upravlja administrator.")       
+
+    ac_year = data.academic_year or get_current_academic_year()
+
+    new_group = Group(
+        name=data.name,
+        teacher_id=assigned_teacher_id,
+        institution_id=assigned_inst_id,
+        academic_year=ac_year
+    )
+
+    try:
         session.add(new_group)
         session.commit()
         session.refresh(new_group)

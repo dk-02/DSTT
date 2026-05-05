@@ -4,6 +4,7 @@ import { ArrowNarrowLeft } from "@untitledui/icons";
 import { Modal } from "../components/UI/Modal";
 import { useState } from "react";
 import { useCaseStore } from "../store/useCaseStore";
+import { useRole } from "../hooks/useRole";
 
 const backendURL = import.meta.env.VITE_APP_BACKEND;
 
@@ -32,6 +33,8 @@ function Profile() {
         }));
     };
 
+    const {isExaminee} = useRole();
+
     const user = useAuthStore((state) => state.user);
     const token = useAuthStore((state) => state.token);
     const { logout } = useAuthStore();
@@ -39,7 +42,9 @@ function Profile() {
     const navigate = useNavigate();
 
     const handleLogout = () => {
-        if(!window.confirm("Odjavom se poništavaju svi nespremljeni podatci (npr. u kreatoru slučaja). Želite li nastaviti?")) return;
+        if (!isExaminee) {
+            if(!window.confirm("Odjavom se poništavaju svi nespremljeni podatci (npr. u kreatoru slučaja). Želite li nastaviti?")) return;
+        }
         useCaseStore.getState().clearCaseData();
         logout();
         navigate("/user/login");
@@ -129,20 +134,23 @@ function Profile() {
 
     return(
         <div className="flex justify-center items-center w-screen h-screen bg-gray-700 text-white relative">
-            <ArrowNarrowLeft onClick={() => navigate("/")} className="absolute top-5 left-5 scale-130 text-gray-50 hover:cursor-pointer" />
+            <ArrowNarrowLeft onClick={() => navigate("/user/dashboard")} className="absolute top-5 left-5 scale-130 text-gray-50 hover:cursor-pointer" />
             <div className="w-1/4 p-10 bg-gray-800  h-full flex flex-col justify-between items-center">
                 <div className="flex flex-col items-center gap-5 w-full">
                     <div className="flex items-center justify-center w-40 h-40 text-4xl bg-gray-900 border-2 border-orange-500 font-bold rounded-full">
                         <span className="select-none">{user?.first_name.at(0)?.toUpperCase()}{user?.last_name.at(0)?.toUpperCase()}</span>
                     </div>
-                    <div className="flex gap-3 text-xl w-full">
-                        <div className="flex justify-center items-center border-2 border-gray-500 w-[50%] h-24 rounded">
-                            <span>{user?.xp_points} XP</span>
+                    {isExaminee && 
+                        <div className="flex gap-3 text-xl w-full">
+                            <div className="flex justify-center items-center border-2 border-gray-500 w-[50%] h-24 rounded">
+                                <span>{user?.xp_points} XP</span>
+                            </div>
+                            <div className="flex justify-center items-center border-2 border-gray-500 w-[50%] h-24 rounded">
+                                <span>{user?.expertise_level.toUpperCase()}</span>
+                            </div>
                         </div>
-                        <div className="flex justify-center items-center border-2 border-gray-500 w-[50%] h-24 rounded">
-                            <span>{user?.expertise_level.toUpperCase()}</span>
-                        </div>
-                    </div>
+                    }
+                    
 
                     <button className="cursor-pointer border border-gray-600 font-semibold px-3 py-2 rounded">Povijest rješavanja i statistika</button>
                 </div>

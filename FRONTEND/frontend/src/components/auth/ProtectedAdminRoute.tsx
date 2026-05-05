@@ -1,13 +1,13 @@
 import { useAuthStore } from "../../store/useAuthStore";
 import { useEffect, type JSX } from "react";
 import { useNavigate } from "react-router-dom";
-import { useAdmin } from "../../hooks/useAdmin";
+import { useRole } from "../../hooks/useRole";
 
 
 export const ProtectedAdminRoute = ({ children }: { children: JSX.Element }) => {
     const token = useAuthStore((state) => state.token);
     const navigate = useNavigate();
-    const isAdmin = useAdmin();
+    const { isAdmin } = useRole();
 
     useEffect(() => {
         if (!token) {

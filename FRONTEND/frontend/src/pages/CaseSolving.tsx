@@ -214,7 +214,7 @@ function CaseSolving() {
             if (response.ok) {
                 reset(); 
                 
-                navigate("/"); 
+                navigate("/user/dashboard"); 
                 alert("Rješavanje je otkazano.");
             } else {
                 const errorData = await response.json();
@@ -232,9 +232,9 @@ function CaseSolving() {
 
     return (
         <div className="p-5 flex w-screen h-screen gap-5 bg-gray-700 relative">
-            <ArrowNarrowLeft onClick={() => navigate("/")} className="absolute top-5 left-5 scale-130 text-gray-50 hover:cursor-pointer" />
+            <ArrowNarrowLeft onClick={() => navigate("/user/dashboard")} className="absolute top-5 left-5 scale-130 text-gray-50 hover:cursor-pointer" />
             <div className="w-1/3 flex flex-col gap-5 items-center">
-                <h1 className="text-orange-400 font-bold text-2xl">{caseInfo?.title}</h1>
+                <h1 className="w-3/4 text-orange-400 font-bold text-2xl">{caseInfo?.title}</h1>
                 <p className="text-white">{caseInfo?.initial_info}</p>
                 <div>
                     {caseInfo?.media.map((m, idx) => (

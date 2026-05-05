@@ -66,6 +66,16 @@ async def get_current_admin(current_user: User = Depends(get_current_active_user
     return current_user
 
 
+async def get_current_teacher(current_user: User = Depends(get_current_active_user), session: Session = Depends(get_session)):
+    teacher_role = session.exec(
+        select(UserRole).join(Role).where(UserRole.user_id == current_user.id, Role.name == "teacher")
+    ).first()
+    
+    if not teacher_role:
+        raise HTTPException(status_code=403, detail="Pristup dopušten samo nastavnicima.")
+    return current_user
+
+
 def hash_password(password: str):
     return pwd_context.hash(password)
 
@@ -156,7 +166,6 @@ def admin_register(user_data: AdminUserRegister, current_admin: User = Depends(g
 
 
 @router.post("/login")
-@limiter.limit("5/minute")
 def login(request: Request, user_data: OAuth2PasswordRequestForm = Depends(), session: Session = Depends(get_session)):
     statement = select(User).where(User.email == user_data.username) #OAuth zbog Swagger testiranja; username = email
     user = session.exec(statement).first()

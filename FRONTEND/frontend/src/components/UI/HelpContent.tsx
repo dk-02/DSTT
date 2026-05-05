@@ -25,6 +25,7 @@ export const HelpContent = () => (
             </h2>
             <div className="space-y-2">
                 <p><strong>Naslov (title):</strong> Naziv slučaja koji se prikazuje u izborniku.</p>
+                <p><strong>Kategorija (category):</strong> Kategorija slučaja i moguće potkategorije. Npr. automehanika - motori s unutarnjim izgaranjem - senzori u motoru.</p>
                 <p>
                     <strong>Razina (level):</strong> Određuje težinu zadatka. Moguće vrijednosti:
                     <span className="ml-2 px-2 py-0.5 bg-gray-100 rounded text-sm font-mono">novice, intermediate, expert</span>

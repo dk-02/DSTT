@@ -1,12 +1,13 @@
 import os
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import or_
 from sqlmodel import Session, select
 from typing import List, Dict, Any
 from pydantic import BaseModel
 import uuid
 from routes.auth import get_current_active_user
 from database import engine
-from models import Case, CaseCategory, CaseReadWithMedia, Hint, DiagnosticUnit, Media, UnitDependency, User, HintReadCreate
+from models import AssignmentCasePreview, Case, CaseCategory, CaseReadWithMedia, Category, Hint, DiagnosticUnit, Media, UnitDependency, User, HintReadCreate
 
 router = APIRouter(prefix="/cases", tags=["Cases"])
 
@@ -48,7 +49,7 @@ def create_case(case_data: CaseCreate, current_user: User = Depends(get_current_
     try:
         new_case_id = uuid.uuid4()
 
-        if case_data.type.upper() == "EXERCISE":
+        if case_data.type.lower() == "practice":
             computed_defaults = {
                 "enable_hints": True,
                 "ignore_hint_cost": True,
@@ -57,7 +58,7 @@ def create_case(case_data: CaseCreate, current_user: User = Depends(get_current_
                 "ignore_terminating_consequences": True,
                 "show_result_immediately": True
             }
-        else:
+        elif case_data.type.lower() == "exam":
             computed_defaults = {
                 "enable_hints": False,
                 "ignore_hint_cost": False,
@@ -147,6 +148,7 @@ def create_case(case_data: CaseCreate, current_user: User = Depends(get_current_
         raise HTTPException(status_code=400, detail=str(e))
     
 
+# --- SVI DOSTUPNI CASEOVI - loše rješenje ---
 @router.get("/", response_model=List[Case])
 def get_all_cases(session: Session = Depends(get_session)):
     statement = select(Case)
@@ -155,6 +157,64 @@ def get_all_cases(session: Session = Depends(get_session)):
     case_list = [{"id": c.id, "title": c.title, "version": c.version} for c in cases]
 
     return case_list
+
+
+# --- SVI CASEOVI DOSTUPNI SVIM KORISNICIMA (practice) ---
+@router.get("/available", response_model=List[AssignmentCasePreview])
+def get_available_cases(session: Session = Depends(get_session), current_user: User = Depends(get_current_active_user)):
+    visibility_filter = or_(
+        Case.is_public == True,
+        (Case.is_public == False) & (Case.created_by == current_user.id)
+    )
+
+    stmt = (
+        select(Case, Category.name.label("topic_name"))
+        .join(CaseCategory, Case.id == CaseCategory.case_id)
+        .join(Category, CaseCategory.category_id == Category.id)
+        .where(visibility_filter)
+        .where(Case.type == "practice")
+    )
+
+    results = session.exec(stmt).all()
+
+    return [
+        AssignmentCasePreview(
+            id=row.Case.id,
+            title=row.Case.title,
+            level=row.Case.level,
+            topic_name=row.topic_name
+        ) for row in results
+    ]
+
+
+# ---- KOD KREIRANJA ZADAĆE - preview za nastavnike pri biranju slučajeva ----
+@router.get("/picker", response_model=List[AssignmentCasePreview])
+def get_cases_for_picker(
+    session: Session = Depends(get_session), 
+    current_user: User = Depends(get_current_active_user)
+):
+    visibility_filter = or_(
+        Case.is_public == True,
+        (Case.is_public == False) & (Case.created_by == current_user.id)
+    )
+
+    statement = (
+        select(Case, Category.name.label("topic_name"))
+        .join(CaseCategory, Case.id == CaseCategory.case_id)
+        .join(Category, CaseCategory.category_id == Category.id)
+        .where(visibility_filter)
+    )
+
+    results = session.exec(statement).all()
+
+    return [
+        AssignmentCasePreview(
+            id=row.Case.id,
+            title=row.Case.title,
+            level=row.Case.level,
+            topic_name=row.topic_name
+        ) for row in results
+    ]
 
 
 @router.get("/{case_id}", response_model=CaseReadWithMedia)
@@ -175,10 +235,13 @@ def get_case_details(case_id: str, session: Session = Depends(get_session)):
 
 
 @router.delete("/{case_id}")
-def delete_case(case_id: uuid.UUID, session: Session = Depends(get_session)):
+def delete_case(case_id: uuid.UUID, current_user: User = Depends(get_current_active_user), session: Session = Depends(get_session)):
     db_case = session.get(Case, case_id)
     if not db_case:
         raise HTTPException(status_code=404, detail="Slučaj nije pronađen")
+    
+    if not db_case.created_by == current_user.id:
+        raise HTTPException(status_code=403, detail="Ne možete brisati tuđe slučajeve.")
     
     try:
         statement = select(Media).where(Media.case_id == case_id)

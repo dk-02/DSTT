@@ -1,7 +1,7 @@
-from datetime import datetime
+from datetime import datetime, timezone
 import uuid
 from typing import List, Optional, Dict, Any
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 from sqlmodel import JSON, SQLModel, Field, Relationship
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy import Column as SAColumn, UniqueConstraint
@@ -23,7 +23,7 @@ class Case(SQLModel, table=True):
     correct_diagnosis: str = Field(max_length=150)
     if_incorrect: str = Field(max_length=50)
     default_settings: Dict[str, Any] = Field(default={}, sa_column=SAColumn(JSONB))     
-    created_by: Optional[uuid.UUID] = Field(default=None, foreign_key="users.id")    
+    created_by: uuid.UUID = Field(default=None, foreign_key="users.id")    
 
     hints: List["Hint"] = Relationship(back_populates="case", sa_relationship_kwargs={"cascade": "all, delete-orphan"})
     media: List["Media"] = Relationship(back_populates="case", sa_relationship_kwargs={"cascade": "all, delete-orphan"})
@@ -78,8 +78,12 @@ class UnitDependency(SQLModel, table=True):
 class DiagnosticUnit(SQLModel, table=True):
     __tablename__ = "diagnostic_units"
 
+    __table_args__ = (
+        UniqueConstraint("case_id", "label", name="unique_label_per_case"),
+    )
+
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
-    label: str = Field(unique=True, max_length=150)
+    label: str = Field(max_length=150)
     name: str = Field(max_length=150)
     type: str = Field(max_length=20)
     level: int
@@ -89,8 +93,8 @@ class DiagnosticUnit(SQLModel, table=True):
     consequences: List[Dict[str, Any]] = Field(default=[], sa_column=SAColumn(JSONB))
     case_id: uuid.UUID = Field(foreign_key="cases.id") 
 
-    media: List["Media"] = Relationship(back_populates="diagnostic_unit")
-    case: Optional[Case] = Relationship(back_populates="diagnostic_units")
+    media: Optional[List["Media"]] = Relationship(back_populates="diagnostic_unit")
+    case: Case = Relationship(back_populates="diagnostic_units")
     required_units: List["DiagnosticUnit"] = Relationship(
         link_model=UnitDependency,
         sa_relationship_kwargs={
@@ -228,6 +232,32 @@ class GroupMember(SQLModel, table=True):
     joined_at: datetime = Field(default_factory=datetime.now)
 
 
+class GroupAssignmentLink(BaseModel):
+    available_until: Optional[datetime] = None
+
+    @field_validator("available_until")
+    @classmethod
+    def prevent_past_date(cls, v: Optional[datetime]):
+        if v:
+            now = datetime.now(timezone.utc)
+            
+            if v.tzinfo is None:
+                v = v.replace(tzinfo=timezone.utc)
+                
+            if v < now:
+                raise ValueError("Rok (available_until) ne može biti u prošlosti.")
+        return v
+
+class GroupAssignment(SQLModel, table=True):
+    __tablename__ = "group_assignments"
+
+    group_id: uuid.UUID = Field(foreign_key="groups.id", primary_key=True)
+    assignment_id: uuid.UUID = Field(foreign_key="assignments.id", primary_key=True)
+    
+    assigned_at: datetime = Field(default_factory=datetime.now)
+    available_until: Optional[datetime] = None
+
+
 class Group(SQLModel, table=True):
     __tablename__ = "groups"
 
@@ -242,10 +272,10 @@ class Group(SQLModel, table=True):
     institution_id: uuid.UUID = Field(foreign_key="institutions.id")
 
     institution: Institution = Relationship(back_populates="groups")
-    assignments: List["Assignment"] = Relationship(back_populates="group")
+    assignments: List["Assignment"] = Relationship(back_populates="group", link_model=GroupAssignment)
 
     teacher: "User" = Relationship(back_populates="managed_groups")
-    students: List["User"] = Relationship(link_model=GroupMember)
+    students: List["User"] = Relationship(back_populates="groups", link_model=GroupMember)
 
 
 class GroupCreate(BaseModel):
@@ -280,9 +310,8 @@ class User(SQLModel, table=True):
 
     institution: Optional["Institution"] = Relationship(back_populates="users")
     
-    groups: List["Group"] = Relationship(back_populates="students", link_model=GroupMember)
-    
     managed_groups: List["Group"] = Relationship(back_populates="teacher")
+    groups: List["Group"] = Relationship(back_populates="students", link_model=GroupMember)
 
     # aai_edu_uid: str - DODATI KAD SE OSPOSOBI AAI_EDU
 
@@ -328,6 +357,23 @@ class PasswordChange(BaseModel):
 
 # ------------ ASSIGNMENTS --------------
 
+class RandomCasePickerSettings(BaseModel):
+    no_of_cases: int = 1
+    topic: Optional[str] = None
+    case_level: Optional[str] = None
+
+class AssignmentSettings(BaseModel):
+    enable_hints: bool = True
+    ignore_hint_cost: bool = True
+    enable_undo: bool = True
+    enable_LLM_mentor: bool = True
+    ignore_terminating_consequences: bool = False
+    randomly_choose_cases: bool = False
+    random_case_picker_settings: Optional[RandomCasePickerSettings] = None
+    show_result_immediately: bool = True
+    case_sequence_lock: bool = False
+
+
 class AssignmentCase(SQLModel, table=True):
     __tablename__ = "assignment_cases"
     
@@ -342,17 +388,37 @@ class Assignment(SQLModel, table=True):
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
     title: str = Field(max_length=100)
     instructions: Optional[str] = None
-    type: str = Field(max_length=20) # 'practice', 'practice-exam', 'exam'
-    assigned_at: datetime = Field(default_factory=datetime.now)
-    available_until: Optional[datetime] = None
+    type: str = Field(max_length=20) # 'practice', 'practice-exam', 'exam'    
     
-    settings: Dict[str, Any] = Field(default={}, sa_column=SAColumn(JSONB))
+    settings: AssignmentSettings = Field(default={}, sa_column=SAColumn(JSONB))
     
     teacher_id: uuid.UUID = Field(foreign_key="users.id")
-    group_id: uuid.UUID = Field(foreign_key="groups.id")
 
-    group: Group = Relationship(back_populates="assignments")
+    group: List["Group"] = Relationship(back_populates="assignments", link_model=GroupAssignment)
     cases: List["Case"] = Relationship(link_model=AssignmentCase)
+
+
+class CaseWithSequence(BaseModel):
+    case_id: uuid.UUID
+    sequence_no: int
+
+class AssignmentCreate(BaseModel):
+    title: str
+    instructions: Optional[str] = None
+    type: str
+    settings: Optional[AssignmentSettings] = None
+    selected_case_ids: Optional[List[CaseWithSequence]] = None
+
+class AssignmentCasePreview(BaseModel):
+    id: uuid.UUID
+    title: str
+    level: str
+    topic_name: Optional[str] = None
+
+class AssignmentUpdate(BaseModel):
+    title: Optional[str] = None
+    instructions: Optional[str] = None
+    settings: Optional[AssignmentSettings] = None
 
 
 # ----------- UPDATES & NOTIFICATIONS -------------
