@@ -6,6 +6,7 @@ import { useNavigate } from "react-router-dom";
 import { Modal } from "./UI/Modal";
 import { useState } from "react";
 import { JsonUploader } from "./JSONUploader";
+import { useAuthStore } from "../store/useAuthStore";
 
 const backendURL = import.meta.env.VITE_APP_BACKEND;
 
@@ -14,6 +15,8 @@ const CaseForm = () => {
     const navigate = useNavigate();
 
     const { caseData, step, setStep, clearCaseData } = useCaseStore();
+
+    const token = useAuthStore((state) => state.token);
 
     const steps = [
         {
@@ -77,7 +80,8 @@ const CaseForm = () => {
             const response = await fetch(`${backendURL}/cases`, {
                 method: 'POST',
                 headers: {
-                'Content-Type': 'application/json',
+                    "Authorization": `Bearer ${token}`,
+                    'Content-Type': 'application/json',
                 },
                 body: JSON.stringify(finalPayload),
             });
@@ -89,7 +93,7 @@ const CaseForm = () => {
            
             alert('Case created successfully!');
             clearCaseData();
-            navigate('/'); 
+            navigate('/user/dashboard'); 
         
         } catch (error) {
             console.error("Error creating case:", error);

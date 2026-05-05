@@ -1,20 +1,59 @@
 import { useState } from "react";
-import { useAuthStore } from "../store/useAuthStore";
-import { ArrowNarrowLeft, Eye, EyeOff } from "@untitledui/icons";
+import { ArrowNarrowLeft, Eye, EyeOff, HelpCircle } from "@untitledui/icons";
 import { useNavigate } from "react-router-dom";
+import { useAuthStore } from "../store/useAuthStore";
+import { Tooltip, TooltipTrigger } from "../components/base/tooltip/tooltip";
 
 const backendURL = import.meta.env.VITE_APP_BACKEND;
 
-export const Register = () => {
+interface RegisterProps {
+    isAdminMode?: boolean;
+    onSuccess?: () => void;
+}
+
+export const Register = ({ isAdminMode = false, onSuccess } : RegisterProps) => {
     const [passwordVisible, setPasswordVisible] = useState<boolean>(false);
     const [formData, setFormData] = useState({
         email: "",
         password: "",
         firstName: "",
-        lastName: ""
+        lastName: "",
+        roles: [""]
     });
 
+    const token = useAuthStore((state) => state.token);
     const navigate = useNavigate();
+
+    const availableRoles = [
+        { id: "admin", label: "Administrator" },
+        { id: "examinee", label: "Ispitanik" },
+        { id: "expert", label: "Stručnjak" },
+        { id: "teacher", label: "Nastavnik" }
+    ];
+
+    const handleRoleToggle = (roleId: string) => {
+        setFormData(prev => {
+            const isExaminee = roleId === "examinee";
+            const alreadyHasRole = prev.roles.includes(roleId);
+
+            if (isExaminee) {
+                return {
+                    ...prev,
+                    roles: alreadyHasRole ? [] : ["examinee"]
+                };
+            } else {
+                let newRoles = prev.roles.filter(r => r !== "examinee");
+                
+                if (alreadyHasRole) {
+                    newRoles = newRoles.filter(r => r !== roleId);
+                } else {
+                    newRoles = [...newRoles, roleId];
+                }
+
+                return { ...prev, roles: newRoles };
+            }
+        });
+    };
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const { name, value } = e.target;
@@ -25,26 +64,44 @@ export const Register = () => {
         }));
     };
 
-    const setAuth = useAuthStore(state => state.setAuth);
-
     const handleRegister = async () => {
-        const res = await fetch(`${backendURL}/auth/register`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ 
+        const endpoint = isAdminMode ? `${backendURL}/auth/admin-register` : `${backendURL}/auth/register`;
+
+        const headers: HeadersInit = { "Content-Type": "application/json" };
+        if (isAdminMode && token) {
+            headers["Authorization"] = `Bearer ${token}`;
+        }
+
+        const body = isAdminMode 
+            ? JSON.stringify({ 
+                email: formData.email,
+                password: formData.password,
+                first_name: formData.firstName,
+                last_name: formData.lastName,
+                roles: formData.roles
+            })
+            : JSON.stringify({ 
                 email: formData.email,
                 password: formData.password,
                 first_name: formData.firstName,
                 last_name: formData.lastName
-            })
+            });
+
+        const res = await fetch(endpoint, {
+            method: "POST",
+            headers: headers,
+            body: body
         });
-        if (res.ok) {
-            const data = await res.json();
-            setAuth(data.access_token, data.user);
-            alert("Dobrodošli!");
-            navigate("/user/login");
+
+        if (res.ok) {            
+            if (isAdminMode && onSuccess) {
+                onSuccess();
+            } else {
+                navigate("/user/login");
+            }
         } else {
-            alert("Registracija neuspješna");
+            const errorData = await res.json();
+            alert(`Registracija neuspješna: ${errorData.detail || "Nepoznata greška"}`);
         }
     };
 
@@ -52,34 +109,53 @@ export const Register = () => {
         setPasswordVisible(prev => !prev);
     }
 
+    const containerClasses = isAdminMode 
+        ? "w-full p-2 text-white"
+        : "flex justify-center items-center w-full h-screen bg-gray-700 relative";
+
+    const formClasses = isAdminMode
+        ? "w-full flex flex-col gap-4"
+        : "w-1/4 flex flex-col gap-4 p-10 bg-gray-600 text-white rounded-xl shadow-2xl";
+
+    const inputClasses = isAdminMode
+        ? "p-2 bg-gray-200 text-gray-600 border border-gray-400 rounded focus:ring-2 focus:ring-orange-500 outline-none w-full"
+        : "p-2 border rounded focus:ring-2 focus:ring-orange-500 outline-none";
+
     return (
-        <div className="flex justify-center items-center w-full h-screen bg-gray-700 relative">
-            <ArrowNarrowLeft onClick={() => navigate("/")} className="absolute top-5 left-5 scale-130 text-gray-50 hover:cursor-pointer" />
-            <div className="w-1/4 flex flex-col gap-4 p-10 bg-gray-600 text-white rounded-xl shadow-2xl">
-                <div className="border-l-3 border-orange-400 flex items-center pl-2 mb-5">
-                    <h2 className="font-bold text-2xl">Registracija</h2>
-                </div>
+        <div className={containerClasses}>
+            {!isAdminMode && (
+                <ArrowNarrowLeft 
+                    onClick={() => navigate("/")} 
+                    className="absolute top-5 left-5 scale-130 text-gray-50 hover:cursor-pointer" 
+                />
+            )}
+            <div className={formClasses}>
+                {!isAdminMode && (
+                    <div className="border-l-3 border-orange-400 flex items-center pl-2 mb-5">
+                        <h2 className="font-bold text-2xl">Registracija</h2>
+                    </div>
+                )}
                 <input 
                     type="text" 
                     placeholder="Ime" 
                     name="firstName" 
                     value={formData.firstName} 
                     onChange={handleChange} 
-                    className="p-2 border rounded focus:ring-2 focus:ring-orange-500 outline-none"/>
+                    className={inputClasses}/>
                 <input 
                     type="text" 
                     placeholder="Prezime" 
                     name="lastName" 
                     value={formData.lastName} 
                     onChange={handleChange} 
-                    className="p-2 border rounded focus:ring-2 focus:ring-orange-500 outline-none"/>
+                    className={inputClasses}/>
                 <input 
                     type="email" 
                     placeholder="Email" 
                     name="email" 
                     value={formData.email} 
                     onChange={handleChange} 
-                    className="p-2 border rounded focus:ring-2 focus:ring-orange-500 outline-none"/>
+                    className={inputClasses}/>
                 <div className="relative flex items-center">
                     <input 
                         type={passwordVisible ? "text" : "password"} 
@@ -87,13 +163,52 @@ export const Register = () => {
                         name="password" 
                         value={formData.password}
                         onChange={handleChange} 
-                        className="p-2 border rounded focus:ring-2 focus:ring-orange-500 outline-none w-full"
+                        className={`${inputClasses} w-full`}
                     />
 
-                    {passwordVisible ? <EyeOff className="absolute right-2 hover:cursor-pointer" onClick={togglePassword} /> : <Eye className="absolute right-2 hover:cursor-pointer" onClick={togglePassword} />}
+                    {passwordVisible ? <EyeOff className={`${isAdminMode && 'text-gray-500'} absolute right-2 hover:cursor-pointer`} onClick={togglePassword} /> : <Eye className={`${isAdminMode && 'text-gray-500'} absolute right-2 hover:cursor-pointer`} onClick={togglePassword} />}
 
                 </div>
-                <button onClick={handleRegister} className="bg-orange-500 p-2 rounded hover:cursor-pointer">Registriraj se</button>
+
+                {isAdminMode && (
+                    <div className="flex flex-col gap-2 mt-2">
+                        <div className="flex items-center gap-1">
+                            <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Uloge</label>
+                            <Tooltip style={{ backgroundColor: "#6a7282", borderRadius: "6px" }} placement="top left" title="Ispitanik ne može imati nijednu drugu ulogu.">
+                                <TooltipTrigger className="group relative flex cursor-pointer flex-col items-center gap-2 text-gray-600 transition duration-100 ease-linear hover:text-gray-700 focus:text-gray-700">
+                                    <HelpCircle className="size-4 text-gray-500" />
+                                </TooltipTrigger>
+                            </Tooltip>
+                        </div>
+                        <div className="flex gap-3">
+                            {availableRoles.map(role => {
+                                const isActive = formData.roles.includes(role.id);    
+                                const isDisabled = formData.roles.includes("examinee") && role.id !== "examinee";
+                                const isExamineeDisabled = !formData.roles.includes("examinee") && formData.roles.length > 0 && !formData.roles.includes("") && role.id === "examinee";
+
+                                return (
+                                <div
+                                    key={role.id}                                    
+                                    onClick={() => handleRoleToggle(role.id)}
+                                    className={`
+                                        px-4 py-2 rounded-lg border-2 text-sm font-semibold transition-all cursor-pointer
+                                        ${isActive
+                                            ? "border-orange-500 bg-orange-500/10 text-orange-500 shadow-sm" 
+                                            : "border-gray-400 bg-transparent text-gray-500 hover:border-gray-300"
+                                        }
+                                        ${(isDisabled || isExamineeDisabled) ? "opacity-50" : "opacity-100"}
+                                    `}
+                                >
+                                    <p>{role.label}</p>
+                                </div>
+                            )})}
+                        </div>
+                    </div>
+                )}
+
+                <button onClick={handleRegister} className="bg-orange-500 p-2 rounded hover:cursor-pointer">
+                    {isAdminMode ? "Kreiraj račun" : "Registriraj se"}
+                </button>
             </div>
         </div>
     );

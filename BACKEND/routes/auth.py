@@ -1,17 +1,21 @@
 import os
 from datetime import datetime, timedelta, timezone
 import uuid
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from jose import jwt
 from passlib.context import CryptContext
 from sqlmodel import Session, select
 from database import engine
-from models import User, UserRole, Role, UserRegister
+from models import AdminUserRegister, PasswordChange, User, UserRole, Role, UserRegister
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 
 SECRET_KEY = os.getenv("SECRET_KEY")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 1440  # 24 sata
+
+limiter = Limiter(key_func=get_remote_address)
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
 pwd_context = CryptContext(schemes=["argon2"], deprecated="auto")
@@ -52,6 +56,26 @@ async def get_current_active_user(current_user: User = Depends(get_current_user)
     return current_user
 
 
+async def get_current_admin(current_user: User = Depends(get_current_active_user), session: Session = Depends(get_session)):
+    admin_role = session.exec(
+        select(UserRole).join(Role).where(UserRole.user_id == current_user.id, Role.name == "admin")
+    ).first()
+    
+    if not admin_role:
+        raise HTTPException(status_code=403, detail="Pristup dopušten samo administratorima.")
+    return current_user
+
+
+async def get_current_teacher(current_user: User = Depends(get_current_active_user), session: Session = Depends(get_session)):
+    teacher_role = session.exec(
+        select(UserRole).join(Role).where(UserRole.user_id == current_user.id, Role.name == "teacher")
+    ).first()
+    
+    if not teacher_role:
+        raise HTTPException(status_code=403, detail="Pristup dopušten samo nastavnicima.")
+    return current_user
+
+
 def hash_password(password: str):
     return pwd_context.hash(password)
 
@@ -67,9 +91,6 @@ def create_access_token(data: dict):
 
 @router.post("/register")
 def register(user_data: UserRegister, session: Session = Depends(get_session)):
-
-    print(user_data)
-
     statement = select(User).where(User.email == user_data.email)
     existing_user = session.exec(statement).first()
     if existing_user:
@@ -105,8 +126,47 @@ def register(user_data: UserRegister, session: Session = Depends(get_session)):
         raise HTTPException(status_code=500, detail=f"Greška pri registraciji: {str(e)}")
 
 
+@router.post("/admin-register")
+def admin_register(user_data: AdminUserRegister, current_admin: User = Depends(get_current_admin), session: Session = Depends(get_session)):
+    statement = select(User).where(User.email == user_data.email)
+    existing_user = session.exec(statement).first()
+    if existing_user:
+        raise HTTPException(
+            status_code=400, 
+            detail="Korisnik s ovim emailom već postoji"
+        )
+
+    try:
+        is_examinee = "examinee" in user_data.roles
+
+        new_user = User(
+            email=user_data.email,
+            password_hash=hash_password(user_data.password),
+            first_name=user_data.first_name,
+            last_name=user_data.last_name,
+            is_active=True,
+            expertise_level="novice" if is_examinee else None,
+            xp_points=0 if is_examinee else None
+        )
+        session.add(new_user)
+        session.flush()
+
+        for role_name in user_data.roles:
+            role = session.exec(select(Role).where(Role.name == role_name)).first()
+            if role:
+                new_user_role = UserRole(user_id=new_user.id, role_id=role.id)
+                session.add(new_user_role)
+
+        session.commit()
+        return {"status": "success", "message": "Korisnik uspješno kreiran s ulogama"}
+
+    except Exception as e:
+        session.rollback()
+        raise HTTPException(status_code=500, detail=f"Greška pri kreiranju korisnika: {str(e)}")
+
+
 @router.post("/login")
-def login(user_data: OAuth2PasswordRequestForm = Depends(), session: Session = Depends(get_session)):
+def login(request: Request, user_data: OAuth2PasswordRequestForm = Depends(), session: Session = Depends(get_session)):
     statement = select(User).where(User.email == user_data.username) #OAuth zbog Swagger testiranja; username = email
     user = session.exec(statement).first()
 
@@ -119,8 +179,10 @@ def login(user_data: OAuth2PasswordRequestForm = Depends(), session: Session = D
 
     if not user.is_active:
         raise HTTPException(status_code=400, detail="Korisnički račun je deaktiviran")
+    
+    user_roles = session.exec(select(Role.name).join(UserRole).where(UserRole.user_id == user.id)).all()
 
-    access_token = create_access_token(data={"sub": str(user.id), "email": user.email})
+    access_token = create_access_token(data={"sub": str(user.id), "email": user.email, "roles": user_roles})
 
     return {
         "access_token": access_token,
@@ -134,3 +196,49 @@ def login(user_data: OAuth2PasswordRequestForm = Depends(), session: Session = D
             "xp_points": user.xp_points
         }
     }
+
+
+@router.post("/deactivate")
+async def deactivate_user(user_id: uuid.UUID = None, current_user: User = Depends(get_current_active_user), session: Session = Depends(get_session)):
+    if user_id and user_id != current_user.id:
+        await get_current_admin(current_user, session)
+
+        target_user = session.get(User, user_id)
+        if not target_user:
+            raise HTTPException(status_code=404, detail="Korisnik nije pronađen.")
+        
+    else:
+        target_user = current_user
+
+    target_user.is_active = False
+    session.add(current_user)
+    session.commit()
+
+    return {"message": "Profil je uspješno deaktiviran."}
+
+@router.post("/reactivate/{user_id}")
+def reactivate_user(user_id: uuid.UUID, current_admin: User = Depends(get_current_admin), session: Session = Depends(get_session)):
+    target_user = session.get(User, user_id)
+    if not target_user:
+        raise HTTPException(status_code=404, detail="Korisnik nije pronađen.")
+    
+    target_user.is_active = True
+    session.add(target_user)
+    session.commit()
+
+    return {"message": f"Korisnik {target_user.email} je ponovno aktiviran."}
+
+
+@router.post("/change-password")
+def change_password(data: PasswordChange, current_user: User = Depends(get_current_active_user), session: Session = Depends(get_session)):
+    if not verify_password(data.old_password, current_user.password_hash):
+        raise HTTPException(
+            status_code=400, 
+            detail="Trenutna lozinka nije ispravna."
+        )
+
+    current_user.password_hash = hash_password(data.new_password)
+    session.add(current_user)
+    session.commit()
+
+    return {"message": "Lozinka uspješno promijenjena."}

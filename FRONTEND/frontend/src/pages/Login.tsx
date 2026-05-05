@@ -29,10 +29,15 @@ export const Login = () => {
       if (res.ok) {
         const data = await res.json();
         setAuth(data.access_token, data.user);
-        alert("Dobrodošli!");
         navigate("/");
       } else {
-        alert("Prijava neuspješna");
+        if (res.status === 429) {
+          alert("Pokušajte ponovno kasnije.")
+        } else if (res.status === 400) {
+          alert("Račun nije aktivan.");
+        } else {
+          alert("Prijava neuspješna.");
+        }
       }
 
     } catch (error) {
@@ -42,13 +47,17 @@ export const Login = () => {
   };
 
   const togglePassword = () => {
-        setPasswordVisible(prev => !prev);
-    }
+    setPasswordVisible(prev => !prev);
+  }
 
   return (
     <div className="w-full h-screen bg-gray-700 flex justify-center items-center relative">
         <ArrowNarrowLeft onClick={() => navigate("/")} className="absolute top-5 left-5 scale-130 text-gray-50 hover:cursor-pointer" />
-        <div className="flex flex-col w-1/4 gap-4 p-10 bg-gray-600 text-white rounded-xl shadow-2xl">
+        <form 
+          onSubmit={(e) => {
+            e.preventDefault();
+            handleLogin();
+          }} className="flex flex-col w-1/4 gap-4 p-10 bg-gray-600 text-white rounded-xl shadow-2xl">
             <div className="border-l-3 border-orange-400 flex items-center pl-2 mb-5">
                 <h2 className="font-bold text-2xl">Prijava</h2>
             </div>
@@ -72,7 +81,7 @@ export const Login = () => {
             </div>
 
             <button onClick={handleLogin} className="bg-orange-500 p-2 rounded hover:cursor-pointer">Prijavi se</button>
-        </div>
+        </form>
     </div>
   );
 };

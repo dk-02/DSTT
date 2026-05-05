@@ -17,7 +17,7 @@ export const BasicInfo = () => {
 
   const getSelectedPath = () => {
     const path: string[] = [];
-    let currentId = caseData.category;
+    let currentId = caseData.category_id;
     while (currentId) {
       const cat = categories.find(c => c.id === currentId);
       if (cat) {
@@ -42,7 +42,7 @@ export const BasicInfo = () => {
       const newCat = await response.json();
 
       setCategories([...categories, newCat]);
-      updateCaseData({ category: newCat.id });
+      updateCaseData({ category_id: newCat.id });
       setNewName("");
       setIsAdding(null);
     } catch (error) {
@@ -81,9 +81,9 @@ export const BasicInfo = () => {
               const newValue = e.target.value;
               
               if (newValue === "") {
-                updateCaseData({ category: parentId || "" });
+                updateCaseData({ category_id: parentId || "" });
               } else {
-                updateCaseData({ category: newValue });
+                updateCaseData({ category_id: newValue });
               }
               
               setIsAdding(null);
@@ -124,11 +124,11 @@ export const BasicInfo = () => {
 
   const caseTypes = [
     {
-      type: 'EXERCISE',
+      type: 'practice',
       name: 'Vježba'
     },
     {
-      type: 'EXAM',
+      type: 'exam',
       name: 'Ispit'
     },
   ]

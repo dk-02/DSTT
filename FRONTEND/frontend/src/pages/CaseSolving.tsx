@@ -4,6 +4,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { Modal } from "../components/UI/Modal";
 import { useAuthStore } from "../store/useAuthStore";
 import { useCaseSolvingStore } from "../store/useCaseSolveStore";
+import { jwtDecode } from "jwt-decode";
 
 const backendURL = import.meta.env.VITE_APP_BACKEND;
 
@@ -38,6 +39,13 @@ interface Hint {
     cost: number;
 }
 
+interface MyTokenPayload {
+    sub: string;
+    email: string;
+    roles: string[];
+    exp: number;
+}
+
 function CaseSolving() {
     const [input, setInput] = useState("");
     const [diagnosis, setDiagnosis] = useState<string>("");
@@ -53,6 +61,8 @@ function CaseSolving() {
 
     // Cancel
     const [cancelModalOpen, setCancelModalOpen] = useState<boolean>(false);
+
+    const [isStoreReady, setIsStoreReady] = useState(false);
 
     const navigate = useNavigate();
 
@@ -75,6 +85,25 @@ function CaseSolving() {
         if (attemptId) fetchIds();
 
     }, [attemptId, token]);
+
+
+    useEffect(() => {
+        if (!caseId || !token) return;
+
+        const decoded: MyTokenPayload = jwtDecode(token);
+        const userId = decoded.sub;
+
+        const storageKey = `case-solve-${caseId}-${userId}`;
+        useCaseSolvingStore.persist.setOptions({ name: storageKey });
+
+        useCaseSolvingStore.persist.rehydrate();
+        
+        setIsStoreReady(true);
+
+        return () => {
+            setIsStoreReady(false);
+        };
+    }, [caseId, token]);
 
 
     const handleSend = async () => {
@@ -185,7 +214,7 @@ function CaseSolving() {
             if (response.ok) {
                 reset(); 
                 
-                navigate("/"); 
+                navigate("/user/dashboard"); 
                 alert("Rješavanje je otkazano.");
             } else {
                 const errorData = await response.json();
@@ -197,11 +226,15 @@ function CaseSolving() {
         }
     }
 
+    if (!isStoreReady) {
+        return <div className="text-white">Učitavanje slučaja...</div>;
+    }
+
     return (
         <div className="p-5 flex w-screen h-screen gap-5 bg-gray-700 relative">
-            <ArrowNarrowLeft onClick={() => navigate("/")} className="absolute top-5 left-5 scale-130 text-gray-50 hover:cursor-pointer" />
+            <ArrowNarrowLeft onClick={() => navigate("/user/dashboard")} className="absolute top-5 left-5 scale-130 text-gray-50 hover:cursor-pointer" />
             <div className="w-1/3 flex flex-col gap-5 items-center">
-                <h1 className="text-orange-400 font-bold text-2xl">{caseInfo?.title}</h1>
+                <h1 className="w-3/4 text-orange-400 font-bold text-2xl">{caseInfo?.title}</h1>
                 <p className="text-white">{caseInfo?.initial_info}</p>
                 <div>
                     {caseInfo?.media.map((m, idx) => (

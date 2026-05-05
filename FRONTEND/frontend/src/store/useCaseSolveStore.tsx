@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { createJSONStorage, persist } from 'zustand/middleware';
+import { persist } from 'zustand/middleware';
 
 interface Media {
   file_path: string;
@@ -47,8 +47,9 @@ export const useCaseSolvingStore = create<CaseSolvingState>()(
       undoLastAction: (duId) => set((state) => ({ messages: state.messages.filter(m => m.du !== duId) })),
     }),
     { 
-      name: 'case-solving-storage',
-      storage: createJSONStorage(() => localStorage)
+      name: 'case-solving-storage-default',
+      // storage: createJSONStorage(() => localStorage)
+      skipHydration: true
     }
   )
 );

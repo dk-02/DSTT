@@ -6,10 +6,10 @@ export const PreviewPanel = () => {
   const categories = useCaseStore((state) => state.categories);
 
   const getCategoryHierarchy = () => {
-    if (!caseData.category) return [];
+    if (caseData.category_id === "") return [];
     
     const path: string[] = [];
-    let current = categories.find(c => c.id === caseData.category);
+    let current = categories.find(c => c.id === caseData.category_id);
 
     while (current) {
       path.unshift(current.name);
@@ -60,7 +60,7 @@ export const PreviewPanel = () => {
             {caseData.diagnostic_units.map((du) => (
               <div key={du.id} className="text-xs p-2 bg-gray-700 rounded flex justify-between items-center">
                 <span className='text-gray-400'>{du.name || "Bez naziva"}</span>
-                <span className={`px-2 py-0.5 rounded ${du.type === 'DATA' ? 'bg-blue-900 text-blue-200' : 'bg-orange-900 text-orange-200'}`}>
+                <span className={`px-2 py-0.5 rounded ${du.type === 'data' ? 'bg-blue-900 text-blue-200' : 'bg-orange-900 text-orange-200'}`}>
                   {du.type}
                 </span>
               </div>

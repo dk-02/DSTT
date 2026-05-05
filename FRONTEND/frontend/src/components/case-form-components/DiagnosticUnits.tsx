@@ -100,14 +100,14 @@ export const DiagnosticUnits = () => {
               />
               <div className="flex gap-2">
                 <button 
-                  onClick={() => updateDU(du.id, { type: 'DATA' })}
-                  className={`flex-1 p-2 rounded-lg flex items-center justify-center gap-2 border transition ${du.type === 'DATA' ? 'bg-blue-100 border-blue-300 text-blue-800' : 'bg-gray-100 border-gray-200 text-gray-500'}`}
+                  onClick={() => updateDU(du.id, { type: 'data' })}
+                  className={`flex-1 p-2 rounded-lg flex items-center justify-center gap-2 border transition ${du.type === 'data' ? 'bg-blue-100 border-blue-300 text-blue-800' : 'bg-gray-100 border-gray-200 text-gray-500'}`}
                 >
                   <Database01 className="w-4 h-4" /> DATA
                 </button>
                 <button 
-                  onClick={() => updateDU(du.id, { type: 'ACTION' })}
-                  className={`flex-1 p-2 rounded-lg flex items-center justify-center gap-2 border transition ${du.type === 'ACTION' ? 'bg-orange-100 border-orange-300 text-orange-800' : 'bg-gray-100 border-gray-200 text-gray-500'}`}
+                  onClick={() => updateDU(du.id, { type: 'action' })}
+                  className={`flex-1 p-2 rounded-lg flex items-center justify-center gap-2 border transition ${du.type === 'action' ? 'bg-orange-100 border-orange-300 text-orange-800' : 'bg-gray-100 border-gray-200 text-gray-500'}`}
                 >
                   <Zap className="w-4 h-4" /> ACTION
                 </button>
@@ -174,10 +174,10 @@ export const DiagnosticUnits = () => {
 
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-xs">
               <div>
-                <label className={`${du.type === "ACTION" && 'text-gray-400'} block text-gray-300 mb-1 uppercase font-bold tracking-tighter`}>Razina</label>
+                <label className={`${du.type === "action" && 'text-gray-400'} block text-gray-300 mb-1 uppercase font-bold tracking-tighter`}>Razina</label>
                 <select 
-                  disabled={du.type === "ACTION"}
-                  className={`w-full p-2 border rounded bg-gray-600 ${du.type === "ACTION" && 'border border-gray-400 text-gray-400'}`}
+                  disabled={du.type === "action"}
+                  className={`w-full p-2 border rounded bg-gray-600 ${du.type === "action" && 'border border-gray-400 text-gray-400'}`}
                   value={du.level}
                   onChange={(e) => updateDU(du.id, { level: Number(e.target.value) as DULevel })}
                 >
@@ -261,7 +261,7 @@ export const DiagnosticUnits = () => {
                       if (!e.target.value) return;
                       const reqId = e.target.value;
                       if (!du.required_units.includes(reqId)) {
-                        updateDU(du.id, { required_units: [...du.required_units, reqId], consequences: [...du.consequences, {required_id: reqId, type: "WARNING", value: ""}] });
+                        updateDU(du.id, { required_units: [...du.required_units, reqId], consequences: [...du.consequences, {required_id: reqId, type: "warning", value: ""}] });
                       }
                       e.target.value = "";
                     }}
@@ -326,7 +326,7 @@ export const DiagnosticUnits = () => {
                               value={consequence?.value || ''}
                               onChange={(e) => {
                                 const newCons = [...du.consequences.filter(c => c.required_id !== reqId)];
-                                newCons.push({ required_id: reqId, type: consequence?.type || 'WARNING', value: e.target.value });
+                                newCons.push({ required_id: reqId, type: consequence?.type || 'warning', value: e.target.value });
                                 updateDU(du.id, { consequences: newCons });
                               }}
                             />
