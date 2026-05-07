@@ -30,7 +30,7 @@ export const HelpContent = () => (
                     <strong>Razina (level):</strong> Određuje težinu zadatka. Moguće vrijednosti:
                     <span className="ml-2 px-2 py-0.5 bg-gray-100 rounded text-sm font-mono">novice, intermediate, expert</span>
                 </p>
-                <p><strong>Vrsta (type):</strong> <code>EXERCISE</code> (vježba s povratnim informacijama) ili <code>EXAM</code> (službeni ispit).</p>
+                <p><strong>Vrsta (type):</strong> <code>practice</code> (vježba s povratnim informacijama) ili <code>exam</code> (službeni ispit).</p>
                 <p><strong>Vidljivost (is_public):</strong> Javni slučajevi su vidljivi svim nastavnicima.</p>
                 <p><strong>Početna informacija (initial_info):</strong> Temeljni opis simptoma, mjerenja ili situacije za početak dijagnostike.</p>
             </div>
@@ -55,7 +55,7 @@ export const HelpContent = () => (
             <div className="space-y-2">
                 <p><strong>Labela (label):</strong> Simbolički ID dijagnostičke jedinice (npr. <code>CHECK_OIL</code>). Mora biti jedinstven.</p>
                 <p><strong>Naziv jedinice (name):</strong> Naziv DU-a (npr. Mjerenje razine ulja).</p>
-                <p><strong>Tip jedinice (type):</strong> Vrsta DU-a. DATA ili ACTION.</p>
+                <p><strong>Tip jedinice (type):</strong> Vrsta DU-a (<code>data</code> ili <code>action</code>).</p>
                 <p><strong>Tekstualni rezultat (result_text):</strong> Tekst koji korisnik dobije nakon upita (npr. "Tlak je 3 bara").</p>
                 <p><strong>Indikatori redundancije (provides):</strong> Oznake koje sprečavaju redundantnost (ponavljanje istih saznanja).</p>
                 <p><strong>Resursi (resources):</strong> Trošak u novcu (<code>money</code>) ili vremenu (<code>time</code>). Moguće mjerne jedinice vremena su: seconds, minutes, hours i days.</p>
@@ -63,8 +63,8 @@ export const HelpContent = () => (
                 <div>
                     <p className="font-bold mb-1">Posljedice (consequences):</p>
                     <ul className="list-disc ml-10 space-y-1">
-                        <li><strong>WARNING:</strong> Kazna/upozorenje, ali dopušten nastavak.</li>
-                        <li><strong>TERMINATE:</strong> Kritična pogreška, trenutni kraj ispita.</li>
+                        <li><strong>warning:</strong> Kazna/upozorenje, ali dopušten nastavak.</li>
+                        <li><strong>terminate:</strong> Kritična pogreška, trenutni kraj ispita.</li>
                     </ul>
                 </div>
             </div>
@@ -77,9 +77,9 @@ export const HelpContent = () => (
                 <p><strong>Definicija ispravne dijagnoze (correct_diagnosis): </strong>Ispravna dijagnoza koju se očekuje da će ispitanik postaviti.</p>
                 <p className="font-bold mb-2">Kategorije grešaka pri dijagnozi (if_incorrect):</p>
                 <ul className="list-disc ml-10 space-y-1">
-                    <li><strong>TERMINATE:</strong> Odmah završava ispit.</li>
-                    <li><strong>PENALIZE:</strong> Nastavak uz oduzimanje bodova.</li>
-                    <li><strong>CONTINUE:</strong> Nastavak uz kratku povratnu informaciju.</li>
+                    <li><strong>terminate:</strong> Odmah završava ispit.</li>
+                    <li><strong>penalize:</strong> Nastavak uz oduzimanje bodova.</li>
+                    <li><strong>continue:</strong> Nastavak uz kratku povratnu informaciju.</li>
                 </ul>
             </div>
         </section>

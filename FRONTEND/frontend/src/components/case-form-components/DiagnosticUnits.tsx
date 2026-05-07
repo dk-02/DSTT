@@ -307,15 +307,15 @@ export const DiagnosticUnits = () => {
                             <label className="text-xs font-bold">Posljedica ako se preskoči:</label>
                             <select 
                               className="text-xs p-1 border rounded w-full my-2"
-                              value={consequence?.type || 'WARNING'}
+                              value={consequence?.type || 'warning'}
                               onChange={(e) => {
                                 const newCons = [...du.consequences.filter(c => c.required_id !== reqId)];
                                 newCons.push({ required_id: reqId, type: e.target.value as consequenceType, value: consequence?.value || '' });
                                 updateDU(du.id, { consequences: newCons });
                               }}
                             >
-                              <option value="WARNING">Upozorenje (Warning)</option>
-                              <option value="TERMINATE">Prekid (Terminate)</option>
+                              <option value="warning">Upozorenje (Warning)</option>
+                              <option value="terminate">Prekid (Terminate)</option>
                             </select>
                           </div>
                           <div>

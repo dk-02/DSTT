@@ -8,11 +8,11 @@ import {DropdownDotsButton} from "../base/dropdown/dropdown";
 // import {DropdownSectionHeader} from "../base/dropdown/dropdown";
 
 interface CaseDropdownProps {
-    onDelete: () => void;
+    onArchive: () => void;
     onEdit?: () => void;
 }
 
-export const Dropdown = ({ onDelete, onEdit }: CaseDropdownProps) => (
+export const Dropdown = ({ onArchive, onEdit }: CaseDropdownProps) => (
     <DropdownRoot>
         <DropdownDotsButton className={"absolute top-2 right-1"} />
 
@@ -20,8 +20,8 @@ export const Dropdown = ({ onDelete, onEdit }: CaseDropdownProps) => (
             <DropdownMenu>
                 <DropdownSeparator />
                 <DropdownSection>
-                    <DropdownItem onAction={onEdit}>Edit</DropdownItem>
-                    <DropdownItem onAction={onDelete}>Delete</DropdownItem>
+                    <DropdownItem onAction={onEdit}>Uredi</DropdownItem>
+                    <DropdownItem onAction={onArchive}>Arhiviraj</DropdownItem>
                 </DropdownSection>
                 <DropdownSeparator />
             </DropdownMenu>

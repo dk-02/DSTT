@@ -50,10 +50,15 @@ function App() {
                 <Route path="/case/solve/:id" element={<CaseSolving />} />
                 <Route path="/case/:id/results" element={<Results />} />
                 <Route path="/case/create" element={<CaseCreating />} />
+                <Route path="/case/edit/:caseId" element={<CaseCreating />} />
                 <Route path="/user/register" element={<Register />} />
                 <Route path="/user/login" element={<Login />} />
                 <Route path="/user/profile" element={<Profile />} />
                 <Route path="/user/dashboard" element={<Dashboard />} />
+                {/* <Route path="/user/dashboard" element={<Dashboard />}>
+                    <Route index element={<TeacherActiveCases />} />
+                    <Route path="archive" element={<CaseArchive />} />
+                </Route> */}
                 <Route path="/about" element={<About />} />
                 <Route path="/contact" element={<Contact />} />
                 <Route 

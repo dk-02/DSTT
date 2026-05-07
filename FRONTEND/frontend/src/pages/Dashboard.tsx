@@ -6,10 +6,14 @@ import { useNavigate } from "react-router-dom";
 import { Modal } from "../components/UI/Modal";
 import Header from "../components/UI/Header";
 import { useRole } from "../hooks/useRole";
+import { useCaseStore, type DiagnosticUnit } from "../store/useCaseStore";
 
 interface Case {
     id: string;
     title: string;
+    version: number;
+    level: number;
+    topic_name: string;
 }
 
 const backendURL = import.meta.env.VITE_APP_BACKEND;
@@ -17,11 +21,12 @@ const backendURL = import.meta.env.VITE_APP_BACKEND;
 function Dashboard() {
     const [cases, setCases] = useState<Case[]>([]);
 
-    const [caseToDeleteId, setCaseToDeleteId] = useState<string>("");
-    const [caseDeleteModalOpen, setCaseDeleteModalOpen] = useState<boolean>(false);
+    const [caseToArchiveId, setCaseToArchiveId] = useState<string>("");
+    const [caseArchiveModalOpen, setCaseArchiveModalOpen] = useState<boolean>(false);
 
     const token = useAuthStore((state) => state.token);
     const setAttempt = useCaseSolvingStore((state) => state.setAttempt);
+    const setCaseData = useCaseStore((state) => state.setCaseData);
 
     const { isTeacher, isExpert, isExaminee } = useRole();
 
@@ -45,10 +50,10 @@ function Dashboard() {
     }, [token]);
 
 
-    const handleCaseDelete = async (caseId: string) => {
+    const handleCaseArchive = async (caseId: string) => {
         try {
-            const response = await fetch(`${backendURL}/cases/${caseId}`, {
-                method: "DELETE",
+            const response = await fetch(`${backendURL}/cases/${caseId}/archive`, {
+                method: "PATCH",
                 headers: { 
                     "Authorization": `Bearer ${token}`,
                     "Content-Type": "application/json" 
@@ -62,7 +67,7 @@ function Dashboard() {
             }
             
             setCases(prevCases => prevCases.filter(c => c.id !== caseId));
-            setCaseDeleteModalOpen(false);
+            setCaseArchiveModalOpen(false);
     
         } catch (error) {
             console.error("Greška:", error);
@@ -100,6 +105,39 @@ function Dashboard() {
         }
     }
 
+
+    const handleEditCase = async (caseId: string) => {
+        try {
+            const response = await fetch(`${backendURL}/cases/${caseId}/full`, {
+                method: "GET",
+                headers: { 
+                    "Authorization": `Bearer ${token}`,
+                    "Content-Type": "application/json" 
+                }
+            });
+
+            if (!response.ok) throw new Error("Neuspješno dohvaćanje podataka");
+            const fullCaseData = await response.json();
+
+            const dataForStore = {
+                ...fullCaseData,
+                media: [], 
+                diagnostic_units: fullCaseData.diagnostic_units.map((du: DiagnosticUnit) => ({
+                    ...du,
+                    media: [], 
+                    required_units: du.required_units || []
+                }))
+            };
+
+            setCaseData(dataForStore);
+            navigate(`/case/edit/${caseId}`);
+
+        } catch (error) {
+            console.error("Greška pri pripremi za uređivanje:", error);
+            alert("Nije moguće učitati podatke za uređivanje.");
+        }
+    };
+
     return (
         <div className="w-screen h-screen bg-gray-700">
             <Header />
@@ -109,20 +147,21 @@ function Dashboard() {
                     {cases?.map((c) => (
                         <div key={c.id} className="relative flex flex-col items-center justify-between w-64 h-40 rounded shadow-md p-5 bg-gray-600 text-gray-100">
                             {!isExaminee && <Dropdown 
-                                onDelete={() => {
-                                    setCaseToDeleteId(c.id);
-                                    setCaseDeleteModalOpen(true);
+                                onEdit={() => handleEditCase(c.id)}
+                                onArchive={() => {
+                                    setCaseToArchiveId(c.id);
+                                    setCaseArchiveModalOpen(true);
                                 }}
                             />}                            
-                            <h3 className="mt-3">{c.title}</h3>
+                            <h3 className="mt-3">{c.title} {c.version}</h3>
                             <button onClick={() => handleStartCase(c.id)} className="cursor-pointer bg-orange-500 text-orange-50 font-bold px-3 py-2 rounded-lg">Solve</button>
                         </div>
                     ))}
                 </div>
             </div>
-            <Modal isOpen={caseDeleteModalOpen} onClose={() => setCaseDeleteModalOpen(false)} title="Obrisati slučaj?">
+            <Modal isOpen={caseArchiveModalOpen} onClose={() => setCaseArchiveModalOpen(false)} title="Arhivirati slučaj?">
                 <div className="flex justify-center w-full">
-                    <button onClick={() => handleCaseDelete(caseToDeleteId)} className="cursor-pointer bg-red-500 text-orange-50 font-semibold px-3 py-2 rounded">Potvrdi</button>
+                    <button onClick={() => handleCaseArchive(caseToArchiveId)} className="cursor-pointer bg-red-500 text-orange-50 font-semibold px-3 py-2 rounded">Potvrdi</button>
                 </div>
             </Modal>
         </div>

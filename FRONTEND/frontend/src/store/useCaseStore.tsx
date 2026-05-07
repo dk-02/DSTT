@@ -22,6 +22,7 @@ export interface DiagnosticUnit {
 }
 
 interface CaseData {
+  id: string;
   title: string;
   level: string;
   type: caseType;
@@ -33,6 +34,7 @@ interface CaseData {
   hints: { sequence_no: number, text: string; cost: number }[];
   diagnostic_units: DiagnosticUnit[];
   media: File[];
+  changeLog: string;
 }
 
 export interface Category {
@@ -45,6 +47,9 @@ interface CaseState {
   step: number;
   caseData: CaseData;
   categories: Category[];
+  setCaseData: (data: CaseData) => void;
+  setCaseId: (id: string) => void;
+  setChangeLog: (log: string) => void;
   setCategories: (categories: Category[]) => void;
   setStep: (step: number) => void;
   updateCaseData: (data: Partial<CaseState['caseData']>) => void;
@@ -57,6 +62,7 @@ interface CaseState {
 }
 
 const initialCaseData : CaseData = {
+  id: '',
   title: '',
   level: 'novice',
   type: 'practice',
@@ -68,6 +74,7 @@ const initialCaseData : CaseData = {
   hints: [],
   diagnostic_units: [],
   media: [],
+  changeLog: ''
 }
 
 export const useCaseStore = create<CaseState>()(
@@ -76,6 +83,19 @@ export const useCaseStore = create<CaseState>()(
       step: 1,
       caseData: { ...initialCaseData },
       categories: [],
+      setCaseData: (data) => set({ caseData: data }),
+      setCaseId: (id) => set((state) => ({
+          caseData: {
+              ...state.caseData,
+              id: id
+          }
+      })),
+      setChangeLog: (log) => set((state) => ({
+          caseData: {
+              ...state.caseData,
+              change_log: log
+          }
+      })),
       setCategories: (categories) => set({ categories }),
       setStep: (step) => set({ step }),
       updateCaseData: (data) => set((state) => ({ caseData: { ...state.caseData, ...data } })),

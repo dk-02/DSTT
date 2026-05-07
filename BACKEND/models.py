@@ -1,10 +1,50 @@
 from datetime import datetime, timezone
 import uuid
-from typing import List, Optional, Dict, Any
+from typing import List, Literal, Optional, Dict, Any
 from pydantic import BaseModel, field_validator
 from sqlmodel import JSON, SQLModel, Field, Relationship
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy import Column as SAColumn, UniqueConstraint
+
+
+# --------- MEDIA ------------
+
+class CaseMediaFile(SQLModel, table=True):
+    __tablename__ = "case_media_files"
+
+    case_id: uuid.UUID = Field(foreign_key="cases.id", primary_key=True)
+    media_id: uuid.UUID = Field(foreign_key="media.id", primary_key=True)
+
+class DUMediaFile(SQLModel, table=True):
+    __tablename__ = "du_media_files"
+
+    du_id: uuid.UUID = Field(foreign_key="diagnostic_units.id", primary_key=True)
+    media_id: uuid.UUID = Field(foreign_key="media.id", primary_key=True)
+    
+
+class Media(SQLModel, table=True):
+    __tablename__ = "media"
+
+    id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
+    title: str = Field(max_length=50)
+    file_path: str
+    file_type: str = Field(max_length=20)
+    metadata_data: Dict[str, Any] = Field(default={}, sa_column=SAColumn("metadata", JSONB))
+
+    cases: List["Case"] = Relationship(back_populates="media", link_model=CaseMediaFile)
+    diagnostic_units: List["DiagnosticUnit"] = Relationship(back_populates="media", link_model=DUMediaFile)
+
+
+class MediaRead(BaseModel):
+    file_path: str
+    file_type: str
+    title: Optional[str] = None
+
+class CaseReadWithMedia(BaseModel):
+    id: uuid.UUID
+    title: str
+    initial_info: str
+    media: List[MediaRead]
 
 
 # --------------- CASES ---------------
@@ -15,6 +55,7 @@ class Case(SQLModel, table=True):
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
     original_case_id: Optional[uuid.UUID] = Field(default=None, foreign_key="cases.id")
     version: int = Field(default=1)
+    status: str = Field(default="published") # ili draft ili archived
     title: str = Field(max_length=150)
     level: str = Field(max_length=50)
     type: str = Field(max_length=50)
@@ -25,8 +66,8 @@ class Case(SQLModel, table=True):
     default_settings: Dict[str, Any] = Field(default={}, sa_column=SAColumn(JSONB))     
     created_by: uuid.UUID = Field(default=None, foreign_key="users.id")    
 
+    media: List["Media"] = Relationship(back_populates="cases", link_model=CaseMediaFile)
     hints: List["Hint"] = Relationship(back_populates="case", sa_relationship_kwargs={"cascade": "all, delete-orphan"})
-    media: List["Media"] = Relationship(back_populates="case", sa_relationship_kwargs={"cascade": "all, delete-orphan"})
     diagnostic_units: List["DiagnosticUnit"] = Relationship(back_populates="case", sa_relationship_kwargs={"cascade": "all, delete-orphan"})
 
 
@@ -43,6 +84,7 @@ class Category(SQLModel, table=True):
         sa_relationship_kwargs={"remote_side": "Category.id"}
     )
     children: List["Category"] = Relationship(back_populates="parent")
+
 
 class CategoryRead(SQLModel):
     id: uuid.UUID
@@ -93,7 +135,7 @@ class DiagnosticUnit(SQLModel, table=True):
     consequences: List[Dict[str, Any]] = Field(default=[], sa_column=SAColumn(JSONB))
     case_id: uuid.UUID = Field(foreign_key="cases.id") 
 
-    media: Optional[List["Media"]] = Relationship(back_populates="diagnostic_unit")
+    media: Optional[List["Media"]] = Relationship(back_populates="diagnostic_units", link_model=DUMediaFile)
     case: Case = Relationship(back_populates="diagnostic_units")
     required_units: List["DiagnosticUnit"] = Relationship(
         link_model=UnitDependency,
@@ -102,38 +144,44 @@ class DiagnosticUnit(SQLModel, table=True):
             "secondaryjoin": "DiagnosticUnit.id==UnitDependency.required_unit_id",
         }
     )
-    
-
-class Media(SQLModel, table=True):
-    __tablename__ = "media"
-
-    id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
-    title: str = Field(max_length=50)
-    file_path: str
-    file_type: str = Field(max_length=20)
-    metadata_data: Dict[str, Any] = Field(default={}, sa_column=SAColumn("metadata", JSONB))    
-    case_id: Optional[uuid.UUID] = Field(default=None, foreign_key="cases.id")
-    du_id: Optional[uuid.UUID] = Field(default=None, foreign_key="diagnostic_units.id")
-
-    case: Optional["Case"] = Relationship(back_populates="media")
-    diagnostic_unit: Optional["DiagnosticUnit"] = Relationship(back_populates="media")
 
 
-class MediaRead(BaseModel):
-    file_path: str
-    file_type: str
-    title: Optional[str] = None
-
-class CaseReadWithMedia(BaseModel):
-    id: uuid.UUID
-    title: str
-    initial_info: str
-    media: List[MediaRead]
+class DUCreate(BaseModel):
+    id: str
+    label: str
+    name: str
+    type: str
+    level: int
+    result_text: str
+    provides: List[str] = []
+    resources: Dict[str, Any] = {}
+    required_units: List[str] = []
+    consequences: List[Dict[str, Any]] = []
+    media_ids: List[str] = []
 
 class HintReadCreate(BaseModel):
     sequence_no: int
     cost: float
     text: str
+
+class CaseCreate(BaseModel):
+    title: str
+    level: str
+    type: str
+    status: Literal["draft", "published", "archived"] = "published"
+    is_public: bool
+    initial_info: str
+    correct_diagnosis: str
+    if_incorrect: str
+    category_id: str
+    hints: List[HintReadCreate] = []
+    diagnostic_units: List[DUCreate] = []
+    media_ids: List[str] = []
+
+class CaseEditRequest(CaseCreate):
+    change_log: Optional[str] = None
+    status: Literal["draft", "published", "archived"] = "published"
+
 
 # --------------- CASE SOLVING ---------------
 
@@ -411,6 +459,7 @@ class AssignmentCreate(BaseModel):
 
 class AssignmentCasePreview(BaseModel):
     id: uuid.UUID
+    version: Optional[int]
     title: str
     level: str
     topic_name: Optional[str] = None
@@ -427,10 +476,12 @@ class CaseUpdate(SQLModel, table=True):
     __tablename__ = "case_updates"
     
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
-    case_id: uuid.UUID = Field(foreign_key="cases.id")
     change_log: str
     new_version: int
     created_at: datetime = Field(default_factory=datetime.now)
+    
+    previous_case_id: uuid.UUID = Field(foreign_key="cases.id")
+    new_case_id: uuid.UUID = Field(foreign_key="cases.id")
 
 
 class UpdateNotification(SQLModel, table=True):

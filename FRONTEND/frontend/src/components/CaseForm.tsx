@@ -2,7 +2,7 @@ import { BasicInfo } from "./case-form-components/BasicInfo";
 import { DiagnosticUnits } from "./case-form-components/DiagnosticUnits";
 import { HintsAndDiagnosis } from "./case-form-components/HintsAndDiagnosis";
 import { useCaseStore } from "../store/useCaseStore";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { Modal } from "./UI/Modal";
 import { useState } from "react";
 import { JsonUploader } from "./JSONUploader";
@@ -13,8 +13,11 @@ const backendURL = import.meta.env.VITE_APP_BACKEND;
 const CaseForm = () => {
     const [resetModalOpen, setResetModalOpen] = useState<boolean>(false);
     const navigate = useNavigate();
+    
+    const { caseId } = useParams();
+    const isEditMode = !!caseId;
 
-    const { caseData, step, setStep, clearCaseData } = useCaseStore();
+    const { caseData, step, setStep, clearCaseData, setCaseId, setChangeLog } = useCaseStore();
 
     const token = useAuthStore((state) => state.token);
 
@@ -41,7 +44,7 @@ const CaseForm = () => {
         return data.media_id;
     };
 
-    const handleCreateCase = async () => {
+    const handleSaveCase = async (targetStatus: 'draft' | 'published') => {
         try {
             const caseMediaIds = await Promise.all(caseData.media.map(file => uploadSingleFile(file)));
 
@@ -51,9 +54,7 @@ const CaseForm = () => {
                     ...du,
                     media_ids: duMediaIds,
                     media: undefined,
-                    level: typeof du.level === 'string' 
-                        ? parseInt(du.level) 
-                        : du.level,
+                    level: typeof du.level === 'string' ? parseInt(du.level) : du.level,
                     resources: {
                         ...du.resources,
                         money: Number(du.resources.money),
@@ -69,16 +70,28 @@ const CaseForm = () => {
                 text: h.text
             }));
 
+
+            const method = caseData.id ? 'PUT' : 'POST';
+            const url = caseData.id ? `${backendURL}/cases/${caseData.id}` : `${backendURL}/cases`;
+            
+            if (isEditMode && targetStatus === 'published' && caseData.id && !caseData.changeLog) {
+                const log = prompt("Molimo opišite što ste promijenili u ovoj verziji:");
+                if (!log) return; // Prekini ako korisnik odustane
+                setChangeLog(log); // Spremi u store prije slanja
+            }
+
             const finalPayload = {
                 ...caseData,
                 media_ids: caseMediaIds,
                 media: undefined,
                 diagnostic_units: processedDUs,
-                hints: processedHints
+                hints: processedHints,
+                status: targetStatus,
+                change_log: caseData.changeLog || "Inicijalna objava ili draft izmjena"
             };
 
-            const response = await fetch(`${backendURL}/cases`, {
-                method: 'POST',
+            const response = await fetch(url, {
+                method: method,
                 headers: {
                     "Authorization": `Bearer ${token}`,
                     'Content-Type': 'application/json',
@@ -88,12 +101,25 @@ const CaseForm = () => {
 
             if (!response.ok) {
                 const errorData = await response.json();
-                throw new Error(errorData.detail || 'Failed to create case');
+                throw new Error(errorData.detail || 'Greška pri spremanju slučaja.');
+            }
+
+            const result = await response.json();
+
+            if (result.case_id) {
+                setCaseId(result.case_id);
+                alert(targetStatus === 'draft' ? 'Skica spremljena!' : 'Slučaj objavljen!');
             }
            
-            alert('Case created successfully!');
-            clearCaseData();
-            navigate('/user/dashboard'); 
+            if (targetStatus === 'published') {
+                if (isEditMode) {
+                    alert('Promjene pohranjene!');
+                } else {
+                    alert('Slučaj uspješno kreiran!')
+                }
+                clearCaseData();
+                navigate('/user/dashboard'); 
+            }
         
         } catch (error) {
             console.error("Error creating case:", error);
@@ -127,7 +153,8 @@ const CaseForm = () => {
                 </div>
 
                 <div className="w-full flex justify-center gap-5 p-5 border-t border-t-gray-700">
-                    <button onClick={() => handleCreateCase()} className="cursor-pointer bg-orange-500 text-orange-50 font-semibold px-3 py-2 rounded-lg">Kreiraj</button>
+                    {!isEditMode && <button onClick={() => handleSaveCase('draft')} className="cursor-pointer bg-orange-500 text-orange-50 font-semibold px-3 py-2 rounded-lg">Spremi skicu</button>} 
+                    <button onClick={() => handleSaveCase('published')} className="cursor-pointer bg-orange-500 text-orange-50 font-semibold px-3 py-2 rounded-lg">{isEditMode ? "Pohrani promjene" : "Kreiraj"}</button>
                     <button onClick={() => setResetModalOpen(true)} className="cursor-pointer bg-red-600 text-orange-50 font-semibold px-3 py-2 rounded-lg">Resetiraj unos</button>
                 </div>
             </div>
