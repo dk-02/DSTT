@@ -1,5 +1,6 @@
 import os
 from datetime import datetime, timedelta, timezone
+from typing import Dict
 import uuid
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
@@ -10,6 +11,7 @@ from database import engine
 from models import AdminUserRegister, PasswordChange, User, UserRole, Role, UserRegister
 from slowapi import Limiter
 from slowapi.util import get_remote_address
+import resend
 
 SECRET_KEY = os.getenv("SECRET_KEY")
 ALGORITHM = "HS256"
@@ -85,6 +87,12 @@ def verify_password(plain_password: str, hashed_password: str):
 def create_access_token(data: dict):
     to_encode = data.copy()
     expire = datetime.now(timezone.utc) + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    to_encode.update({"exp": expire})
+    return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+
+def create_reset_token(data: dict, expires_delta: int):
+    to_encode = data.copy()
+    expire = datetime.now(timezone.utc) + timedelta(minutes=expires_delta)
     to_encode.update({"exp": expire})
     return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
 
@@ -172,7 +180,7 @@ def login(request: Request, user_data: OAuth2PasswordRequestForm = Depends(), se
 
     if not user or not verify_password(user_data.password, user.password_hash):
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
+            status_code=401,
             detail="Pogrešan email ili lozinka",
             headers={"WWW-Authenticate": "Bearer"},
         )
@@ -242,3 +250,57 @@ def change_password(data: PasswordChange, current_user: User = Depends(get_curre
     session.commit()
 
     return {"message": "Lozinka uspješno promijenjena."}
+
+
+@router.post("/forgot-password")
+async def forgot_password(email_data: Dict[str, str], session: Session = Depends(get_session)):
+    email = email_data.get("email")
+    user = session.exec(select(User).where(User.email == email)).first()
+    
+    if not user:
+        return {"message": "Ako račun postoji, upute su poslane na mail."}
+
+    reset_token = create_reset_token(
+        data={"sub": str(user.id), "type": "password_reset"}, 
+        expires_delta=15
+    )
+
+    reset_link = f"http://localhost:5173/reset-password?token={reset_token}"
+
+    try:
+        resend.api_key = os.getenv("RESEND_API_KEY")
+        resend.Emails.send({
+            "from": "onboarding@resend.dev",
+            "to": [user.email],
+            "subject": "Resetiranje lozinke - DSTT",
+            "html": f"<p>Kliknite na link za promjenu lozinke: <a href='{reset_link}'>Resetiraj lozinku</a></p>"
+        })
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Greška pri slanju maila {e}")
+
+    return {"message": "Upute su poslane na mail."}
+
+
+@router.post("/reset-password-confirm")
+def reset_password_confirm(data: Dict[str, str], session: Session = Depends(get_session)):
+    token = data.get("token")
+    new_password = data.get("new_password")
+
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        if payload.get("type") != "password_reset":
+            raise HTTPException(status_code=400, detail="Neispravan tip tokena")
+        
+        user_id = payload.get("sub")
+        user = session.get(User, uuid.UUID(user_id))
+        
+        if not user:
+            raise HTTPException(status_code=404, detail="Korisnik nije pronađen")
+
+        user.password_hash = hash_password(new_password)
+        session.add(user)
+        session.commit()
+        
+        return {"message": "Lozinka uspješno promijenjena."}
+    except Exception:
+        raise HTTPException(status_code=400, detail="Link je istekao ili je nevaljan.")

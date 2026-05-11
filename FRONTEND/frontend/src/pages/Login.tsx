@@ -2,13 +2,16 @@ import { useState } from "react";
 import { useAuthStore } from "../store/useAuthStore";
 import { EyeOff, Eye, ArrowNarrowLeft } from "@untitledui/icons";
 import { useNavigate } from "react-router-dom";
+import { Modal } from "../components/UI/Modal";
 
 const backendURL = import.meta.env.VITE_APP_BACKEND;
 
 export const Login = () => {
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+  const [email, setEmail] = useState<string>("");
+  const [password, setPassword] = useState<string>("");
   const [passwordVisible, setPasswordVisible] = useState<boolean>(false);
+  const [resetPasswordModalOpen, setResetPasswordModalOpen] = useState<boolean>(false);
+  const [resetPasswordEmail, setResetPasswordEmail] = useState<string>("");
 
   const navigate = useNavigate();
 
@@ -50,6 +53,30 @@ export const Login = () => {
     setPasswordVisible(prev => !prev);
   }
 
+  const handleForgotPassword = async (userEmail: string) => {
+    if (!userEmail) return;
+
+    try {
+        const res = await fetch(`${backendURL}/auth/forgot-password`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ email: userEmail })
+        });
+
+        if (res.ok) {
+            const data = await res.json();
+            alert(data.message);
+            setResetPasswordEmail("");
+            setResetPasswordModalOpen(false);
+        } else {
+            alert("Došlo je do pogreške. Pokušajte ponovno.");
+        }
+    } catch (error) {
+        console.error("Greška:", error);
+        alert("Povezivanje s poslužiteljem nije uspjelo.");
+    }
+};
+
   return (
     <div className="w-full h-screen bg-gray-700 flex justify-center items-center relative">
         <ArrowNarrowLeft onClick={() => navigate("/")} className="absolute top-5 left-5 scale-130 text-gray-50 hover:cursor-pointer" />
@@ -57,7 +84,7 @@ export const Login = () => {
           onSubmit={(e) => {
             e.preventDefault();
             handleLogin();
-          }} className="flex flex-col w-1/4 gap-4 p-10 bg-gray-600 text-white rounded-xl shadow-2xl">
+          }} className="flex flex-col w-1/4 p-10 bg-gray-600 text-white rounded-xl shadow-2xl">
             <div className="border-l-3 border-orange-400 flex items-center pl-2 mb-5">
                 <h2 className="font-bold text-2xl">Prijava</h2>
             </div>
@@ -65,7 +92,7 @@ export const Login = () => {
               type="email" 
               placeholder="Email" 
               onChange={e => setEmail(e.target.value)} 
-              className="p-2 border rounded focus:ring-2 focus:ring-orange-500 outline-none"
+              className="p-2 mb-4 border rounded focus:ring-2 focus:ring-orange-500 outline-none"
             />
 
             <div className="relative flex items-center">
@@ -80,8 +107,23 @@ export const Login = () => {
 
             </div>
 
-            <button onClick={handleLogin} className="bg-orange-500 p-2 rounded hover:cursor-pointer">Prijavi se</button>
+            {/* <p onClick={() => setResetPasswordModalOpen(true)} className="mt-2 self-end text-sm text-gray-200 hover:text-orange-300 hover:cursor-pointer">Zaboravljena lozinka?</p> */}
+
+            <button onClick={handleLogin} className="bg-orange-500 p-2 rounded hover:cursor-pointer mt-4">Prijavi se</button>
         </form>
+
+        <Modal isOpen={resetPasswordModalOpen} onClose={() => setResetPasswordModalOpen(false)} title="Resetiraj lozinku">
+          <div className="flex flex-col gap-4">
+            <p>Unesite email korisničkog računa za koji ste zaboravili lozinku.</p>
+            <input 
+                type="email" 
+                placeholder="Email" 
+                onChange={e => setResetPasswordEmail(e.target.value)} 
+                className="p-2 mb-4 border rounded focus:ring-2 focus:ring-orange-500 outline-none"
+              />
+            <button onClick={() => handleForgotPassword(resetPasswordEmail)}>Pošalji</button>
+          </div>
+        </Modal>
     </div>
   );
 };
