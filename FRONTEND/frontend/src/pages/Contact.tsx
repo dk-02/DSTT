@@ -3,6 +3,8 @@ import Header from "../components/UI/Header";
 import { ArrowNarrowLeft } from "@untitledui/icons";
 import { useNavigate } from "react-router-dom";
 
+const backendURL = import.meta.env.VITE_APP_BACKEND;
+
 function Contact() {    
     const [formData, setFormData] = useState({
         name: "",
@@ -13,11 +15,28 @@ function Contact() {
 
     const navigate = useNavigate();
 
-    const handleSubmit = (e: React.FormEvent) => {
+    const handleSubmit = async (e: React.SubmitEvent) => {
         e.preventDefault();
-        // Ovdje bi išao tvoj API poziv za slanje maila
-        console.log("Podaci spremni za slanje:", formData);
-        alert("Hvala vam na upitu! Javit ćemo vam se uskoro.");
+        
+        try {
+            const response = await fetch(`${backendURL}/contact/`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(formData),
+            });
+
+            if (response.ok) {
+                alert("Hvala vam na upitu! Poruka je uspješno poslana.");
+                setFormData({ name: "", email: "", subject: "", message: "" });
+            } else {
+                throw new Error("Greška pri slanju.");
+            }
+        } catch (error) {
+            alert("Došlo je do pogreške pri slanju poruke.");
+            console.error(error);
+        }
     };
 
     return (
@@ -42,15 +61,21 @@ function Contact() {
                             </div>
 
                             <div>
+                                <h3 className="text-sm uppercase tracking-widest text-gray-400 font-semibold">Autorica</h3>
+                                <p className="text-xl text-white">Dora Kašik</p>
+                                <p className="text-gray-300">Diplomski studij, Profil: Programsko inženjerstvo i informacijski sustavi</p>
+                            </div>
+
+                            <div>
                                 <h3 className="text-sm uppercase tracking-widest text-gray-400 font-semibold">Mentor</h3>
                                 <p className="text-xl text-white">dr. sc. Predrag Pale</p>
                                 <p className="text-gray-300">Zavod za elektroničke sustave i obradu informacija</p>
                             </div>
 
-                            <div>
+                            <div className="flex flex-col">
                                 <h3 className="text-sm uppercase tracking-widest text-gray-400 font-semibold">E-mail</h3>
                                 <a href="mailto:info@dstt-project.com" className="text-xl text-orange-400 hover:text-orange-300 transition-colors">
-                                    info@dstt.com
+                                    dsttproject@outlook.com
                                 </a>
                             </div>
                         </div>
