@@ -83,7 +83,7 @@ def get_group_members(group_id: uuid.UUID, session: Session = Depends(get_sessio
     return group.students
 
 
-@router.get("/{group_id}/assignments", response_model=List[Assignment])
+@router.get("/{group_id}/assignments")
 def get_assignments_by_group(group_id: uuid.UUID, session: Session = Depends(get_session), current_user: User = Depends(get_current_active_user)):
     user_roles = session.exec(select(Role.name).join(UserRole).where(UserRole.user_id == current_user.id)).all()
 
@@ -97,20 +97,40 @@ def get_assignments_by_group(group_id: uuid.UUID, session: Session = Depends(get
         if not membership:
             raise HTTPException(status_code=403, detail="Niste član ove grupe.")
 
-    if is_teacher:
+    elif is_teacher:
         group = session.get(Group, group_id)
 
-        if not group or group.teacher_id != current_user.id:
+        if not group or (group.teacher_id != current_user.id):
             raise HTTPException(status_code=403, detail="Niste vlasnik ove grupe.")
         
+    else:
+        raise HTTPException(status_code=403, detail="Nemate ovlasti za ovu akciju.")
+        
     stmt = (
-        select(Assignment)
-        .join(GroupAssignment)
+        select(Assignment, GroupAssignment.available_until)
+        .join(GroupAssignment, GroupAssignment.assignment_id == Assignment.id)
         .where(GroupAssignment.group_id == group_id)
     )
 
-    assignments = session.exec(stmt).all()
-    return assignments
+    results = session.exec(stmt).all()
+
+    frontend_assignments = []
+    for assignment, available_until in results:
+        assignment_data = {
+            "id": assignment.id,
+            "title": assignment.title,
+            "type": assignment.type,
+            "instructions": assignment.instructions,
+            "available_until": available_until
+        }
+        
+        if is_teacher:
+            assignment_data["settings"] = assignment.settings
+            assignment_data["case_count"] = len(assignment.cases) if hasattr(assignment, "cases") else 0
+            
+        frontend_assignments.append(assignment_data)
+
+    return frontend_assignments
 
 
 @router.post("/")

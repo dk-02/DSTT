@@ -26,7 +26,7 @@ interface Assignment {
     title: string;
     type: string;
     instructions: string;
-    group_name: string;
+    group_name?: string;
     available_until: string;
 }
 
@@ -62,26 +62,18 @@ function ExamineeDashboard() {
     const [selectedAssignment, setSelectedAssignment] = useState<AssignmentDetails | null>(null);
     const [assignmentModalOpen, setAssignmentModalOpen] = useState(false);
 
-    const setAttempt = useCaseSolvingStore((state) => state.setAttempt);
+    const [selectedGroup, setSelectedGroup] = useState<Group | null>(null);
+    const [groupAssignments, setGroupAssignments] = useState<Assignment[]>([]);
 
+    const setAttempt = useCaseSolvingStore((state) => state.setAttempt);
     const navigate = useNavigate();
     const token = useAuthStore((state) => state.token);
 
     const menuTabs = [
-        {
-            name: "available_cases",
-            label: "Dostupni slučajevi"
-        },
-        {
-            name: "groups",
-            label: "Moje grupe"
-        },
-        {
-            name: "assignments",
-            label: "Moje zadaće"
-        },
+        { name: "available_cases", label: "Dostupni slučajevi" },
+        { name: "groups", label: "Moje grupe" },
+        { name: "assignments", label: "Moje zadaće" }
     ]
-
 
     const fetchedTabs = useRef({
         available_cases: false,
@@ -141,6 +133,24 @@ function ExamineeDashboard() {
 
     }, [menuTab, token]);
 
+
+    const handleViewGroup = async (group: Group) => {
+        setSelectedGroup(group);
+        try {
+            const res = await fetch(`${backendURL}/groups/${group.id}/assignments`, {
+                headers: { "Authorization": `Bearer ${token}` }
+            });
+
+            if (res.ok) {
+                const data = await res.json();
+                setGroupAssignments(data);
+            } else {
+                console.error("Greška pri dohvaćanju zadaća za grupu.");
+            }
+        } catch (error) {
+            console.error("Greška", error);
+        }
+    };
 
     const handleViewAssignment = async (assignmentId: string) => {
         try {
@@ -267,14 +277,77 @@ function ExamineeDashboard() {
                 )}
 
                 {menuTab === "groups" && (
+                    selectedGroup ? (
+                        <div className="flex flex-col animate-fadeIn">
+                            <button 
+                                onClick={() => setSelectedGroup(null)}
+                                className="mb-6 flex items-center gap-2 text-gray-400 hover:text-white transition-colors w-fit font-medium cursor-pointer"
+                            >
+                                <span>&larr;</span> Natrag na popis grupa
+                            </button>
+                            
+                            <div className="bg-gray-800 p-6 rounded-2xl border border-gray-700 shadow-md mb-8">
+                                <h2 className="text-2xl font-bold text-white mb-3">{selectedGroup.name}</h2>
+                                <div className="flex flex-wrap gap-x-6 gap-y-2 text-sm text-gray-300">
+                                    <span className="flex items-center gap-2">🏫 {selectedGroup.institution_name}</span>
+                                    <span className="flex items-center gap-2">📅 {selectedGroup.academic_year}</span>
+                                    <span className="flex items-center gap-2">🧑‍🏫 {selectedGroup.teacher_name}</span>
+                                </div>
+                            </div>
+
+                            <h3 className="text-xl font-bold text-gray-200 mb-4">Zadaće u grupi</h3>
+                            
+                            {groupAssignments.length > 0 ? (
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                                    {groupAssignments.map((a) => {
+                                        const isExam = a.type === "exam";
+                                        const badgeColor = isExam ? "bg-red-900/40 text-red-400" : "bg-purple-900/40 text-purple-400";
+                                        const typeLabel = a.type === "practice" ? "Vježba" : a.type === "practice_exam" ? "Probni ispit" : "Ispit";
+                                        const deadline = a.available_until;
+
+                                        return (
+                                            <div key={a.id} className="flex flex-col bg-gray-700 rounded-2xl shadow-lg border border-gray-600 overflow-hidden hover:border-gray-500 transition-colors group">
+                                                <div className="flex justify-between items-start p-4 bg-gray-700/50 border-b border-gray-600">
+                                                    <span className="bg-gray-800 text-xs font-semibold px-2 py-1 rounded-md text-gray-300 truncate max-w-[60%]">
+                                                        {selectedGroup.name}
+                                                    </span>
+                                                    <span className={`${badgeColor} text-xs font-bold px-2 py-1 rounded-md`}>
+                                                        {typeLabel}
+                                                    </span>
+                                                </div>
+                                                <div className="p-5 flex-1 flex flex-col justify-between">
+                                                    <div>
+                                                        <h3 className="text-lg font-bold text-white mb-2">{a.title}</h3>
+                                                        <p className="text-sm text-gray-400 mb-4 line-clamp-2">
+                                                            {a.instructions || "Nema dodatnih uputa."}
+                                                        </p>
+                                                        {deadline && (
+                                                            <div className="text-xs font-medium inline-block px-2 py-1 rounded bg-gray-800/50 text-gray-300">
+                                                                Rok: {new Date(deadline).toLocaleString('hr-HR', { day: 'numeric', month: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                    <button onClick={() => handleViewAssignment(a.id)} className="w-full mt-5 bg-gray-600 hover:bg-gray-500 text-white font-bold py-2.5 rounded-lg transition-all shadow-md active:scale-95 cursor-pointer border border-gray-500">
+                                                        Detalji zadaće
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            ) : (
+                                renderEmptyState("Nema zadaća", "Ova grupa trenutno nema dodijeljenih zadaća.")
+                            )}
+                        </div>
+                    ) :
                     studentGroups.length > 0 ? (
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                             {studentGroups.map((g) => (
-                                <div key={g.id} className="flex flex-col bg-gray-700 rounded-2xl shadow-lg border border-gray-600 overflow-hidden hover:border-gray-500 transition-colors group">
+                                <div key={g.id} onClick={() => handleViewGroup(g)} className="flex flex-col bg-gray-700 rounded-2xl shadow-lg border border-gray-600 overflow-hidden hover:border-gray-500 hover:cursor-pointer transition-colors group">
                                     
                                     <div className="flex justify-between items-start p-4 bg-gray-700/50 border-b border-gray-600">
                                         <span className="bg-gray-800 text-xs font-semibold px-2 py-1 rounded-md text-gray-300 truncate max-w-[65%]">
-                                            {g.institution_name || "Nepoznata ustanova"}
+                                            {g.institution_name}
                                         </span>
                                         <span className="bg-blue-900/40 text-blue-400 text-xs font-bold px-2 py-1 rounded-md">
                                             {g.academic_year}
@@ -338,19 +411,13 @@ function ExamineeDashboard() {
                                                 </p>
                                                 
                                                 {deadline && (
-                                                    <div className="text-xs font-medium inline-block px-2 py-1 rounded">
-                                                        Rok: {new Date(deadline).toLocaleString('hr-HR', {
-                                                            day: 'numeric',
-                                                            month: 'numeric',
-                                                            year: 'numeric',
-                                                            hour: '2-digit',
-                                                            minute: '2-digit'
-                                                        })}
+                                                    <div className="text-xs font-medium inline-block px-2 py-1 rounded bg-gray-800/50 text-gray-300">
+                                                        Rok: {new Date(deadline).toLocaleString('hr-HR', { day: 'numeric', month: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
                                                     </div>
                                                 )}
                                             </div>
                                             
-                                            <button onClick={() => handleViewAssignment(a.id)} className="w-full mt-2 bg-gray-600 hover:bg-gray-500 text-white font-bold py-2.5 rounded-lg transition-all shadow-md active:scale-95 cursor-pointer border border-gray-500">
+                                            <button onClick={() => handleViewAssignment(a.id)} className="w-full mt-5 bg-gray-600 hover:bg-gray-500 text-white font-bold py-2.5 rounded-lg transition-all shadow-md active:scale-95 cursor-pointer border border-gray-500">
                                                 Detalji zadaće
                                             </button>
                                         </div>

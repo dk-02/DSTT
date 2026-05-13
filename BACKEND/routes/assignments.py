@@ -58,9 +58,9 @@ def get_my_assignments(session: Session = Depends(get_session), current_user: Us
             
             assigned_groups = [
                 {
-                    "group_id": r.id,
-                    "group_name": r.name,
-                    "available_until": r.available_until
+                    "group_id": r.id or None,
+                    "group_name": r.name or None,
+                    "available_until": r.available_until or None
                 } for r in group_results
             ]
             

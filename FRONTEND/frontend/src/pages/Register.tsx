@@ -111,11 +111,11 @@ export const Register = ({ isAdminMode = false, onSuccess } : RegisterProps) => 
 
     const containerClasses = isAdminMode 
         ? "w-full p-2 text-white"
-        : "flex justify-center items-center w-full h-screen bg-gray-700 relative";
+        : "flex justify-center items-center w-full h-screen bg-gray-800 relative";
 
     const formClasses = isAdminMode
         ? "w-full flex flex-col gap-4"
-        : "w-1/4 flex flex-col gap-4 p-10 bg-gray-600 text-white rounded-xl shadow-2xl";
+        : "w-1/4 flex flex-col gap-4 p-10 bg-gray-700 text-white rounded-xl shadow-2xl";
 
     const inputClasses = isAdminMode
         ? "p-2 bg-gray-200 text-gray-600 border border-gray-400 rounded focus:ring-2 focus:ring-orange-500 outline-none w-full"
