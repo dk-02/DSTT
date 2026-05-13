@@ -3,7 +3,7 @@ import uuid
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import func, or_
 from sqlmodel import Session, select
-from models import Assignment, AssignmentCase, AssignmentCasePreview, AssignmentCreate, AssignmentSettings, AssignmentUpdate, Case, CaseCategory, Category, Group, GroupAssignment, GroupAssignmentLink, GroupMember, RandomCasePickerSettings, Role, User, UserRole
+from models import Assignment, AssignmentCase, AssignmentCasePreview, AssignmentCreate, AssignmentSettings, AssignmentUpdate, Case, CaseCategory, Category, Group, GroupAssignment, GroupAssignmentLink, GroupMember, RandomCasePickerSettings, Role, SolveAttempt, User, UserRole
 from routes.auth import get_current_active_user, get_current_teacher
 from database import engine
 
@@ -43,10 +43,36 @@ def get_my_assignments(session: Session = Depends(get_session), current_user: Us
     is_examinee = "examinee" in user_roles
 
     if is_teacher:
-        stmt = select(Assignment).where(Assignment.teacher_id == current_user.id)
-        results = session.exec(stmt).all()
+        assignments = session.exec(select(Assignment).where(Assignment.teacher_id == current_user.id)).all()
 
-        return results
+        teacher_response = []
+        for a in assignments:
+            case_count = len(a.cases) if hasattr(a, "cases") else 0
+            
+            stmt_groups = (
+                select(Group.id, Group.name, GroupAssignment.available_until)
+                .join(GroupAssignment, GroupAssignment.group_id == Group.id)
+                .where(GroupAssignment.assignment_id == a.id)
+            )
+            group_results = session.exec(stmt_groups).all()
+            
+            assigned_groups = [
+                {
+                    "group_id": r.id,
+                    "group_name": r.name,
+                    "available_until": r.available_until
+                } for r in group_results
+            ]
+            
+            teacher_response.append({
+                "id": a.id,
+                "title": a.title,
+                "type": a.type,
+                "case_count": case_count,
+                "assigned_groups": assigned_groups
+            })
+
+        return teacher_response
     
     if is_examinee:
         stmt = (
@@ -61,7 +87,10 @@ def get_my_assignments(session: Session = Depends(get_session), current_user: Us
 
         return [
             {
-                "assignment": r.Assignment,
+                "id": r.Assignment.id,
+                "title": r.Assignment.title,
+                "type": r.Assignment.type,
+                "instructions": r.Assignment.instructions,
                 "group_name": r.group_name,
                 "available_until": r.available_until
             } for r in results
@@ -377,3 +406,77 @@ def remove_assignment_from_group(assignment_id: uuid.UUID, group_id: uuid.UUID, 
     except Exception as e:
         session.rollback()
         raise HTTPException(status_code=500, detail=f"Greška pri uklanjanju zadaće iz grupe: {str(e)}")
+    
+
+
+@router.get("/{assignment_id}")
+def get_assignment_details(assignment_id: uuid.UUID, session: Session = Depends(get_session), current_user: User = Depends(get_current_active_user)):
+    user_roles = session.exec(
+        select(Role.name)
+        .join(UserRole)
+        .where(UserRole.user_id == current_user.id)
+    ).all()
+
+    if not ("teacher" in user_roles) and not ("examinee" in user_roles):
+        raise HTTPException(status_code=403, detail="Nemate ovlasti za pristup podatcima ove zadaće.")
+
+    stmt_assignment = (
+        select(Assignment, User.first_name, User.last_name)
+        .join(User, Assignment.teacher_id == User.id)
+        .where(Assignment.id == assignment_id)
+    )
+    result = session.exec(stmt_assignment).first()
+
+    if not result:
+        raise HTTPException(status_code=404, detail="Zadaća nije pronađena.")
+
+    assignment, first_name, last_name = result
+    teacher_full_name = f"{first_name} {last_name}"
+
+    latest_attempts_sq = (
+        select(SolveAttempt.case_id, SolveAttempt.status)
+        .where(
+            (SolveAttempt.user_id == current_user.id) &
+            (SolveAttempt.assignment_id == assignment_id)
+        )
+        .distinct(SolveAttempt.case_id) # Postgres DISTINCT ON
+        .order_by(SolveAttempt.case_id, SolveAttempt.started_at.desc())
+    ).subquery()
+
+    stmt_cases = (
+        select(AssignmentCase.sequence_no, Case, Category.name.label("topic_name"), latest_attempts_sq.c.status.label("attempt_status"))
+        .join(Case, AssignmentCase.case_id == Case.id)
+        .outerjoin(CaseCategory, Case.id == CaseCategory.case_id)
+        .outerjoin(Category, CaseCategory.category_id == Category.id)
+        .outerjoin(latest_attempts_sq, latest_attempts_sq.c.case_id == Case.id)
+        .where(AssignmentCase.assignment_id == assignment_id)
+        .order_by(AssignmentCase.sequence_no)
+    )    
+    cases_data = session.exec(stmt_cases).all()
+    
+    cases_response = [
+        {
+            "id": row.Case.id,
+            "title": row.Case.title,
+            "version": row.Case.version,
+            "level": row.Case.level,
+            "topic_name": row.topic_name,
+            "sequence_no": row.sequence_no,
+            "status": row.attempt_status or None
+        } for row in cases_data
+    ]
+
+    response_data = {
+        "id": assignment.id,
+        "title": assignment.title,
+        "type": assignment.type,
+        "instructions": assignment.instructions,
+        "teacher_name": teacher_full_name,
+        "cases": cases_response
+    }
+    
+    if "teacher" in user_roles:
+        response_data["settings"] = assignment.settings
+        return response_data
+
+    return response_data

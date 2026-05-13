@@ -77,9 +77,16 @@ function CaseSolving() {
             const attemptData = await attRes.json();
             setCaseId(attemptData.case_id);
 
-            const caseRes = await fetch(`${backendURL}/cases/${attemptData.case_id}`);
-            const caseData = await caseRes.json();
-            setCaseInfo(caseData);
+            const caseRes = await fetch(`${backendURL}/cases/${attemptData.case_id}`, {
+                headers: { "Authorization": `Bearer ${token}` }
+            });
+
+            if (caseRes.ok) {
+                const caseData = await caseRes.json();
+                setCaseInfo(caseData);
+            } else {
+                console.error("Greška pri dohvaćanju detalja slučaja.");
+            }
         };
 
         if (attemptId) fetchIds();

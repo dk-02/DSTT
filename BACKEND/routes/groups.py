@@ -3,7 +3,7 @@ import uuid
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlmodel import Session, select
 from typing import List
-from models import AddStudentToGroup, Assignment, Group, GroupAssignment, GroupCreate, GroupUpdate, GroupMember, Role, User, UserRole
+from models import AddStudentToGroup, Assignment, Group, GroupAssignment, GroupCreate, GroupResponse, GroupUpdate, GroupMember, Role, User, UserRole
 from sqlalchemy.exc import IntegrityError
 from routes.auth import get_current_active_user
 from database import engine
@@ -24,25 +24,42 @@ def get_current_academic_year():
         return f"{current_year - 1}/{current_year}"
 
 
-@router.get("/", response_model=List[Group])
+@router.get("/", response_model=List[GroupResponse])
 def get_groups(session: Session = Depends(get_session), current_user: User = Depends(get_current_active_user)):
     user_roles = session.exec(select(Role.name).join(UserRole).where(UserRole.user_id == current_user.id)).all()
 
     is_examinee = "examinee" in user_roles
     is_teacher = "teacher" in user_roles
-    is_admin = "admin"
+    is_admin = "admin" in user_roles
 
+    raw_groups = []
     if is_teacher:
-        return current_user.managed_groups
-
-    if is_examinee:
-        return current_user.groups
-
-    if is_admin:
-        return session.exec(select(Group)).all()
-
+        raw_groups = current_user.managed_groups
+    elif is_examinee:
+        raw_groups = current_user.groups
+    elif is_admin:
+        raw_groups = session.exec(select(Group)).all()    
+    else:
+        raise HTTPException(status_code=403, detail="Nemate ovlasti za ovu akciju.")
     
-    raise HTTPException(status_code=403, detail="Nemate ovlasti za ovu akciju.")
+    frontend_groups = []
+    for g in raw_groups:
+        t_name = f"{g.teacher.first_name} {g.teacher.last_name}" if g.teacher else "Nepoznat nastavnik"
+        
+        inst_name = g.institution.name if g.institution else "Nepoznata ustanova"
+        
+        s_count = len(g.students) if hasattr(g, "students") else 0
+
+        frontend_groups.append({
+            "id": g.id,
+            "name": g.name,
+            "academic_year": g.academic_year,
+            "teacher_name": t_name,
+            "institution_name": inst_name,
+            "student_count": s_count
+        })
+
+    return frontend_groups
 
 
 @router.get("/{group_id}/members", response_model=List[User])

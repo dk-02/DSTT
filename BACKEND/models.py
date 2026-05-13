@@ -197,8 +197,8 @@ class SolveAttempt(SQLModel, table=True):
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
     settings: Dict[str, Any] = Field(default={}, sa_column=SAColumn(JSONB))
-    status: str = Field(default="not_started")
-    is_free_practice: bool = Field(default=True)
+    status: str = Field(default="in_progress") # completed, terminated ili cancelled
+    is_practice: bool = Field(default=True)
     student_diagnosis: Optional[str] = None
     total_cost_money: float = Field(default=0.0)
     total_cost_time: int = Field(default=0)
@@ -208,7 +208,7 @@ class SolveAttempt(SQLModel, table=True):
     
     case_id: uuid.UUID = Field(foreign_key="cases.id")
     user_id: uuid.UUID = Field(foreign_key="users.id")
-    assignment_id: Optional[uuid.UUID] = Field(default=None, nullable=True) # Field(default=None, foreign_key="assignments.id", nullable=True)
+    assignment_id: Optional[uuid.UUID] = Field(default=None, foreign_key="assignments.id", nullable=True)
 
 
 class AttemptLog(SQLModel, table=True):
@@ -325,6 +325,14 @@ class Group(SQLModel, table=True):
     teacher: "User" = Relationship(back_populates="managed_groups")
     students: List["User"] = Relationship(back_populates="groups", link_model=GroupMember)
 
+
+class GroupResponse(BaseModel):
+    id: uuid.UUID
+    name: str
+    academic_year: str
+    teacher_name: str
+    institution_name: Optional[str] = "Nepoznata ustanova"
+    student_count: int = 0
 
 class GroupCreate(BaseModel):
     name: str
@@ -463,6 +471,7 @@ class AssignmentCasePreview(BaseModel):
     title: str
     level: str
     topic_name: Optional[str] = None
+    status: Optional[str] = None
 
 class AssignmentUpdate(BaseModel):
     title: Optional[str] = None

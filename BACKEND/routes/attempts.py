@@ -9,7 +9,7 @@ from pydantic import BaseModel
 from sqlmodel import Session, select
 from routes.auth import get_current_active_user
 from database import engine
-from models import Assignment, AttemptLog, Case, ChatRequest, DiagnosisRequest, DiagnosisSubmission, DiagnosticUnit, Hint, Media, SolveAttempt, User
+from models import Assignment, AssignmentCase, AttemptLog, Case, ChatRequest, DiagnosisRequest, DiagnosisSubmission, DiagnosticUnit, Hint, Media, SolveAttempt, User
 
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 
@@ -23,7 +23,8 @@ def get_session():
 class AttemptStart(BaseModel):
     case_id: uuid.UUID
     assignment_id: Optional[uuid.UUID] = None
-    is_free_practice: bool = True
+    is_practice: bool = True # practice ili practice_exam
+    is_exam_simulation: bool = False # practice_exam
 
 
 @router.get("/{attempt_id}")
@@ -53,9 +54,9 @@ async def start_attempt(data: AttemptStart, current_user: User = Depends(get_cur
     
     case = session.get(Case, data.case_id)
     if not case:
-        raise HTTPException(status_code=404, detail="Case not found")
+        raise HTTPException(status_code=404, detail="Slučaj nije pronađen.")
     
-    if case.type == "EXAM" and (not data.assignment_id or data.is_free_practice == True):
+    if case.type == "EXAM" and (not data.assignment_id or data.is_practice == True):
         raise HTTPException(
             status_code=403, 
             detail="Ovaj slučaj je rezerviran za ispite i ne može se pokrenuti kao vježba."
@@ -63,18 +64,53 @@ async def start_attempt(data: AttemptStart, current_user: User = Depends(get_cur
 
     final_settings = case.default_settings.copy()
 
-    # 2. LOGIKA NADJAČAVANJA
     if data.assignment_id:
-        # SCENARIJ A: Unutar assignmenta (Ispit/Zadaća)
         assignment = session.get(Assignment, data.assignment_id)
-        if assignment:
-            # if assignment_cases.assignment_id == assignment.id and assignment_cases.case_id != data.case_id:
-            #     raise HTTPException(status_code=400, detail="Assignment ne odgovara odabranom slučaju.")
-            final_settings.update(assignment.settings)
+        if not assignment:
+            raise HTTPException(status_code=404, detail="Zadaća nije pronađena.")
+        
+        if assignment.settings.get("case_sequence_lock"):
+            # Nađi redni broj (sequence_no) trenutnog slučaja u ovoj zadaći
+            current_assignment_case = session.exec(
+                select(AssignmentCase).where(
+                    AssignmentCase.assignment_id == data.assignment_id,
+                    AssignmentCase.case_id == data.case_id
+                )
+            ).first()
+
+            if current_assignment_case and current_assignment_case.sequence_no > 1:
+                # Nađi sve slučajeve koji moraju biti riješeni prije ovoga
+                preceding_cases_stmt = select(AssignmentCase.case_id).where(
+                    AssignmentCase.assignment_id == data.assignment_id,
+                    AssignmentCase.sequence_no < current_assignment_case.sequence_no
+                )
+                preceding_case_ids = session.exec(preceding_cases_stmt).all()
+
+                # Provjeri jesu li svi ti slučajevi uspješno završeni
+                for prev_case_id in preceding_case_ids:
+                    finished_attempt = session.exec(
+                        select(SolveAttempt).where(
+                            SolveAttempt.user_id == current_user.id,
+                            SolveAttempt.assignment_id == data.assignment_id,
+                            SolveAttempt.case_id == prev_case_id,
+                            SolveAttempt.status == "completed"
+                        )
+                    ).first()
+
+                    if not finished_attempt:
+                        raise HTTPException(
+                            status_code=403, 
+                            detail="Morate završiti prethodne slučajeve u zadaći prije pokretanja ovog slučaja."
+                        )
+
+        is_practice = assignment.type != "exam"
+
+        final_settings.update(assignment.settings)
+
     else:
-        # SCENARIJ B: Izvan assignmenta (Slobodni rad)
-        if not data.is_free_practice:
-            # Vježba koja simulira ispit
+        is_practice = True
+        
+        if data.is_exam_simulation:
             simulation_overrides = {
                 "enable_hints": False,
                 "ignore_hint_cost": False,
@@ -85,13 +121,12 @@ async def start_attempt(data: AttemptStart, current_user: User = Depends(get_cur
             }
             final_settings.update(simulation_overrides)
 
-        # Inače je slobodna vježba - ostaju defaultne postavke (sve True)
  
     new_attempt = SolveAttempt(
         case_id=data.case_id,
         user_id=current_user.id,
-        assignment_id=None, # data.assignment_id
-        is_free_practice=data.is_free_practice,
+        assignment_id=data.assignment_id,
+        is_practice=is_practice,
         status="in_progress",
         settings=final_settings,
         started_at=datetime.now(),

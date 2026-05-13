@@ -7,7 +7,7 @@ from pydantic import BaseModel
 import uuid
 from routes.auth import get_current_active_user, get_current_teacher
 from database import engine
-from models import Assignment, AssignmentCase, AssignmentCasePreview, Case, CaseCategory, CaseCreate, CaseEditRequest, CaseMediaFile, CaseReadWithMedia, CaseUpdate, Category, DUMediaFile, Hint, DiagnosticUnit, Media, Role, UnitDependency, UpdateNotification, User, HintReadCreate, UserRole
+from models import Assignment, AssignmentCase, AssignmentCasePreview, Case, CaseCategory, CaseCreate, CaseEditRequest, CaseMediaFile, CaseReadWithMedia, CaseUpdate, Category, DUMediaFile, Hint, DiagnosticUnit, Media, Role, SolveAttempt, UnitDependency, UpdateNotification, User, HintReadCreate, UserRole
 
 router = APIRouter(prefix="/cases", tags=["Cases"])
 
@@ -182,11 +182,22 @@ def get_available_cases(session: Session = Depends(get_session), current_user: U
         .group_by("group_id")
     ).subquery()
 
+    latest_free_attempts_sq = (
+        select(SolveAttempt.case_id, SolveAttempt.status)
+        .where(
+            (SolveAttempt.user_id == current_user.id) &
+            (SolveAttempt.assignment_id.is_(None))
+        )
+        .distinct(SolveAttempt.case_id)
+        .order_by(SolveAttempt.case_id, SolveAttempt.started_at.desc())
+    ).subquery()
+
     stmt = (
-        select(Case, Category.name.label("topic_name"))
+        select(Case, Category.name.label("topic_name"), latest_free_attempts_sq.c.status.label("attempt_status"))
         .join(CaseCategory, Case.id == CaseCategory.case_id)
         .join(Category, CaseCategory.category_id == Category.id)
         .join(latest_versions_subquery, (func.coalesce(Case.original_case_id, Case.id) == latest_versions_subquery.c.group_id))
+        .outerjoin(latest_free_attempts_sq, latest_free_attempts_sq.c.case_id == Case.id)
         .where(visibility_filter)
         .where(Case.type == "practice")
         .where(Case.status == "published")
@@ -201,7 +212,8 @@ def get_available_cases(session: Session = Depends(get_session), current_user: U
             version=row.Case.version,
             title=row.Case.title,
             level=row.Case.level,
-            topic_name=row.topic_name
+            topic_name=row.topic_name,
+            status=row.attempt_status or None
         ) for row in results
     ]
 
