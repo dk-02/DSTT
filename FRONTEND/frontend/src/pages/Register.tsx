@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ArrowNarrowLeft, Eye, EyeOff, HelpCircle } from "@untitledui/icons";
 import { useNavigate } from "react-router-dom";
 import { useAuthStore } from "../store/useAuthStore";
@@ -11,13 +11,20 @@ interface RegisterProps {
     onSuccess?: () => void;
 }
 
+interface Institution {
+    id: string;
+    name: string;
+}
+
 export const Register = ({ isAdminMode = false, onSuccess } : RegisterProps) => {
+    const [institutions, setInstitutions] = useState<Institution[]>([]);
     const [passwordVisible, setPasswordVisible] = useState<boolean>(false);
     const [formData, setFormData] = useState({
         email: "",
         password: "",
         firstName: "",
         lastName: "",
+        institution_id: "",
         roles: [""]
     });
 
@@ -30,6 +37,33 @@ export const Register = ({ isAdminMode = false, onSuccess } : RegisterProps) => 
         { id: "expert", label: "Stručnjak" },
         { id: "teacher", label: "Nastavnik" }
     ];
+
+
+    useEffect(() => {
+        if (isAdminMode) {
+            const fetchInstitutions = async () => {
+                try {
+                    const res = await fetch(`${backendURL}/institutions/`, {
+                        headers: {
+                            "Authorization": `Bearer ${token}` 
+                        }
+                    });
+                    
+                    if (res.ok) {
+                        const data = await res.json();
+                        setInstitutions(data);
+                    } else {
+                        console.error("Neuspješno dohvaćanje institucija");
+                    }
+                } catch (error) {
+                    console.error("Greška pri dohvaćanju institucija:", error);
+                }
+            };
+
+            fetchInstitutions();
+        }
+    }, [isAdminMode, token]);
+
 
     const handleRoleToggle = (roleId: string) => {
         setFormData(prev => {
@@ -55,7 +89,7 @@ export const Register = ({ isAdminMode = false, onSuccess } : RegisterProps) => 
         });
     };
 
-    const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const handleChange = (e: React.ChangeEvent<HTMLInputElement> | React.ChangeEvent<HTMLSelectElement>) => {
         const { name, value } = e.target;
         
         setFormData((prev) => ({
@@ -78,6 +112,7 @@ export const Register = ({ isAdminMode = false, onSuccess } : RegisterProps) => 
                 password: formData.password,
                 first_name: formData.firstName,
                 last_name: formData.lastName,
+                institution_id: formData.institution_id === "" ? null : formData.institution_id,
                 roles: formData.roles
             })
             : JSON.stringify({ 
@@ -203,6 +238,23 @@ export const Register = ({ isAdminMode = false, onSuccess } : RegisterProps) => 
                                 </div>
                             )})}
                         </div>
+
+                        {(formData.roles.includes("teacher") || formData.roles.includes("examinee")) && 
+                            <select 
+                                name="institution_id"
+                                className="p-2 bg-gray-200 text-gray-600 border border-gray-400 rounded text-sm outline-none focus:ring-2 focus:ring-orange-500"
+                                value={formData.institution_id}
+                                onChange={handleChange}
+                            >
+                                <option value="">Odaberite ustanovu</option>
+                                {institutions.map((inst) => (
+                                    <option key={inst.id} value={inst.id}>
+                                        {inst.name}
+                                    </option>
+                                ))}
+                            </select>
+                        }
+                        
                     </div>
                 )}
 

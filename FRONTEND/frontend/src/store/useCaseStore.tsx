@@ -35,6 +35,7 @@ interface CaseData {
   diagnostic_units: DiagnosticUnit[];
   media: File[];
   changeLog: string;
+  status: string;
 }
 
 export interface Category {
@@ -74,7 +75,8 @@ const initialCaseData : CaseData = {
   hints: [],
   diagnostic_units: [],
   media: [],
-  changeLog: ''
+  changeLog: '',
+  status: ''
 }
 
 export const useCaseStore = create<CaseState>()(

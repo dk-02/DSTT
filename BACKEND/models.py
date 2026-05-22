@@ -348,6 +348,20 @@ class AddStudentToGroup(BaseModel):
     student_id: uuid.UUID
 
 
+class StudentBasicInfo(BaseModel):
+    id: uuid.UUID
+    first_name: Optional[str]
+    last_name: Optional[str]
+    email: str
+    expertise_level: Optional[str]
+    xp_points: Optional[int]
+
+# Za admina
+class StudentAdminInfo(StudentBasicInfo):
+    is_active: bool
+    institution_id: Optional[uuid.UUID]
+
+
 # --------------- USERS ---------------
 
 class User(SQLModel, table=True):
@@ -392,6 +406,7 @@ class AdminUserRegister(BaseModel):
     first_name: str
     last_name: str
     roles: List[str]
+    institution_id: Optional[uuid.UUID] = None
 
 class UserRegister(BaseModel):
     email: str

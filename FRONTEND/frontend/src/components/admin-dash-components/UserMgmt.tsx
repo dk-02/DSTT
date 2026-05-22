@@ -14,6 +14,7 @@ interface User {
     email: string;
     is_active: boolean;
     roles: string[];
+    institution_id: string;
 }
 
 interface MyTokenPayload {
@@ -23,6 +24,11 @@ interface MyTokenPayload {
     exp: number;
 }
 
+interface Institution {
+    id: string;
+    name: string;
+}
+
 
 type SortConfig = { key: keyof User | ""; direction: "asc" | "desc" };
 
@@ -30,6 +36,8 @@ const backendURL = import.meta.env.VITE_APP_BACKEND;
 
 export const UserMgmt = () => {
     const [users, setUsers] = useState<User[]>();
+    const [institutions, setInstitutions] = useState<Institution[]>([]);
+
     // SORT, SEARCH AND FILTER
     const [sortConfig, setSortConfig] = useState<SortConfig>({ key: "", direction: "asc" });
     const [searchTerm, setSearchTerm] = useState<string>("");
@@ -41,6 +49,7 @@ export const UserMgmt = () => {
         email: "",
         firstName: "",
         lastName: "",
+        institution_id: "",
         roles: [""]
     });
 
@@ -72,8 +81,30 @@ export const UserMgmt = () => {
                 }
             }
         };
+
+        const fetchInstitutions = async () => {
+            try {
+                const res = await fetch(`${backendURL}/institutions/`, {
+                    headers: {
+                        "Authorization": `Bearer ${token}` 
+                    }
+                });
+                
+                if (res.ok) {
+                    const data = await res.json();
+                    setInstitutions(data);
+                }
+
+            } catch (error) {
+                console.error("Greška pri dohvaćanju institucija:", error);
+            }
+        };
+
         fetchUsers();
+        fetchInstitutions();
+
     }, [token]);
+
 
     const handleDeactivate = async (targetUser : User) => {
         try {
@@ -143,7 +174,7 @@ export const UserMgmt = () => {
         }
     };
 
-    const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const handleChange = (e: React.ChangeEvent<HTMLInputElement> | React.ChangeEvent<HTMLSelectElement>) => {
         const { name, value } = e.target;
         
         setFormData((prev) => ({
@@ -160,14 +191,22 @@ export const UserMgmt = () => {
                     first_name: formData.firstName,
                     last_name: formData.lastName,
                     email: formData.email,
-                    roles: formData.roles
+                    roles: formData.roles,
+                    institution_id: formData.institution_id === "" ? null : formData.institution_id
                 })
             });
 
             if (res && res.ok) {
                 setUsers(prevUsers => 
                     prevUsers?.map(user => 
-                        user.id === userId ? { ...user, first_name: formData.firstName, last_name: formData.lastName, email: formData.email, roles: formData.roles } : user
+                        user.id === userId ? { 
+                            ...user, 
+                            first_name: formData.firstName, 
+                            last_name: formData.lastName, 
+                            email: formData.email, 
+                            roles: formData.roles, 
+                            institution_id: formData.institution_id 
+                        } : user
                     )
                 );
 
@@ -205,7 +244,6 @@ export const UserMgmt = () => {
         }
     };
 
-    
 
     // FILTERING
     const handleFilterChange = (category: "status" | "role", value: string) => {
@@ -383,7 +421,11 @@ export const UserMgmt = () => {
                                         </button>
                                     )}
 
-                                    <button onClick={() => {setEditUserModalOpen(true); setFormData({firstName: user.first_name, lastName: user.last_name, email: user.email, roles: user.roles}); setUserToEditId(user.id)}} className="p-2 hover:bg-gray-700 hover:cursor-pointer rounded-lg text-gray-500 transition-colors" title="Uredi">
+                                    <button onClick={() => {
+                                            setFormData({firstName: user.first_name, lastName: user.last_name, email: user.email, roles: user.roles, institution_id: user.institution_id || ""}); 
+                                            setUserToEditId(user.id);
+                                            setEditUserModalOpen(true); 
+                                        }} className="p-2 hover:bg-gray-700 hover:cursor-pointer rounded-lg text-gray-500 transition-colors" title="Uredi">
                                         <Edit01 className="w-5 h-5" />
                                     </button>
 
@@ -432,7 +474,8 @@ export const UserMgmt = () => {
                             className={"p-2 bg-gray-200 text-gray-600 border border-gray-400 rounded focus:ring-2 focus:ring-orange-500 outline-none w-full"}/>
                     </label>
 
-                    <div className="flex gap-3 my-3">
+                    <label className="text-gray-600">Uloge</label>
+                    <div className="flex gap-3">
                         {availableRoles.map(role => {
                             const isActive = formData.roles.includes(role.id);    
                             const isDisabled = formData.roles.includes("examinee") && role.id !== "examinee";
@@ -455,6 +498,22 @@ export const UserMgmt = () => {
                             </div>
                         )})}
                     </div>
+
+                    {(formData.roles.includes("teacher") || formData.roles.includes("examinee")) && 
+                        <select 
+                            name="institution_id"
+                            className="my-3 p-2 bg-gray-200 text-gray-600 border border-gray-400 rounded text-sm outline-none focus:ring-2 focus:ring-orange-500"
+                            value={formData.institution_id}
+                            onChange={handleChange}
+                        >
+                            <option value="">Odaberite ustanovu</option>
+                            {institutions.map((inst) => (
+                                <option key={inst.id} value={inst.id}>
+                                    {inst.name}
+                                </option>
+                            ))}
+                        </select>
+                    }
 
                     <button onClick={() => handleEditUser(userToEditId)} className="bg-orange-500 p-2 rounded hover:cursor-pointer">
                         Potvrdi

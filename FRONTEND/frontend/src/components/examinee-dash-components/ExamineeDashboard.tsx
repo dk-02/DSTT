@@ -103,7 +103,7 @@ function ExamineeDashboard() {
 
         const fetchGroups = async () => {
             try {
-                const res = await fetch(`${backendURL}/groups`, { // Prilagodi URL svojoj ruti
+                const res = await fetch(`${backendURL}/groups`, {
                     headers: { "Authorization": `Bearer ${token}` }
                 });
                 if (res.ok) setStudentGroups(await res.json());

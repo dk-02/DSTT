@@ -154,7 +154,7 @@ const CaseForm = () => {
 
                 <div className="w-full flex justify-center gap-5 p-5 border-t border-t-gray-700">
                     {!isEditMode && <button onClick={() => handleSaveCase('draft')} className="cursor-pointer bg-orange-500 text-orange-50 font-semibold px-3 py-2 rounded-lg">Spremi skicu</button>} 
-                    <button onClick={() => handleSaveCase('published')} className="cursor-pointer bg-orange-500 text-orange-50 font-semibold px-3 py-2 rounded-lg">{isEditMode ? "Pohrani promjene" : "Kreiraj"}</button>
+                    <button onClick={() => handleSaveCase('published')} className="cursor-pointer bg-orange-500 text-orange-50 font-semibold px-3 py-2 rounded-lg">{isEditMode ? ((caseData.status === "archived" || caseData.status === "draft") ? "Objavi" : "Pohrani promjene") : "Kreiraj"}</button>
                     <button onClick={() => setResetModalOpen(true)} className="cursor-pointer bg-red-600 text-orange-50 font-semibold px-3 py-2 rounded-lg">Resetiraj unos</button>
                 </div>
             </div>

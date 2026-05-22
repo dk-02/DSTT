@@ -165,6 +165,69 @@ def get_all_cases(session: Session = Depends(get_session)):
     return case_list
 
 
+# CASEOVI NEKOG NASTAVNIKA
+@router.get("/authored")
+def get_authored_cases(session: Session = Depends(get_session), current_user: User = Depends(get_current_teacher)):
+    latest_versions_subquery = (
+        select(
+            func.coalesce(Case.original_case_id, Case.id).label("group_id"),
+            func.max(Case.version).label("max_version")
+        )
+        .group_by("group_id")
+    ).subquery()
+
+    statement = (
+        select(Case, Category.name.label("topic_name"))
+        .outerjoin(CaseCategory, Case.id == CaseCategory.case_id)
+        .outerjoin(Category, CaseCategory.category_id == Category.id)
+        .join(latest_versions_subquery, (func.coalesce(Case.original_case_id, Case.id) == latest_versions_subquery.c.group_id))
+        .where(Case.created_by == current_user.id)
+        .where(Case.status != "archived")
+        .where(Case.version == latest_versions_subquery.c.max_version)
+        .order_by(Case.title, Case.version.desc())
+    )
+
+    results = session.exec(statement).all()
+
+    return [
+        {
+            "id": row.Case.id,
+            "title": row.Case.title,
+            "version": row.Case.version,
+            "level": row.Case.level,
+            "topic_name": row.topic_name or "Bez teme",
+            "status": row.Case.status,  # draft, published
+            "type": row.Case.type       # practice ili exam
+        } for row in results
+    ]
+
+
+@router.get("/authored/archive")
+def get_authored_archived_cases(session: Session = Depends(get_session), current_user: User = Depends(get_current_teacher)):
+    statement = (
+        select(Case, Category.name.label("topic_name"))
+        .outerjoin(CaseCategory, Case.id == CaseCategory.case_id)
+        .outerjoin(Category, CaseCategory.category_id == Category.id)
+        .where(Case.created_by == current_user.id)
+        .where(Case.status == "archived")
+        .order_by(Case.title, Case.version.desc())
+    )
+
+    results = session.exec(statement).all()
+
+    return [
+        {
+            "id": row.Case.id,
+            "title": row.Case.title,
+            "version": row.Case.version,
+            "level": row.Case.level,
+            "topic_name": row.topic_name or "Bez teme",
+            "status": row.Case.status,  # archived
+            "type": row.Case.type       # practice ili exam
+        } for row in results
+    ]
+
+
 # --- SVI CASEOVI DOSTUPNI SVIM KORISNICIMA (practice) ---
 @router.get("/available", response_model=List[AssignmentCasePreview])
 def get_available_cases(session: Session = Depends(get_session), current_user: User = Depends(get_current_active_user)):
@@ -192,11 +255,17 @@ def get_available_cases(session: Session = Depends(get_session), current_user: U
         .order_by(SolveAttempt.case_id, SolveAttempt.started_at.desc())
     ).subquery()
 
+    archived_groups_sq = (
+        select(func.coalesce(Case.original_case_id, Case.id))
+        .where(Case.status == "archived")
+    )
+
     stmt = (
         select(Case, Category.name.label("topic_name"), latest_free_attempts_sq.c.status.label("attempt_status"))
         .join(CaseCategory, Case.id == CaseCategory.case_id)
         .join(Category, CaseCategory.category_id == Category.id)
         .join(latest_versions_subquery, (func.coalesce(Case.original_case_id, Case.id) == latest_versions_subquery.c.group_id))
+        .where(~func.coalesce(Case.original_case_id, Case.id).in_(archived_groups_sq)) # ~ = NOT IN
         .outerjoin(latest_free_attempts_sq, latest_free_attempts_sq.c.case_id == Case.id)
         .where(visibility_filter)
         .where(Case.type == "practice")
@@ -273,7 +342,7 @@ def get_cases_for_picker(session: Session = Depends(get_session), current_user: 
         ) for row in results
     ]
 
-
+# PRIKAZ U SOLVERU
 @router.get("/{case_id}", response_model=CaseReadWithMedia)
 def get_case_details(case_id: str, current_user: User = Depends(get_current_active_user), session: Session = Depends(get_session)):
     case = session.get(Case, case_id)
@@ -294,7 +363,7 @@ def get_case_details(case_id: str, current_user: User = Depends(get_current_acti
         "media": media_list
     }
 
-
+# EDIT
 @router.get("/{case_id}/full")
 def get_full_case_details(case_id: uuid.UUID, current_user: User = Depends(get_current_active_user), session: Session = Depends(get_session)):
     case = session.get(Case, case_id)

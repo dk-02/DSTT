@@ -3,7 +3,7 @@ import uuid
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlmodel import Session, select
 from typing import List
-from models import AddStudentToGroup, Assignment, Group, GroupAssignment, GroupCreate, GroupResponse, GroupUpdate, GroupMember, Role, User, UserRole
+from models import AddStudentToGroup, Assignment, Group, GroupAssignment, GroupCreate, GroupResponse, GroupUpdate, GroupMember, Role, StudentAdminInfo, StudentBasicInfo, User, UserRole
 from sqlalchemy.exc import IntegrityError
 from routes.auth import get_current_active_user
 from database import engine
@@ -62,7 +62,7 @@ def get_groups(session: Session = Depends(get_session), current_user: User = Dep
     return frontend_groups
 
 
-@router.get("/{group_id}/members", response_model=List[User])
+@router.get("/{group_id}/members")
 def get_group_members(group_id: uuid.UUID, session: Session = Depends(get_session), current_user: User = Depends(get_current_active_user)):
     group = session.get(Group, group_id)
     if not group:
@@ -77,10 +77,33 @@ def get_group_members(group_id: uuid.UUID, session: Session = Depends(get_sessio
         raise HTTPException(
             status_code=403, detail="Nemate ovlasti za ovu akciju (potrebna je uloga nastavnika ili administratora).")
     
-    if is_teacher and group.teacher_id != current_user.id:
+    if is_teacher and group.teacher_id != current_user.id and not is_admin:
         raise HTTPException(status_code=403, detail="Niste vlasnik ove grupe.")
+    
+    if is_admin:
+        return [
+            StudentAdminInfo(
+                id=student.id,
+                first_name=student.first_name,
+                last_name=student.last_name,
+                email=student.email,
+                expertise_level=student.expertise_level,
+                xp_points=student.xp_points,
+                is_active=student.is_active,
+                institution_id=student.institution_id
+            ) for student in group.students
+        ]
 
-    return group.students
+    return [
+        StudentBasicInfo(
+            id=student.id,
+            first_name=student.first_name,
+            last_name=student.last_name,
+            email=student.email,
+            expertise_level=student.expertise_level,
+            xp_points=student.xp_points
+        ) for student in group.students
+    ]
 
 
 @router.get("/{group_id}/assignments")
