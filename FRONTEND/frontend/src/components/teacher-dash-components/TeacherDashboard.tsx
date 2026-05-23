@@ -69,6 +69,13 @@ function TeacherDashboard() {
     const [groupAssignments, setGroupAssignments] = useState<Assignment[]>([]);
     const [groupMembers, setGroupMembers] = useState<User[]>([]);
 
+    // USERS/STUDENTS
+    const [students, setStudents] = useState<User[]>([]);
+    const [addStudentToGroupModalOpen, setAddStudentToGroupModalOpen] = useState<boolean>(false);
+    const [selectedStudents, setSelectedStudents] = useState<User[]>([]); // ADD
+    const [studentsToRemove, setStudentsToRemove] = useState<User[]>([]); // REMOVE
+    const [removeStudentFromGroupModalOpen, setRemoveStudentFromGroupModalOpen] = useState<boolean>(false);
+
     // ASSIGNMENTS
     const [teacherAssignments, setTeacherAssignments] = useState<Assignment[]>([]);
 
@@ -185,6 +192,30 @@ function TeacherDashboard() {
     };
 
 
+    const handleGetAvailableStudents = async () => {
+        if (!selectedGroup) return;
+
+        try {
+            const response = await fetch(`${backendURL}/groups/${selectedGroup.id}/available-students`, {
+                method: "GET",
+                headers: { 
+                    "Authorization": `Bearer ${token}`,
+                    "Content-Type": "application/json" 
+                }
+            });
+
+            if (!response.ok) throw new Error("Neuspješno dohvaćanje podataka");
+            const studentData = await response.json();
+
+            setStudents(studentData);
+
+        } catch (error) {
+            console.error("Greška pri dohvaćanju podataka o studentima:", error);
+            alert("Nije moguće učitati podatke studenata.");
+        }
+    }
+
+
     const handleEditCase = async (caseId: string) => {
         try {
             const response = await fetch(`${backendURL}/cases/${caseId}/full`, {
@@ -216,6 +247,7 @@ function TeacherDashboard() {
             alert("Nije moguće učitati podatke za uređivanje.");
         }
     };
+
 
     const handleStartCase = async (caseId: string, assignmentId: string | null = null, assignmentType: string | null = null) => {
         const isPractice = assignmentId === null || assignmentType === "practice" || assignmentType === "practice_exam";
@@ -251,6 +283,7 @@ function TeacherDashboard() {
         }
     }
 
+
     const handleCaseArchive = async (caseId: string) => {
         try {
             const response = await fetch(`${backendURL}/cases/${caseId}/archive`, {
@@ -280,6 +313,7 @@ function TeacherDashboard() {
         }
     };
 
+
     const handleCreateGroup = async () => {
         try {
             const res = await fetch(`${backendURL}/groups`, {
@@ -306,6 +340,7 @@ function TeacherDashboard() {
         }
     };
 
+
     const handleViewGroup = async (group: Group) => {
         setSelectedGroup(group);
 
@@ -326,6 +361,83 @@ function TeacherDashboard() {
 
         } catch (error) {
             console.error("Greška pri dohvaćanju podataka o grupi.", error);
+        }
+    };
+
+
+    const moveUser = (
+        user: User, 
+        setFrom: React.Dispatch<React.SetStateAction<User[]>>, 
+        setTo: React.Dispatch<React.SetStateAction<User[]>>
+    ) => {
+        setFrom(prev => prev.filter(u => u.id !== user.id));
+        setTo(prev => [...prev, user]);
+    };
+            
+            
+    // DODAVANJE U GRUPU
+    const handleSelectStudent = (student: User) => moveUser(student, setStudents, setSelectedStudents);
+    const handleDeselectStudent = (student: User) => moveUser(student, setSelectedStudents, setStudents);
+
+    const handleAddStudentsToGroup = async () => {
+        if (!selectedGroup || selectedStudents.length === 0) return;
+
+        try {
+            const studentIds = selectedStudents.map(s => s.id);
+            
+            const res = await fetch(`${backendURL}/groups/${selectedGroup.id}/members`, {
+                method: "POST",
+                headers: {
+                    "Authorization": `Bearer ${token}`,
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({ student_ids: studentIds })
+            });
+
+            if (res.ok) {
+                handleViewGroup(selectedGroup); 
+                setAddStudentToGroupModalOpen(false);
+                setSelectedStudents([]);
+            } else {
+                const error = await res.json();
+                alert(`Greška: ${error.detail}`);
+            }
+        } catch (error) {
+            console.error(error);
+            alert("Došlo je do mrežne pogreške.");
+        }
+    };
+
+
+    // UKLANJANJE STUDENTA IZ GRUPE
+    const handleStageForRemoval = (student: User) => moveUser(student, setGroupMembers, setStudentsToRemove);
+    const handleUnstageForRemoval = (student: User) => moveUser(student, setStudentsToRemove, setGroupMembers);
+
+    const handleRemoveStudentsFromGroup = async () => {
+        if (!selectedGroup) return;
+
+        try {
+            const studentIds = studentsToRemove.map(s => s.id);
+
+            const res = await fetch(`${backendURL}/groups/${selectedGroup.id}/members`, {
+                method: "DELETE",
+                headers: {
+                    "Authorization": `Bearer ${token}`,
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({ student_ids: studentIds }) 
+            });
+
+            if (res.ok) {
+                handleViewGroup(selectedGroup);
+                setStudentsToRemove([]); 
+                setRemoveStudentFromGroupModalOpen(false);
+            } else {
+                const error = await res.json();
+                alert(`Greška: ${error.detail}`);
+            }
+        } catch (error) {
+            console.error("Mrežna greška:", error);
         }
     };
 
@@ -505,6 +617,22 @@ function TeacherDashboard() {
 
                                 <h3 className="text-xl font-bold text-gray-200 mb-4 mt-5">Članovi</h3>
 
+                                <div className="flex gap-2 mb-5">
+                                    <button 
+                                        onClick={() => {setAddStudentToGroupModalOpen(true); handleGetAvailableStudents();}} 
+                                        className="bg-green-600 hover:bg-green-500 text-white px-5 py-2.5 rounded-lg font-bold transition-colors shadow-md cursor-pointer flex items-center justify-center gap-2"
+                                    >
+                                        Dodaj
+                                    </button>
+
+                                    <button 
+                                        onClick={() => setRemoveStudentFromGroupModalOpen(true)} 
+                                        className="bg-gray-400 hover:bg-gray-500 text-white px-5 py-2.5 rounded-lg font-bold transition-colors shadow-md cursor-pointer flex items-center justify-center gap-2"
+                                    >
+                                        Ukloni
+                                    </button>
+                                </div>
+
                                 {groupMembers.length > 0 ? (
                                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                                         {groupMembers.map((m) => {
@@ -555,9 +683,9 @@ function TeacherDashboard() {
                                 </div>
                                 <button 
                                     onClick={() => setCreateGroupModalOpen(true)} 
-                                    className="bg-green-600 hover:bg-green-500 text-white px-5 py-2.5 rounded-xl font-bold transition-colors shadow-md cursor-pointer flex items-center gap-2"
+                                    className="bg-green-600 hover:bg-green-500 text-white px-5 py-2.5 rounded-lg font-bold transition-colors shadow-md cursor-pointer flex items-center justify-center gap-2"
                                 >
-                                    <span className="text-lg leading-none">+</span> Nova grupa
+                                    Nova grupa
                                 </button>
                             </div>
                             {teacherGroups.length > 0 ? (
@@ -659,6 +787,186 @@ function TeacherDashboard() {
                     >
                         Kreiraj grupu
                     </button>
+                </div>
+            </Modal>
+
+            <Modal 
+                isOpen={addStudentToGroupModalOpen} 
+                onClose={() => { 
+                    setAddStudentToGroupModalOpen(false); 
+                    setSelectedStudents([]);
+                }} 
+                title="Dodaj članove"
+            >
+                <div className="flex flex-col h-[50vh] w-full">
+                    <div className="grid grid-cols-2 gap-4 flex-1 min-h-0">
+                        
+                        {/* LIJEVI STUPAC: Dostupni studenti */}
+                        <div className="col-span-1 flex flex-col rounded-xl border border-gray-300 overflow-hidden">
+                            <div className="p-3 bg-orange-200 text-xs uppercase tracking-wider font-bold text-gray-800">
+                                Dostupni studenti ({students.length})
+                            </div>
+                            
+                            <div className="flex-1 overflow-y-auto p-2 space-y-2">
+                                {students.length === 0 && (
+                                    <p className="text-gray-500 text-sm p-4 text-center">Nema dostupnih studenata.</p>
+                                )}
+                                
+                                {students.map((s) => (
+                                    <div 
+                                        key={s.id} 
+                                        onClick={() => handleSelectStudent(s)} 
+                                        className="p-2 rounded-lg shadow-md bg-gray-100 hover:bg-gray-200 border border-transparent cursor-pointer flex items-center gap-3 transition-colors group"
+                                    >
+                                        <div className="w-8 h-8 rounded-full bg-gray-800 flex items-center justify-center text-xs font-bold text-gray-300 shrink-0">
+                                            {s.first_name?.charAt(0).toUpperCase() || ""}{s.last_name?.charAt(0).toUpperCase() || ""}
+                                        </div>
+                                        <div className="min-w-0">
+                                            <p className="text-sm font-semibold text-gray-700 truncate">{s.first_name} {s.last_name}</p>
+                                            <p className="text-xs text-gray-500 truncate">{s.email}</p>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+
+                        {/* DESNI STUPAC: Odabrani studenti */}
+                        <div className="col-span-1 flex flex-col rounded-xl border border-gray-300 overflow-hidden">
+                            <div className="p-3 bg-orange-200 text-xs uppercase tracking-wider font-bold text-gray-800">
+                                Odabrani za dodavanje ({selectedStudents.length})
+                            </div>
+                            
+                            <div className="flex-1 overflow-y-auto p-2 space-y-2">
+                                {selectedStudents.length === 0 && (
+                                    <p className="text-gray-500 text-sm p-4 text-center">Kliknite na studenta u lijevom stupcu za odabir.</p>
+                                )}
+                                
+                                {selectedStudents.map((s) => (
+                                    <div 
+                                        key={s.id} 
+                                        onClick={() => handleDeselectStudent(s)} 
+                                        className="p-2 rounded-lg bg-gray-100 hover:bg-gray-200 shadow-md border cursor-pointer flex items-center gap-3 transition-colors group"
+                                    >
+                                        <div className="w-8 h-8 rounded-full bg-gray-800 flex items-center justify-center text-xs font-bold text-gray-300 shrink-0">
+                                            {s.first_name?.charAt(0).toUpperCase() || ""}{s.last_name?.charAt(0).toUpperCase() || ""}
+                                        </div>
+                                        <div className="min-w-0">
+                                            <p className="text-sm font-semibold text-gray-700 truncate">{s.first_name} {s.last_name}</p>
+                                            <p className="text-xs text-gray-500 truncate">{s.email}</p>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+
+                    </div>
+
+                    {/* Donja traka s akcijama */}
+                    <div className="mt-4 pt-4 border-t border-gray-700 flex justify-end gap-3 shrink-0">
+                        <button 
+                            onClick={() => { setAddStudentToGroupModalOpen(false); setSelectedStudents([]); }} 
+                            className="px-4 py-2 rounded-lg font-bold bg-red-500 transition-colors cursor-pointer"
+                        >
+                            Odustani
+                        </button>
+                        <button 
+                            onClick={handleAddStudentsToGroup} 
+                            disabled={selectedStudents.length === 0} 
+                            className="px-6 py-2 rounded-lg font-bold bg-orange-500 text-white hover:cursor-pointer disabled:bg-gray-600 disabled:text-gray-400 disabled:cursor-not-allowed transition-colors shadow-md"
+                        >
+                            Potvrdi ({selectedStudents.length})
+                        </button>
+                    </div>
+                </div>
+            </Modal>
+
+            <Modal 
+                isOpen={removeStudentFromGroupModalOpen} 
+                onClose={() => { 
+                    setRemoveStudentFromGroupModalOpen(false); 
+                    setStudentsToRemove([]);
+                }} 
+                title="Ukloni članove"
+            >
+                <div className="flex flex-col h-[50vh] w-full">
+                    <div className="grid grid-cols-2 gap-4 flex-1 min-h-0">
+                        
+                        {/* LIJEVI STUPAC: Trenutni članovi */}
+                        <div className="col-span-1 flex flex-col rounded-xl border border-gray-300 overflow-hidden">
+                            <div className="p-3 bg-orange-200 text-xs uppercase tracking-wider font-bold text-gray-800">
+                                Članovi ({groupMembers.length})
+                            </div>
+                            
+                            <div className="flex-1 overflow-y-auto p-2 space-y-2">
+                                {groupMembers.length === 0 && (
+                                    <p className="text-gray-500 text-sm p-4 text-center">Nema članova.</p>
+                                )}
+                                
+                                {groupMembers.map((m) => (
+                                    <div 
+                                        key={m.id} 
+                                        onClick={() => handleStageForRemoval(m)} 
+                                        className="p-2 rounded-lg shadow-md bg-gray-100 hover:bg-gray-200 border border-transparent cursor-pointer flex items-center gap-3 transition-colors group"
+                                    >
+                                        <div className="w-8 h-8 rounded-full bg-gray-800 flex items-center justify-center text-xs font-bold text-gray-300 shrink-0">
+                                            {m.first_name?.charAt(0).toUpperCase() || ""}{m.last_name?.charAt(0).toUpperCase() || ""}
+                                        </div>
+                                        <div className="min-w-0">
+                                            <p className="text-sm font-semibold text-gray-700 truncate">{m.first_name} {m.last_name}</p>
+                                            <p className="text-xs text-gray-500 truncate">{m.email}</p>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+
+                        {/* DESNI STUPAC: Odabrani studenti */}
+                        <div className="col-span-1 flex flex-col rounded-xl border border-gray-300 overflow-hidden">
+                            <div className="p-3 bg-orange-200 text-xs uppercase tracking-wider font-bold text-gray-800">
+                                Odabrani za uklanjanje ({studentsToRemove.length})
+                            </div>
+                            
+                            <div className="flex-1 overflow-y-auto p-2 space-y-2">
+                                {studentsToRemove.length === 0 && (
+                                    <p className="text-gray-500 text-sm p-4 text-center">Kliknite na studenta u lijevom stupcu za odabir.</p>
+                                )}
+                                
+                                {studentsToRemove.map((s) => (
+                                    <div 
+                                        key={s.id} 
+                                        onClick={() => handleUnstageForRemoval(s)} 
+                                        className="p-2 rounded-lg bg-gray-100 hover:bg-gray-200 shadow-md border cursor-pointer flex items-center gap-3 transition-colors group"
+                                    >
+                                        <div className="w-8 h-8 rounded-full bg-gray-800 flex items-center justify-center text-xs font-bold text-gray-300 shrink-0">
+                                            {s.first_name?.charAt(0).toUpperCase() || ""}{s.last_name?.charAt(0).toUpperCase() || ""}
+                                        </div>
+                                        <div className="min-w-0">
+                                            <p className="text-sm font-semibold text-gray-700 truncate">{s.first_name} {s.last_name}</p>
+                                            <p className="text-xs text-gray-500 truncate">{s.email}</p>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+
+                    </div>
+
+                    {/* Donja traka s akcijama */}
+                    <div className="mt-4 pt-4 border-t border-gray-700 flex justify-end gap-3 shrink-0">
+                        <button 
+                            onClick={() => { setRemoveStudentFromGroupModalOpen(false); setStudentsToRemove([]); }} 
+                            className="px-4 py-2 rounded-lg font-bold bg-red-500 transition-colors cursor-pointer"
+                        >
+                            Odustani
+                        </button>
+                        <button 
+                            onClick={handleRemoveStudentsFromGroup} 
+                            disabled={studentsToRemove.length === 0} 
+                            className="px-6 py-2 rounded-lg font-bold bg-orange-500 text-white hover:cursor-pointer disabled:bg-gray-600 disabled:text-gray-400 disabled:cursor-not-allowed transition-colors shadow-md"
+                        >
+                            Potvrdi ({studentsToRemove.length})
+                        </button>
+                    </div>
                 </div>
             </Modal>
         </div>

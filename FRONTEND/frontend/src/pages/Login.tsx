@@ -109,7 +109,7 @@ export const Login = () => {
 
             {/* <p onClick={() => setResetPasswordModalOpen(true)} className="mt-2 self-end text-sm text-gray-200 hover:text-orange-300 hover:cursor-pointer">Zaboravljena lozinka?</p> */}
 
-            <button onClick={handleLogin} className="bg-orange-500 p-2 rounded hover:cursor-pointer mt-4">Prijavi se</button>
+            <button type="submit" className="bg-orange-500 p-2 rounded hover:cursor-pointer mt-4">Prijavi se</button>
         </form>
 
         <Modal isOpen={resetPasswordModalOpen} onClose={() => setResetPasswordModalOpen(false)} title="Resetiraj lozinku">

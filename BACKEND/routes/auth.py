@@ -8,7 +8,7 @@ from jose import jwt
 from passlib.context import CryptContext
 from sqlmodel import Session, select
 from database import engine
-from models import AdminUserRegister, PasswordChange, User, UserRole, Role, UserRegister
+from models import AdminUserRegister, Institution, PasswordChange, User, UserRole, Role, UserRegister
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 import resend
@@ -106,6 +106,11 @@ def register(user_data: UserRegister, session: Session = Depends(get_session)):
             status_code=400, 
             detail="Korisnik s ovim emailom već postoji"
         )
+    
+    domain = user_data.email.split("@")[-1].lower()
+
+    inst_stmt = select(Institution).where(Institution.domain == domain)
+    inst = session.exec(inst_stmt).first()
 
     try:
         new_user = User(
@@ -115,7 +120,8 @@ def register(user_data: UserRegister, session: Session = Depends(get_session)):
             last_name=user_data.last_name,
             is_active=True,
             expertise_level="novice",
-            xp_points=0
+            xp_points=0,
+            institution_id=inst.id if inst else None
         )
         session.add(new_user)
         session.flush() # generira se ID bez commit-a

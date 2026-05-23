@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useAuthStore } from "../../store/useAuthStore";
 import { useCaseSolvingStore } from "../../store/useCaseSolveStore";
 import { useNavigate } from "react-router-dom";
+import { Calendar, GraduationHat02, User01, Users01 } from "@untitledui/icons";
 
 interface Case {
     id: string;
@@ -217,6 +218,24 @@ function ExamineeDashboard() {
         </div>
     );
 
+    const getStudentWord = (count: number) => {
+        const lastDigit = count % 10;
+        const lastTwoDigits = count % 100;
+
+        // Završava na 1, ali ne na 11 (npr. 1, 21, 101 student)
+        if (lastDigit === 1 && lastTwoDigits !== 11) {
+            return "student";
+        } 
+        // Završava na 2, 3 ili 4, ali ne na 12, 13 ili 14 (npr. 2, 3, 4, 22, 34 studenta)
+        else if (lastDigit >= 2 && lastDigit <= 4 && (lastTwoDigits < 10 || lastTwoDigits >= 20)) {
+            return "studenta";
+        } 
+        // Svi ostali slučajevi: 0, 5-19, 20, 25... (npr. 0, 5, 11, 20 studenata)
+        else {
+            return "studenata";
+        }
+    };
+
     return (
         <div className="w-full h-full flex">
             <aside className="w-64 bg-gray-800 border-r border-gray-700 flex flex-col py-6 shrink-0">
@@ -289,9 +308,9 @@ function ExamineeDashboard() {
                             <div className="bg-gray-800 p-6 rounded-2xl border border-gray-700 shadow-md mb-8">
                                 <h2 className="text-2xl font-bold text-white mb-3">{selectedGroup.name}</h2>
                                 <div className="flex flex-wrap gap-x-6 gap-y-2 text-sm text-gray-300">
-                                    <span className="flex items-center gap-2">🏫 {selectedGroup.institution_name}</span>
-                                    <span className="flex items-center gap-2">📅 {selectedGroup.academic_year}</span>
-                                    <span className="flex items-center gap-2">🧑‍🏫 {selectedGroup.teacher_name}</span>
+                                    <span className="flex items-center gap-2"><GraduationHat02 className="w-5"/> {selectedGroup.institution_name}</span>
+                                    <span className="flex items-center gap-2"><Calendar className="w-4" /> {selectedGroup.academic_year}</span>
+                                    <span className="flex items-center gap-2"><User01 className="w-4"/> {selectedGroup.teacher_name}</span>
                                 </div>
                             </div>
 
@@ -361,12 +380,12 @@ function ExamineeDashboard() {
                                             </h3>
                                             <div className="text-sm text-gray-400 space-y-1.5">
                                                 <p className="flex items-center gap-2">
-                                                    <span>🧑‍🏫</span> 
+                                                    <User01 className="w-4 text-orange-500"/>
                                                     <span className="text-gray-300 truncate">{g.teacher_name}</span>
                                                 </p>
                                                 <p className="flex items-center gap-2">
-                                                    <span>👥</span> 
-                                                    <span className="text-gray-300">{g.student_count} studenata</span>
+                                                    <Users01 className="w-4"/> 
+                                                    <span className="text-gray-300">{g.student_count} {getStudentWord(g.student_count)}</span>
                                                 </p>
                                             </div>
                                         </div>

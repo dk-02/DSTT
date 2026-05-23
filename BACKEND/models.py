@@ -245,7 +245,7 @@ class Institution(SQLModel, table=True):
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
     name: str = Field(max_length=150)
     name_short: Optional[str] = Field(default=None, max_length=50)
-    domain: Optional[str] = Field(default=None, max_length=50)
+    domain: Optional[str] = Field(default=None, max_length=50, unique=True)
     logo_url: Optional[str] = None
     idp_metadata_url: Optional[str] = None
     is_active: bool = Field(default=True)
@@ -345,7 +345,10 @@ class GroupUpdate(BaseModel):
     academic_year: Optional[str] = None
 
 class AddStudentToGroup(BaseModel):
-    student_id: uuid.UUID
+    student_ids: List[uuid.UUID]
+
+class RemoveStudentFromGroup(BaseModel):
+    student_ids: List[uuid.UUID]
 
 
 class StudentBasicInfo(BaseModel):

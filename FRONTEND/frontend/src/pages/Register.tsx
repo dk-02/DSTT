@@ -14,6 +14,7 @@ interface RegisterProps {
 interface Institution {
     id: string;
     name: string;
+    domain: string;
 }
 
 export const Register = ({ isAdminMode = false, onSuccess } : RegisterProps) => {
@@ -92,10 +93,33 @@ export const Register = ({ isAdminMode = false, onSuccess } : RegisterProps) => 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement> | React.ChangeEvent<HTMLSelectElement>) => {
         const { name, value } = e.target;
         
-        setFormData((prev) => ({
-            ...prev,
-            [name]: value 
-        }));
+
+        setFormData((prev) => {
+            const updatedData = {
+                ...prev,
+                [name]: value 
+            };
+
+            if (isAdminMode && name === "email" && value.includes("@")) {
+                const parts = value.split("@");
+                
+                if (parts.length === 2) {
+                    const typedDomain = parts[1].toLowerCase();
+                    
+                    const matchedInstitution = institutions.find(inst => inst.domain === typedDomain);
+                    
+                    if (matchedInstitution) {
+                        updatedData.institution_id = matchedInstitution.id;
+                    }
+                }
+            }
+
+            return updatedData;
+        });
+        // setFormData((prev) => ({
+        //     ...prev,
+        //     [name]: value 
+        // }));
     };
 
     const handleRegister = async () => {
@@ -164,7 +188,7 @@ export const Register = ({ isAdminMode = false, onSuccess } : RegisterProps) => 
                     className="absolute top-5 left-5 scale-130 text-gray-50 hover:cursor-pointer" 
                 />
             )}
-            <div className={formClasses}>
+            <form onSubmit={(e) => { e.preventDefault(); handleRegister(); }} className={formClasses}>
                 {!isAdminMode && (
                     <div className="border-l-3 border-orange-400 flex items-center pl-2 mb-5">
                         <h2 className="font-bold text-2xl">Registracija</h2>
@@ -258,10 +282,10 @@ export const Register = ({ isAdminMode = false, onSuccess } : RegisterProps) => 
                     </div>
                 )}
 
-                <button onClick={handleRegister} className="bg-orange-500 p-2 rounded hover:cursor-pointer">
+                <button type="submit" className="bg-orange-500 p-2 rounded hover:cursor-pointer">
                     {isAdminMode ? "Kreiraj račun" : "Registriraj se"}
                 </button>
-            </div>
+            </form>
         </div>
     );
 };
