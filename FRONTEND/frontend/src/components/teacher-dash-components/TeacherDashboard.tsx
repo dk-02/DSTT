@@ -5,7 +5,7 @@ import { useAuthStore } from "../../store/useAuthStore";
 import { useCaseSolvingStore } from "../../store/useCaseSolveStore";
 import { useCaseStore, type DiagnosticUnit } from "../../store/useCaseStore";
 import { Dropdown } from "../UI/Dropdown";
-import { Star01, User01, Users01, Calendar, GraduationHat02 } from "@untitledui/icons";
+import { Star01, User01, Users01, Calendar, GraduationHat02, Settings01, Edit01 } from "@untitledui/icons";
 
 interface Case {
     id: string;
@@ -26,13 +26,18 @@ interface Group {
     student_count: number;
 }
 
+interface AssignedGroups {
+    group_id: string;
+    group_name: string;
+    available_until: string;
+}
+
 interface Assignment {
     id: string;
     title: string;
     type: string;
-    instructions: string;
-    group_name?: string;
     available_until: string;
+    instructions: string;
 }
 
 interface User {
@@ -42,6 +47,38 @@ interface User {
     email: string;
     expertise_level: string;
     xp_points: number;
+}
+
+interface AssignmentCaseDetail {
+    id: string;
+    title: string;
+    version: number;
+    level: string;
+    topic_name: string;
+    sequence_no: number;
+    status: string;
+}
+
+interface Settings {
+    enable_undo: boolean;
+    enable_hints: boolean;
+    ignore_hint_cost: boolean;
+    enable_LLM_mentor: boolean;
+    case_sequence_lock: boolean;
+    randomly_choose_cases: boolean;
+    show_result_immediately: boolean;
+    ignore_terminating_consequences: boolean;
+}
+
+interface AssignmentDetails {
+    id: string;
+    title: string;
+    type: string;
+    instructions: string;
+    cases: AssignmentCaseDetail[];
+    case_count: number;
+    assigned_groups: AssignedGroups[];
+    settings: Settings;
 }
 
 type filterTypes = "all" | "mine" | "public" | "drafts" | "archived";
@@ -78,6 +115,23 @@ function TeacherDashboard() {
 
     // ASSIGNMENTS
     const [teacherAssignments, setTeacherAssignments] = useState<Assignment[]>([]);
+    const [selectedAssignment, setSelectedAssignment] = useState<AssignmentDetails | null>(null);
+    const [assignmentDetailsModalOpen, setAssignmentDetailsModalOpen] = useState(false);
+    const [selectedAssignmentFullDetails, setSelectedAssignmentFullDetails] = useState<AssignmentDetails | null>(null);
+    const [createAssignmentModalOpen, setCreateAssignmentModalOpen] = useState<boolean>(false);
+    const [assignmentSettingsModalOpen, setAssignmentSettingsModalOpen] = useState<boolean>(false);
+    const [localSettings, setLocalSettings] = useState<Settings | null>(null);
+    const [editingAssignment, setEditingAssignment] = useState<boolean>(false);
+    const [editAssignmentFormData, setEditAssignmentFormData] = useState({
+        title: "",
+        instructions: ""
+    })
+
+    useEffect(() => {
+        if (assignmentSettingsModalOpen && selectedAssignmentFullDetails?.settings) {
+            setLocalSettings(JSON.parse(JSON.stringify(selectedAssignmentFullDetails.settings)));
+        }
+    }, [assignmentSettingsModalOpen, selectedAssignmentFullDetails]);
 
     const user = useAuthStore((state) => state.user);
     const token = useAuthStore((state) => state.token);
@@ -102,6 +156,15 @@ function TeacherDashboard() {
         const { name, value } = e.target;
         
         setFormData((prev) => ({
+            ...prev,
+            [name]: value 
+        }));
+    };
+
+    const handleEditAssignmentInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const { name, value } = e.target;
+        
+        setEditAssignmentFormData((prev) => ({
             ...prev,
             [name]: value 
         }));
@@ -284,7 +347,7 @@ function TeacherDashboard() {
     }
 
 
-    const handleCaseArchive = async (caseId: string) => {
+    const handleArchiveCase = async (caseId: string) => {
         try {
             const response = await fetch(`${backendURL}/cases/${caseId}/archive`, {
                 method: "PATCH",
@@ -297,7 +360,7 @@ function TeacherDashboard() {
             if (!response.ok) {
                 const errorData = await response.json();
                 alert(errorData.detail);
-                throw new Error(errorData.detail || "Greška pri brisanju");
+                throw new Error(errorData.detail || "Greška pri arhiviranju");
             }
             
             const cs = myCases.find(cs => cs.id === caseId);
@@ -307,6 +370,34 @@ function TeacherDashboard() {
             }
 
             setCaseArchiveModalOpen(false);
+    
+        } catch (error) {
+            console.error("Greška:", error);
+        }
+    };
+
+
+    const handleUnarchiveCase = async (caseId: string) => {
+        try {
+            const response = await fetch(`${backendURL}/cases/${caseId}/unarchive`, {
+                method: "PATCH",
+                headers: { 
+                    "Authorization": `Bearer ${token}`,
+                    "Content-Type": "application/json" 
+                }
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                alert(errorData.detail);
+                throw new Error(errorData.detail || "Greška pri vraćanju slučaja.");
+            }
+            
+            const cs = archivedCases.find(cs => cs.id === caseId);
+            if (cs) {
+                setMyCases(prevCases => [...prevCases, { ...cs, status: "draft" }]);
+                setArchivedCases(prevCases => prevCases.filter(c => c.id !== cs.id));
+            }
     
         } catch (error) {
             console.error("Greška:", error);
@@ -441,6 +532,115 @@ function TeacherDashboard() {
         }
     };
 
+    // ASSIGNMENTS
+    const handleViewAssignment = async (assignmentId: string) => {
+        try {
+            const res = await fetch(`${backendURL}/assignments/${assignmentId}`, {
+                headers: { "Authorization": `Bearer ${token}` }
+            });
+
+            if (res.ok) {
+                const data = await res.json();
+
+                if (menuTab === "groups") {
+                    setSelectedAssignment(data);
+                    setAssignmentDetailsModalOpen(true);
+                } else if (menuTab === "assignments") {
+                    setSelectedAssignmentFullDetails(data);
+                }
+            } else {
+                alert("Greška pri dohvaćanju detalja zadaće.");
+            }
+        } catch (error) {
+            console.error("Greška", error);
+            alert("Došlo je do pogreške na mreži.");
+        }
+    };
+
+
+    // ASSIGNMENT SETTINGS
+    const handleToggleSetting = (key: keyof Settings) => {
+        setLocalSettings((prev) => {
+            if (!prev) return null;
+
+            return {
+                ...prev,
+                [key]: !prev[key]
+            }
+        });
+    };
+
+    const handleResetSettings = () => {
+        if (selectedAssignmentFullDetails?.settings) {
+            setLocalSettings(JSON.parse(JSON.stringify(selectedAssignmentFullDetails.settings)));
+        }
+    };
+
+    const handleSaveSettings = async () => {
+        if (!localSettings) return;
+
+        try {
+            const res = await fetch(`${backendURL}/assignments/${selectedAssignmentFullDetails?.id}`, {
+                method: "PATCH",
+                headers: {
+                    "Authorization": `Bearer ${token}`,
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({ settings: localSettings }) 
+            });
+
+            if (res.ok) {
+                setSelectedAssignmentFullDetails((prev) => {
+                    if (!prev) return null;
+
+                    return {
+                        ...prev,
+                        settings: localSettings
+                    }
+                });
+                setAssignmentSettingsModalOpen(false);
+            } else {
+                const error = await res.json();
+                alert(`Greška pri spremanju: ${error.detail}`);
+            }
+        } catch (error) {
+            console.error("Greška:", error);
+        }
+    };
+
+
+    const handleUpdateAssignment = async () => {
+        try {
+            const res = await fetch(`${backendURL}/assignments/${selectedAssignmentFullDetails?.id}`, {
+                method: "PATCH",
+                headers: {
+                    "Authorization": `Bearer ${token}`,
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({ title: editAssignmentFormData.title, instructions: editAssignmentFormData.instructions }) 
+            });
+
+            if (res.ok) {
+                setSelectedAssignmentFullDetails((prev) => {
+                    if (!prev) return null;
+
+                    return {
+                        ...prev,
+                        title: editAssignmentFormData.title,
+                        instructions: editAssignmentFormData.instructions
+                    }
+                });
+
+                setEditingAssignment(false);
+            } else {
+                const error = await res.json();
+                alert(`Greška pri spremanju: ${error.detail}`);
+            }
+        } catch (error) {
+            console.error("Greška:", error);
+        }
+    };
+
     const renderEmptyState = (title: string, message: string) => (
         <div className="flex flex-col items-center justify-center h-64 bg-gray-700/30 rounded-2xl border border-gray-600 border-dashed">
             <h3 className="text-xl font-bold text-gray-300 mb-2">{title}</h3>
@@ -466,6 +666,11 @@ function TeacherDashboard() {
         }
     };
 
+    const closeAssignmentModal = () => {
+        setAssignmentDetailsModalOpen(false);
+        setSelectedAssignment(null);
+    };
+
     return (
         <div className="w-full h-full flex">
             <aside className="w-64 bg-gray-800 border-r border-gray-700 flex flex-col py-6 shrink-0">
@@ -485,7 +690,7 @@ function TeacherDashboard() {
                     ))}
                 </nav>
             </aside>
-            <main className="flex-1 px-5">
+            <main className="flex-1 px-5 overflow-y-scroll">
                 {menuTab === "cases" && (
                     <>
                     <div className="flex gap-4 mt-5 items-center">
@@ -517,37 +722,47 @@ function TeacherDashboard() {
                         </div>
                     </div>
 
-                    <div className="mt-8 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                        {displayedCases().map((c) => (
-                            <div key={c.id} className="relative flex flex-col bg-gray-600 rounded-xl border border-gray-700 p-5 shadow-lg group">
-                                <div className="absolute top-2 left-2 flex gap-2">
-                                    {c.status === "draft" && <span className="bg-yellow-900/30 text-yellow-500 text-[10px] px-2 py-0.5 rounded italic">Skica</span>}
-                                    {c.type === "exam" && <span className="bg-red-900/30 text-red-300 text-[10px] px-2 py-1 rounded font-bold uppercase">Ispit</span>}
-                                </div>
-                                
-                                {!myCases.some(m => m.id === c.id) ? <></> : <Dropdown 
-                                    onEdit={() => handleEditCase(c.id)}
-                                    onArchive={() => {
-                                        setCaseToArchiveId(c.id);
-                                        setCaseArchiveModalOpen(true);
-                                    }}
-                                /> }
-                                
-                                
-                                <div className="mt-4 flex-1">
-                                    <h3 className="text-lg font-bold text-white leading-tight">{c.title}</h3>
-                                    <p className="text-sm text-gray-300 mt-1">{c.topic_name} • v{c.version}</p>
-                                </div>
+                    {displayedCases().length > 0 ? (
+                        <div className="mt-8 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                            {displayedCases().map((c) => (
+                                <div key={c.id} className="relative flex flex-col bg-gray-600 rounded-xl border border-gray-700 p-5 shadow-lg group">
+                                    <div className="absolute top-2 left-2 flex gap-2">
+                                        {c.status === "draft" && <span className="bg-yellow-900/30 text-yellow-500 text-[10px] px-2 py-0.5 rounded italic">Skica</span>}
+                                        {c.type === "exam" && <span className="bg-red-900/30 text-red-300 text-[10px] px-2 py-1 rounded font-bold uppercase">Ispit</span>}
+                                    </div>
+                                    
+                                    {!myCases.some(m => m.id === c.id) ? <></> : <Dropdown 
+                                        onEdit={() => handleEditCase(c.id)}
+                                        onArchive={() => {
+                                            setCaseToArchiveId(c.id);
+                                            setCaseArchiveModalOpen(true);
+                                        }}
+                                    /> }
+                                    
+                                    
+                                    <div className="mt-4 flex-1">
+                                        <h3 className="text-lg font-bold text-white leading-tight">{c.title}</h3>
+                                        <p className="text-sm text-gray-300 mt-1">{c.topic_name} • v{c.version}</p>
+                                    </div>
 
-                                {filter === "archived" ? <button onClick={() => handleEditCase(c.id)} className="mt-5 w-full bg-orange-500 text-white font-bold py-2 rounded-xl hover:bg-orange-600 hover:cursor-pointer transition shadow-md">
-                                    Pregledaj
-                                </button> : <button onClick={() => handleStartCase(c.id)} className="mt-5 w-full bg-orange-500 text-white font-bold py-2 rounded-xl hover:bg-orange-600 hover:cursor-pointer transition shadow-md">
-                                    Isprobaj
-                                </button>}
-                                
-                            </div>
-                        ))}
-                    </div>
+                                    {filter === "archived" ? <button onClick={() => handleUnarchiveCase(c.id)} className="mt-5 w-full bg-orange-500 text-white font-bold py-2 rounded-xl hover:bg-orange-600 hover:cursor-pointer transition shadow-md">
+                                        Vrati slučaj
+                                    </button> : <button onClick={() => handleStartCase(c.id)} className="mt-5 w-full bg-orange-500 text-white font-bold py-2 rounded-xl hover:bg-orange-600 hover:cursor-pointer transition shadow-md">
+                                        Isprobaj
+                                    </button>}
+                                    
+                                </div>
+                            ))}
+                        </div>
+                    ) : (renderEmptyState("Nema slučajeva", 
+                            filter === "archived" ? "Trenutno nemate nijedan arhivirani slučaj." 
+                            : filter === "all" ? "Trenutno nema dostupnih slučajeva." 
+                            : filter === "mine" ? "Trenutno nemate vlastitih slučajeva."
+                            : filter === "drafts" ? "Trenutno nemate skica."
+                            : filter === "public" ? "Trenutno nema javno dostupnih slučajeva."
+                            : ""
+                             ))}
+                    
                     </>
                 )}
 
@@ -603,9 +818,9 @@ function TeacherDashboard() {
                                                                 </div>
                                                             )}
                                                         </div>
-                                                        {/* <button onClick={() => handleViewAssignment(a.id)} className="w-full mt-5 bg-gray-600 hover:bg-gray-500 text-white font-bold py-2.5 rounded-lg transition-all shadow-md active:scale-95 cursor-pointer border border-gray-500">
+                                                        <button onClick={() => handleViewAssignment(a.id)} className="w-full mt-5 bg-gray-600 hover:bg-gray-500 text-white font-bold py-2.5 rounded-lg transition-all shadow-md active:scale-95 cursor-pointer border border-gray-500">
                                                             Detalji zadaće
-                                                        </button> */}
+                                                        </button>
                                                     </div>
                                                 </div>
                                             );
@@ -620,21 +835,21 @@ function TeacherDashboard() {
                                 <div className="flex gap-2 mb-5">
                                     <button 
                                         onClick={() => {setAddStudentToGroupModalOpen(true); handleGetAvailableStudents();}} 
-                                        className="bg-green-600 hover:bg-green-500 text-white px-5 py-2.5 rounded-lg font-bold transition-colors shadow-md cursor-pointer flex items-center justify-center gap-2"
+                                        className="bg-green-600 text-white px-5 py-2.5 rounded-lg font-bold transition-colors shadow-md cursor-pointer flex items-center justify-center gap-2"
                                     >
                                         Dodaj
                                     </button>
 
                                     <button 
                                         onClick={() => setRemoveStudentFromGroupModalOpen(true)} 
-                                        className="bg-gray-400 hover:bg-gray-500 text-white px-5 py-2.5 rounded-lg font-bold transition-colors shadow-md cursor-pointer flex items-center justify-center gap-2"
+                                        className="bg-gray-500 text-white px-5 py-2.5 rounded-lg font-bold transition-colors shadow-md cursor-pointer flex items-center justify-center gap-2"
                                     >
                                         Ukloni
                                     </button>
                                 </div>
 
                                 {groupMembers.length > 0 ? (
-                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 pb-5">
                                         {groupMembers.map((m) => {
                                             const initials = `${m.first_name?.charAt(0) || ""}${m.last_name?.charAt(0) || ""}`.toUpperCase();
 
@@ -731,26 +946,193 @@ function TeacherDashboard() {
                 )}
 
                 {menuTab === "assignments" && (
-                    <div className="mt-5">
-                        <button onClick={() => setCreateGroupModalOpen(true)} className="bg-green-600 px-4 py-2 rounded font-bold hover:cursor-pointer">
-                            Nova zadaća
-                        </button>
-                        <div>
-                            {teacherAssignments.map((a) => (
-                                <div key={a.id}>
-                                    {a.title}
+                    <div>
+                        {selectedAssignmentFullDetails ? 
+                            <div className="flex flex-col animate-fadeIn mt-5">
+                                <button 
+                                    onClick={() => setSelectedAssignmentFullDetails(null)}
+                                    className="mb-6 flex items-center gap-2 text-gray-400 hover:text-white transition-colors w-fit font-medium cursor-pointer"
+                                >
+                                    <span>&larr;</span> Natrag na popis zadaća
+                                </button>
+                                
+                                <div className="flex justify-between items-center bg-gray-800 p-6 rounded-2xl border border-gray-700 shadow-md mb-8">
+                                    <div>
+                                        {editingAssignment ? 
+                                            <input 
+                                                type="text" 
+                                                name="title" 
+                                                value={editAssignmentFormData.title} 
+                                                onChange={handleEditAssignmentInputChange}
+                                                className="w-full px-2.5 py-2 bg-gray-700 border border-gray-600 text-white rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none transition-all placeholder-gray-400 mb-2"
+                                            />                                                 
+                                            : <h2 className="text-2xl font-bold text-white mb-3">{selectedAssignmentFullDetails.title}</h2>
+                                        }
+                                        
+                                        <div className="flex flex-col gap-2">
+                                            {editingAssignment ? 
+                                                <input 
+                                                    type="text" 
+                                                    name="instructions" 
+                                                    value={editAssignmentFormData.instructions}
+                                                    onChange={handleEditAssignmentInputChange}
+                                                    className="w-full px-2.5 py-2 bg-gray-700 border border-gray-600 text-white rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none transition-all placeholder-gray-400"
+                                                /> 
+                                                : <span><strong>Upute:</strong> {selectedAssignmentFullDetails.instructions}</span>
+                                            }
+                                            
+                                            <span><strong>Tip:</strong> {selectedAssignmentFullDetails.type === "practice" ? "Vježba" : selectedAssignmentFullDetails.type === "practice-exam" ? "Probni ispit" : "Ispit"}</span>
+
+                                            {editingAssignment && 
+                                                <div className="flex gap-2">
+                                                    <button 
+                                                        onClick={handleUpdateAssignment} 
+                                                        className="bg-green-600 text-white px-5 py-2.5 rounded-lg font-bold transition-colors shadow-md cursor-pointer flex items-center justify-center gap-2"
+                                                    >
+                                                        Pohrani promjene
+                                                    </button>
+                                                    <button 
+                                                        onClick={() => setEditingAssignment(false)} 
+                                                        className="bg-gray-700 text-gray-200 px-5 py-2.5 rounded-lg font-bold transition-colors shadow-md cursor-pointer flex items-center justify-center gap-2"
+                                                    >
+                                                        Odustani
+                                                    </button>
+                                                </div>
+                                            }
+                                            
+                                        </div>
+                                    </div>
+                                    <div className="flex gap-2">
+                                        <button 
+                                            onClick={() => {
+                                                setEditingAssignment(true); 
+                                                setEditAssignmentFormData({title: selectedAssignmentFullDetails.title, instructions: selectedAssignmentFullDetails.instructions});
+                                            }} 
+                                            className="bg-gray-600 text-white px-5 py-2.5 rounded-lg font-bold transition-colors shadow-md cursor-pointer flex items-center justify-center gap-2"
+                                        >
+                                            <Edit01 className="w-6" />
+                                        </button>
+                                        <button 
+                                            onClick={() => setAssignmentSettingsModalOpen(true)} 
+                                            className="bg-gray-600 text-white px-5 py-2.5 rounded-lg font-bold transition-colors shadow-md cursor-pointer flex items-center justify-center gap-2"
+                                        >
+                                            <Settings01 className="w-6" />
+                                        </button>
+                                    </div>
                                 </div>
-                            ))}
-                        </div>
+
+                                <h3 className="text-xl font-bold text-gray-200 mb-4">Grupe kojima je dodijeljena zadaća</h3>
+                                
+                                {selectedAssignmentFullDetails.assigned_groups.length > 0 ? (
+                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                                        {selectedAssignmentFullDetails.assigned_groups.map((g) => (
+                                            <div key={g.group_id} className="flex flex-col bg-gray-700 rounded-2xl shadow-lg border border-gray-600 overflow-hidden hover:border-gray-500 transition-colors group">
+                                                <div className="p-5 flex-1 flex flex-col justify-between">
+                                                    <h4 className="text-lg font-bold text-white mb-4">{g.group_name}</h4>
+                                                    <div className="border-b border-gray-600 mb-2"></div>
+                                                    <div className="mt-auto">
+                                                        {g.available_until ? (
+                                                            <span className="text-xs font-medium inline-block px-2.5 py-1.5 rounded-lg bg-gray-900/40 text-gray-300 border border-gray-800/50">
+                                                                Rok: {new Date(g.available_until).toLocaleString('hr-HR', { 
+                                                                    day: 'numeric', month: 'numeric', year: 'numeric', 
+                                                                    hour: '2-digit', minute: '2-digit' 
+                                                                })}
+                                                            </span>
+                                                        ) : (
+                                                            <span className="text-xs font-medium inline-block px-2.5 py-1.5 rounded-lg bg-green-900/40 text-green-400 border border-green-800/50">
+                                                                Bez vremenskog ograničenja
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                ) : (
+                                    renderEmptyState("Nema grupa", "Ova zadaća trenutno nije dodijeljena nijednoj grupi.")
+                                )}
+
+                                <h3 className="text-xl font-bold text-gray-200 my-4">Slučajevi u zadaći</h3>
+
+                                {selectedAssignmentFullDetails.cases.length > 0 ? (
+                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                                        {selectedAssignmentFullDetails.cases.map((c) => (
+                                            <div key={c.id} className="relative flex flex-col bg-gray-700 rounded-2xl shadow-lg border border-gray-600 overflow-hidden hover:border-gray-500 transition-colors group">
+                                                
+                                                <div className="absolute top-4 right-4">
+                                                    <span className="bg-gray-800 text-gray-400 text-xs font-bold px-2 py-1 rounded-md border border-gray-600 shadow-sm">
+                                                        {c.sequence_no}
+                                                    </span>
+                                                </div>
+
+                                                <div className="p-5 flex-1 flex flex-col">
+                                                    <h4 className="text-lg font-bold text-white mb-1 pr-8 leading-tight">{c.title}</h4>
+                                                    <p className="text-sm text-gray-400 mb-5">{c.topic_name || "Općenito"}</p>
+                                                    
+                                                    <div className="mt-auto flex flex-wrap gap-2">
+                                                        <span className="bg-orange-900/40 text-orange-400 text-xs font-bold px-2 py-1 rounded-md border border-orange-800/50">
+                                                            Razina: {c.level}
+                                                        </span>
+                                                        
+                                                        <span className="bg-gray-800 text-gray-400 text-xs font-bold px-2 py-1 rounded-md border border-gray-600">
+                                                            v{c.version}
+                                                        </span>
+                                                        
+                                                        {c.status && (
+                                                            <span className="bg-orange-900/40 text-orange-400 text-xs font-bold px-2 py-1 rounded-md border border-orange-800/50 uppercase tracking-wider">
+                                                                {c.status}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                ) : (
+                                    renderEmptyState("Nema slučajeva", "Ovoj zadaći trenutno nije dodijeljen nijedan slučaj.")
+                                )}
+                            </div> : 
+                            <div className="mt-5">
+                                <div className="flex justify-between items-center bg-gray-800 p-5 rounded-2xl border border-gray-700 shadow-sm">
+                                    <div>
+                                        <h2 className="text-xl font-bold text-white">Zadaće</h2>
+                                        <p className="text-sm text-gray-400 mt-1">Upravljajte svojim zadaćama</p>
+                                    </div>
+                                    <button 
+                                        onClick={() => setCreateAssignmentModalOpen(true)} 
+                                        className="bg-green-600 hover:bg-green-500 text-white px-5 py-2.5 rounded-lg font-bold transition-colors shadow-md cursor-pointer flex items-center justify-center gap-2"
+                                    >
+                                        Nova zadaća
+                                    </button>
+                                </div>
+                                
+                                <div className="flex gap-5 mt-5">
+                                    {teacherAssignments.map((a) => (
+                                        <div key={a.id} className="flex flex-col bg-gray-700 rounded-2xl shadow-lg border border-gray-600 overflow-hidden hover:border-gray-500 transition-colors group">
+                                            <div className="p-5 flex-1 flex flex-col justify-between">
+                                                <div>
+                                                    <h3 className="text-lg font-bold text-white mb-2">{a.title}</h3>
+                                                </div>
+                                                <button onClick={() => handleViewAssignment(a.id)} className="w-full mt-5 bg-gray-600 hover:bg-gray-500 text-white font-bold py-2.5 px-2 rounded-lg transition-all shadow-md active:scale-95 cursor-pointer border border-gray-500">
+                                                    Detalji zadaće
+                                                </button>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        }
                     </div>
                 )}
                 
             </main>
+            
             <Modal isOpen={caseArchiveModalOpen} onClose={() => setCaseArchiveModalOpen(false)} title="Arhivirati slučaj?">
                 <div className="flex justify-center w-full">
-                    <button onClick={() => handleCaseArchive(caseToArchiveId)} className="cursor-pointer bg-red-500 text-orange-50 font-semibold px-3 py-2 rounded">Potvrdi</button>
+                    <button onClick={() => handleArchiveCase(caseToArchiveId)} className="cursor-pointer bg-red-500 text-orange-50 font-semibold px-3 py-2 rounded">Potvrdi</button>
                 </div>
             </Modal>
+
             <Modal isOpen={createGroupModalOpen} onClose={() => setCreateGroupModalOpen(false)} title="Nova grupa">
                 <div className="flex flex-col w-full gap-5 mt-2">
                     <div>
@@ -969,6 +1351,129 @@ function TeacherDashboard() {
                     </div>
                 </div>
             </Modal>
+
+            <Modal isOpen={createAssignmentModalOpen} onClose={() => setCreateAssignmentModalOpen(false)} title="Nova zadaća">
+                <div></div>
+            </Modal>
+
+            <Modal 
+                isOpen={assignmentSettingsModalOpen} 
+                onClose={() => {
+                    setAssignmentSettingsModalOpen(false);
+                    setLocalSettings(null); // Očisti pri zatvaranju
+                }} 
+                title="Postavke zadaće"
+            >
+                {localSettings ? (
+                    <div className="flex flex-col gap-6 mt-2 w-full items-center">
+                        <div className="space-y-4 p-5 rounded-xl w-2/3">
+                            {[
+                                { key: "case_sequence_lock", label: "Zaključaj redoslijed slučajeva", desc: "Studenti moraju rješavati slučajeve redom." },
+                                { key: "enable_LLM_mentor", label: "Omogući AI Mentora", desc: "Dopusti studentima korištenje AI asistenta." },
+                                { key: "enable_hints", label: "Omogući Hintove", desc: "Prikazuj gumb za pomoć." },
+                                { key: "enable_undo", label: "Omogući Undo", desc: "Dopusti poništavanje zadnjeg poteza." },
+                                { key: "ignore_hint_cost", label: "Besplatni hintovi", desc: "Korištenje hintova ne oduzima bodove." },
+                                { key: "ignore_terminating_consequences", label: "Ignoriraj fatalne greške", desc: "Spriječi pad na slučaju zbog jedne velike greške." },
+                                { key: "show_result_immediately", label: "Prikaži rezultat odmah", desc: "Student vidi ishod čim završi slučaj." }
+                            ].map((setting) => (
+                                <div key={setting.key} className="flex items-center justify-between">
+                                    <div className="pr-4">
+                                        <p className="text-sm font-bold text-gray-700">{setting.label}</p>
+                                        <p className="text-xs text-gray-400">{setting.desc}</p>
+                                    </div>
+                                    <div 
+                                        onClick={() => handleToggleSetting(setting.key as keyof Settings)}
+                                        className={`w-12 h-6 flex items-center rounded-full p-1 cursor-pointer transition-colors duration-300 ease-in-out shrink-0 ${localSettings[setting.key as keyof Settings] ? 'bg-orange-500' : 'bg-gray-600'}`}
+                                    >
+                                        <div className={`bg-white w-4 h-4 rounded-full shadow-md transform transition-transform duration-300 ease-in-out ${localSettings[setting.key as keyof Settings] ? 'translate-x-6' : 'translate-x-0'}`}></div>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+
+                        <div className="flex justify-between items-center mt-4 pt-4 border-t border-gray-300 w-2/3">
+                            <button 
+                                onClick={handleResetSettings}
+                                className="px-4 py-2 rounded-lg text-sm font-bold text-gray-600 bg-gray-200 border border-gray-300 hover:cursor-pointer transition-colors"
+                            >
+                                Vrati na zadano
+                            </button>
+                            <div className="flex gap-3">
+                                <button 
+                                    onClick={() => setAssignmentSettingsModalOpen(false)}
+                                    className="px-4 py-2 rounded-lg font-bold text-white bg-gray-600 hover:cursor-pointer transition-colors"
+                                >
+                                    Odustani
+                                </button>
+                                <button 
+                                    onClick={handleSaveSettings}
+                                    className="px-6 py-2 rounded-lg font-bold text-white bg-green-600 hover:cursor-pointer transition-colors shadow-md"
+                                >
+                                    Spremi postavke
+                                </button>
+                            </div>
+                        </div>
+
+                    </div>
+                ) : (
+                    <div className="p-10 text-center text-gray-400">Učitavanje postavki...</div>
+                )}
+            </Modal>
+
+            {assignmentDetailsModalOpen && selectedAssignment && (
+                <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+                    <div className="bg-gray-800 border border-gray-600 rounded-2xl w-full max-w-3xl max-h-[90vh] flex flex-col items-center shadow-2xl">
+                        
+                        <div className="flex justify-between items-center p-6 border-b border-gray-700 w-full">
+                            <div>
+                                <h2 className="text-2xl font-bold text-white">{selectedAssignment.title}</h2>
+                            </div>
+                            <button onClick={closeAssignmentModal} className="text-gray-400 hover:text-white text-2xl font-bold cursor-pointer">&times;</button>
+                        </div>
+
+                        <div className="p-6 overflow-y-auto flex-1 w-full">
+                            {selectedAssignment.instructions && (
+                                <div className="mb-8 bg-gray-700/50 p-4 rounded-xl border border-gray-600">
+                                    <h3 className="text-sm uppercase tracking-widest text-gray-400 font-bold mb-2">Upute za rješavanje</h3>
+                                    <p className="text-gray-200">{selectedAssignment.instructions}</p>
+                                </div>
+                            )}
+
+                            <h3 className="text-lg font-bold text-white mb-4 border-b border-gray-700 pb-2">Slučajevi u zadaći</h3>
+                            
+                            <div className="space-y-4">
+                                {selectedAssignment.cases.map((c) => (
+                                    <div key={c.id} className="flex justify-between items-center bg-gray-700 p-4 rounded-xl border border-gray-600">
+                                        <div>
+                                            <div className="flex items-center gap-3 mb-1">
+                                                <span className="bg-gray-800 text-xs text-gray-300 px-2 py-1 rounded">{c.sequence_no}</span>
+                                                <h4 className="font-bold text-white text-lg">{c.title}</h4>
+                                            </div>
+                                            <div className="flex gap-3 text-sm text-gray-400">
+                                                <span>Tema: {c.topic_name || "Općenito"}</span>
+                                                <span>•</span>
+                                                <span>Level: {c.level}</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))}
+
+                                {selectedAssignment.cases.length === 0 && (
+                                    <p className="text-gray-400 italic">Ova zadaća još ne sadrži slučajeve.</p>
+                                )}
+                            </div>
+                        </div>
+                        
+                        <button onClick={() => {
+                            setMenuTab("assignments"); 
+                            setAssignmentDetailsModalOpen(false); 
+                            setSelectedAssignmentFullDetails(selectedAssignment);
+                        }} className="mb-5 px-6 py-2 rounded-lg font-bold bg-orange-500 text-white hover:cursor-pointer transition-colors shadow-md">
+                            Upravljaj zadaćom
+                        </button>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

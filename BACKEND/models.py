@@ -462,7 +462,8 @@ class Assignment(SQLModel, table=True):
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
     title: str = Field(max_length=100)
     instructions: Optional[str] = None
-    type: str = Field(max_length=20) # 'practice', 'practice-exam', 'exam'    
+    type: str = Field(max_length=20) # 'practice', 'practice-exam', 'exam'
+    status: str = Field(max_length=20, default="active") # active ili archived
     
     settings: AssignmentSettings = Field(default={}, sa_column=SAColumn(JSONB))
     

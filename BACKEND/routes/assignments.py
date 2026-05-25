@@ -43,33 +43,21 @@ def get_my_assignments(session: Session = Depends(get_session), current_user: Us
     is_examinee = "examinee" in user_roles
 
     if is_teacher:
-        assignments = session.exec(select(Assignment).where(Assignment.teacher_id == current_user.id)).all()
+        assignments = session.exec(
+            select(Assignment)
+            .where(Assignment.teacher_id == current_user.id)
+            .where(Assignment.status != "archived")
+            ).all()
 
         teacher_response = []
         for a in assignments:
             case_count = len(a.cases) if hasattr(a, "cases") else 0
             
-            stmt_groups = (
-                select(Group.id, Group.name, GroupAssignment.available_until)
-                .join(GroupAssignment, GroupAssignment.group_id == Group.id)
-                .where(GroupAssignment.assignment_id == a.id)
-            )
-            group_results = session.exec(stmt_groups).all()
-            
-            assigned_groups = [
-                {
-                    "group_id": r.id or None,
-                    "group_name": r.name or None,
-                    "available_until": r.available_until or None
-                } for r in group_results
-            ]
-            
             teacher_response.append({
                 "id": a.id,
                 "title": a.title,
                 "type": a.type,
-                "case_count": case_count,
-                "assigned_groups": assigned_groups
+                "case_count": case_count
             })
 
         return teacher_response
@@ -81,6 +69,7 @@ def get_my_assignments(session: Session = Depends(get_session), current_user: Us
             .join(Group, Group.id == GroupAssignment.group_id)
             .join(GroupMember, GroupMember.group_id == Group.id)
             .where(GroupMember.student_id == current_user.id)
+            .where(Assignment.status != "archived")
         )
 
         results = session.exec(stmt).all()
@@ -192,7 +181,17 @@ def update_assignment(assignment_id: uuid.UUID, data: AssignmentUpdate, session:
     update_data = data.model_dump(exclude_unset=True)
     
     if "settings" in update_data:
-        assignment.settings = update_data["settings"]
+        existing_settings = assignment.settings or {}
+        new_settings = update_data["settings"]
+        
+        if "randomly_choose_cases" in existing_settings:
+            new_settings["randomly_choose_cases"] = existing_settings["randomly_choose_cases"]
+
+        if "random_case_picker_settings" in existing_settings:
+            new_settings["random_case_picker_settings"] = existing_settings["random_case_picker_settings"]
+            
+        assignment.settings = new_settings
+
 
     for key, value in update_data.items():
         if key != "settings":
@@ -207,6 +206,52 @@ def update_assignment(assignment_id: uuid.UUID, data: AssignmentUpdate, session:
     except Exception as e:
         session.rollback()
         raise HTTPException(status_code=500, detail=f"Greška pri ažuriranju zadaće: {str(e)}")
+
+
+@router.patch("/{assignment_id}/archive")
+def archive_assignment(assignment_id: uuid.UUID, session: Session = Depends(get_session), current_user: User = Depends(get_current_teacher)):
+    assignment = session.get(Assignment, assignment_id)
+    if not assignment:
+        raise HTTPException(status_code=404, detail="Zadaća nije pronađena.")
+    
+    if assignment.teacher_id != current_user.id:
+        raise HTTPException(
+            status_code=403, 
+            detail="Možete arhivirati samo svoje zadaće."
+        )
+
+    try:
+        assignment.status = "archived"
+        
+        session.add(assignment)
+        session.commit()
+        return {"message": "Zadaća je uspješno arhivirana."}
+    except Exception as e:
+        session.rollback()
+        raise HTTPException(status_code=500, detail=f"Greška pri arhiviranju: {str(e)}")
+    
+
+@router.patch("/{assignment_id}/unarchive")
+def unarchive_assignment(assignment_id: uuid.UUID, session: Session = Depends(get_session), current_user: User = Depends(get_current_teacher)):
+    assignment = session.get(Assignment, assignment_id)
+    if not assignment:
+        raise HTTPException(status_code=404, detail="Zadaća nije pronađena.")
+    
+    if assignment.teacher_id != current_user.id:
+        raise HTTPException(
+            status_code=403, 
+            detail="Možete vratiti samo svoje zadaće."
+        )
+
+    try:
+        assignment.status = "draft"
+        
+        session.add(assignment)
+        session.commit()
+        return {"message": "Zadaća je uspješno vraćena."}
+    except Exception as e:
+        session.rollback()
+        raise HTTPException(status_code=500, detail=f"Greška pri arhiviranju: {str(e)}")
 
 
 @router.delete("/{assignment_id}")
@@ -471,12 +516,42 @@ def get_assignment_details(assignment_id: uuid.UUID, session: Session = Depends(
         "title": assignment.title,
         "type": assignment.type,
         "instructions": assignment.instructions,
-        "teacher_name": teacher_full_name,
         "cases": cases_response
     }
+
+    if "examinee" in user_roles:
+        response_data["teacher_name"] = teacher_full_name
     
     if "teacher" in user_roles:
-        response_data["settings"] = assignment.settings
+        stmt_groups = (
+            select(Group.id, Group.name, GroupAssignment.available_until)
+            .join(GroupAssignment, GroupAssignment.group_id == Group.id)
+            .where(GroupAssignment.assignment_id == assignment_id)
+        )
+        group_results = session.exec(stmt_groups).all()
+        
+        assigned_groups = [
+            {
+                "group_id": r.id or None,
+                "group_name": r.name or None,
+                "available_until": r.available_until or None
+            } for r in group_results
+        ]
+
+        res_settings = assignment.settings.copy() if assignment.settings else {}
+        random_settings = res_settings.get("random_case_picker_settings")
+
+        if random_settings and "topic" in random_settings:
+            topic_id = random_settings["topic"]
+
+            stmt_topic = select(Category.name).where(Category.id == topic_id)
+            topic = session.exec(stmt_topic).first()
+
+            res_settings["random_case_picker_settings"]["topic"] = topic
+
+        response_data["assigned_groups"] = assigned_groups
+        response_data["settings"] = res_settings
+
         return response_data
 
     return response_data

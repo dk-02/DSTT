@@ -160,7 +160,8 @@ def admin_register(user_data: AdminUserRegister, current_admin: User = Depends(g
             last_name=user_data.last_name,
             is_active=True,
             expertise_level="novice" if is_examinee else None,
-            xp_points=0 if is_examinee else None
+            xp_points=0 if is_examinee else None,
+            institution_id=user_data.institution_id
         )
         session.add(new_user)
         session.flush()

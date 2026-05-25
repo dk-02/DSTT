@@ -438,8 +438,8 @@ def archive_case(case_id: uuid.UUID, current_user: User = Depends(get_current_ac
     return {"status": "success", "message": "Slučaj je uspješno arhiviran."}
 
 
-@router.patch("/{case_id}/restore")
-def restore_case(case_id: uuid.UUID, current_user: User = Depends(get_current_active_user), session: Session = Depends(get_session)):
+@router.patch("/{case_id}/unarchive")
+def unarchive_case(case_id: uuid.UUID, current_user: User = Depends(get_current_active_user), session: Session = Depends(get_session)):
     db_case = session.get(Case, case_id)
     if not db_case:
         raise HTTPException(status_code=404, detail="Slučaj nije pronađen")

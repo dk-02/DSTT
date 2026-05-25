@@ -2,7 +2,6 @@ import { ArrowNarrowLeft } from "@untitledui/icons";
 import { useNavigate } from "react-router-dom";
 import { UserMgmt } from "../components/admin-dash-components/UserMgmt";
 import { useState } from "react";
-import { CaseMgmt } from "../components/admin-dash-components/CaseMgmt";
 import { InstitutionMgmt } from "../components/admin-dash-components/InstitutionMgmt";
 
 type TabName = "users" | "cases" | "institutions";
@@ -16,10 +15,6 @@ function AdminDashboard() {
         {
             name: "users",
             label: "Korisnici"
-        },
-        {
-            name: "cases",
-            label: "Slučajevi"
         },
         {
             name: "institutions",
@@ -47,7 +42,6 @@ function AdminDashboard() {
             </div>
 
             {menuTab === "users" && <UserMgmt />}
-            {menuTab === "cases" && <CaseMgmt />}
             {menuTab === "institutions" && <InstitutionMgmt />}
 
         </div>
