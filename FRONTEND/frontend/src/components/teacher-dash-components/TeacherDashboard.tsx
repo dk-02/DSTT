@@ -10,11 +10,12 @@ import { Star01, User01, Users01, Calendar, GraduationHat02, Settings01, Edit01 
 interface Case {
     id: string;
     title: string;
-    version: number;
     level: number;
     topic_name: string;
+    version: number;
     status?: string;
     type?: string;
+    correct_diagnosis?: string; 
 }
 
 interface Group {
@@ -117,9 +118,9 @@ function TeacherDashboard() {
     // ASSIGNMENTS
     const [teacherAssignments, setTeacherAssignments] = useState<Assignment[]>([]);
     const [archivedTeacherAssignments, setArchivedTeacherAssignments] = useState<Assignment[]>([]);    
-    const [selectedAssignment, setSelectedAssignment] = useState<AssignmentDetails | null>(null);
+    const [selectedAssignment, setSelectedAssignment] = useState<AssignmentDetails | null>(null); // GROUPS prikaz
     const [assignmentDetailsModalOpen, setAssignmentDetailsModalOpen] = useState(false);
-    const [selectedAssignmentFullDetails, setSelectedAssignmentFullDetails] = useState<AssignmentDetails | null>(null);
+    const [selectedAssignmentFullDetails, setSelectedAssignmentFullDetails] = useState<AssignmentDetails | null>(null); // ASSIGNMENTS prikaz
     const [createAssignmentModalOpen, setCreateAssignmentModalOpen] = useState<boolean>(false);
     const [assignmentSettingsModalOpen, setAssignmentSettingsModalOpen] = useState<boolean>(false);
     const [localSettings, setLocalSettings] = useState<Settings | null>(null);
@@ -131,6 +132,13 @@ function TeacherDashboard() {
     const [assignmentArchiveModalOpen, setAssignmentArchiveModalOpen] = useState<boolean>(false);
     const [assignmentToArchiveId, setAssignmentToArchiveId] = useState<string>("");
     const [assignmentFilter, setAssignmentFilter] = useState<"active" | "archived">("active");
+
+    const [removingCasesFromAssignment, setRemovingCaseFromAssignment] = useState<boolean>(false);
+    const [casesToRemoveIds, setCasesToRemoveIds] = useState<string[]>([]);
+
+    const [addingCasesToAssignment, setAddingCasesToAssignment] = useState<boolean>();
+    const [casesToAddIds, setCasesToAddIds] = useState<string[]>([]);
+    const [previewCases, setPreviewCases] = useState<Case[]>([]);
 
     useEffect(() => {
         if (assignmentSettingsModalOpen && selectedAssignmentFullDetails?.settings) {
@@ -444,7 +452,6 @@ function TeacherDashboard() {
         }
     };
 
-
     const handleUnarchiveAssignment = async (assignmentId: string) => {
         try {
             const response = await fetch(`${backendURL}/assignments/${assignmentId}/unarchive`, {
@@ -498,7 +505,6 @@ function TeacherDashboard() {
             console.error("Greška:", error);
         }
     };
-
 
     const handleViewGroup = async (group: Group) => {
         setSelectedGroup(group);
@@ -676,7 +682,6 @@ function TeacherDashboard() {
         }
     };
 
-
     const handleUpdateAssignment = async () => {
         try {
             const res = await fetch(`${backendURL}/assignments/${selectedAssignmentFullDetails?.id}`, {
@@ -708,6 +713,120 @@ function TeacherDashboard() {
             console.error("Greška:", error);
         }
     };
+
+    const toggleCaseToRemove = (caseId: string) => {
+        if (!casesToRemoveIds.includes(caseId)) {
+            setCasesToRemoveIds([...casesToRemoveIds, caseId]);
+        } else {
+            setCasesToRemoveIds(prev => prev.filter(c => c !== caseId));
+        }
+    }
+
+    const toggleCaseToAdd = (caseId: string) => {
+        if (!casesToAddIds.includes(caseId)) {
+            setCasesToAddIds([...casesToAddIds, caseId]);
+        } else {
+            setCasesToAddIds(prev => prev.filter(c => c !== caseId));
+        }
+    }
+
+    const handleGetAvailableCases = async () => {
+        if (!selectedAssignmentFullDetails) return;
+
+        try {
+            const response = await fetch(`${backendURL}/assignments/${selectedAssignmentFullDetails.id}/preview-cases`, {
+                method: "GET",
+                headers: { 
+                    "Authorization": `Bearer ${token}`,
+                    "Content-Type": "application/json" 
+                }
+            });
+
+            if (!response.ok) throw new Error("Neuspješno dohvaćanje podataka");
+            const caseData = await response.json();
+
+            setPreviewCases(caseData);
+
+        } catch (error) {
+            console.error("Greška pri dohvaćanju podataka o slučajevima:", error);
+            alert("Nije moguće učitati podatke o slučajevima.");
+        }
+    }
+
+
+    const handleAddCasesToAssignment = async () => {
+        if (!selectedAssignmentFullDetails || casesToAddIds.length === 0) {
+            alert("Morate odabrati slučaj/slučajeve koje želite dodati.");
+            return;
+        }
+
+        try {
+            const res = await fetch(`${backendURL}/assignments/${selectedAssignmentFullDetails.id}/cases`, {
+                method: "POST",
+                headers: {
+                    "Authorization": `Bearer ${token}`,
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({ case_ids: casesToAddIds })
+            });
+
+            if (res.ok) {
+                await handleViewAssignment(selectedAssignmentFullDetails.id);
+                setAddingCasesToAssignment(false);
+                setCasesToAddIds([]);
+
+            } else {
+                const error = await res.json();
+                alert(`Greška pri dodavanju: ${error.detail}`);
+            }
+        } catch (error) {
+            console.error("Greška:", error);
+        }
+    }
+
+    const handleRemoveCasesFromAssignment = async () => {
+        if (!selectedAssignmentFullDetails || casesToRemoveIds.length === 0) {
+            alert("Morate odabrati slučaj/slučajeve koje želite ukloniti.");
+            return;
+        }
+
+        try {
+            const res = await fetch(`${backendURL}/assignments/${selectedAssignmentFullDetails.id}/cases`, {
+                method: "DELETE",
+                headers: {
+                    "Authorization": `Bearer ${token}`,
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({ case_ids: casesToRemoveIds })
+            });
+
+            if (res.ok) {
+                setSelectedAssignmentFullDetails(prev => {
+                    if (!prev) return null;
+
+                    const remainingCases = prev.cases.filter(c => !casesToRemoveIds.includes(c.id));
+
+                    const resequencedCases = remainingCases.map((c, index) => ({
+                        ...c,
+                        sequence_no: index + 1
+                    }));
+
+                    return {
+                        ...prev,
+                        cases: resequencedCases
+                    };
+                });
+                setRemovingCaseFromAssignment(false);
+                setCasesToRemoveIds([]);
+
+            } else {
+                const error = await res.json();
+                alert(`Greška pri brisanju: ${error.detail}`);
+            }
+        } catch (error) {
+            console.error("Greška:", error);
+        }
+    }
 
     const renderEmptyState = (title: string, message: string) => (
         <div className="flex flex-col items-center justify-center h-64 bg-gray-700/30 rounded-2xl border border-gray-600 border-dashed">
@@ -1122,10 +1241,102 @@ function TeacherDashboard() {
 
                                 <h3 className="text-xl font-bold text-gray-200 my-4">Slučajevi u zadaći</h3>
 
+                                {!removingCasesFromAssignment && !addingCasesToAssignment &&
+                                    <div className="flex gap-2 mb-5">
+                                        <button 
+                                            onClick={() => {setAddingCasesToAssignment(true); handleGetAvailableCases();}} 
+                                            className="bg-green-600 text-white px-5 py-2.5 rounded-lg font-bold transition-colors shadow-md cursor-pointer flex items-center justify-center gap-2"
+                                        >
+                                            Dodaj
+                                        </button>
+
+                                        <button 
+                                            onClick={() => setRemovingCaseFromAssignment(true)} 
+                                            className="bg-gray-500 text-white px-5 py-2.5 rounded-lg font-bold transition-colors shadow-md cursor-pointer flex items-center justify-center gap-2"
+                                        >
+                                            Ukloni
+                                        </button>
+                                    </div>
+                                }
+
+                                {removingCasesFromAssignment && 
+                                    <div>
+                                        <p>Odaberite slučajeve koje želite ukloniti.</p>
+                                        <div className="flex gap-2 my-5">
+                                            <button 
+                                                onClick={() => setRemovingCaseFromAssignment(false)} 
+                                                className="bg-gray-500 text-white px-5 py-2.5 rounded-lg font-bold transition-colors shadow-md cursor-pointer flex items-center justify-center gap-2"
+                                            >
+                                                Odustani
+                                            </button>
+                                            <button 
+                                                onClick={handleRemoveCasesFromAssignment} 
+                                                className="bg-red-600 text-white px-5 py-2.5 rounded-lg font-bold transition-colors shadow-md cursor-pointer flex items-center justify-center gap-2"
+                                            >
+                                                Potvrdi
+                                            </button>
+                                        </div>
+                                    </div>
+                                }
+
+                                {addingCasesToAssignment && 
+                                    <>
+                                        <p>Odaberite slučajeve koje želite dodati.</p>
+                                        {previewCases.length > 0 ? <div className="my-5 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                                            {previewCases.map((c) => (
+                                                <div 
+                                                    key={c.id} 
+                                                    onClick={() => toggleCaseToAdd(c.id)} 
+                                                    className={`${casesToAddIds.includes(c.id) && "bg-green-700/30 border-green-800"} hover:cursor-pointer relative flex flex-col bg-gray-700 rounded-2xl shadow-lg border border-gray-600 overflow-hidden hover:border-gray-500 transition-colors group`}>
+
+                                                    <div className="p-5 flex-1 flex flex-col">
+                                                        <h4 className="text-lg font-bold text-white mb-1 pr-8 leading-tight">{c.title}</h4>
+                                                        <p className="text-sm text-gray-400">TEMA: {c.topic_name}</p>
+                                                        <p className="text-sm text-gray-200 mb-5">DIJAGNOZA: {c.correct_diagnosis}</p>
+                                                        
+                                                        <div className="mt-auto flex flex-wrap gap-2">
+                                                            <span className="bg-orange-900/40 text-orange-400 text-xs font-bold px-2 py-1 rounded-md border border-orange-800/50">
+                                                                Razina: {c.level}
+                                                            </span>
+                                                            
+                                                            {c.status && (
+                                                                <span className="bg-orange-900/40 text-orange-400 text-xs font-bold px-2 py-1 rounded-md border border-orange-800/50 uppercase tracking-wider">
+                                                                    {c.status}
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                    
+                                        </div> : renderEmptyState("Nema slučajeva", "Trenutno nema slučajeva koje je moguće dodati u ovu zadaću.")}
+                                        
+                                        <div>
+                                            <div className="flex gap-2 mb-5">
+                                                <button 
+                                                    onClick={() => setAddingCasesToAssignment(false)} 
+                                                    className="bg-gray-500 text-white px-5 py-2.5 rounded-lg font-bold transition-colors shadow-md cursor-pointer flex items-center justify-center gap-2"
+                                                >
+                                                    Odustani
+                                                </button>
+                                                <button 
+                                                    onClick={handleAddCasesToAssignment} 
+                                                    className="bg-red-600 text-white px-5 py-2.5 rounded-lg font-bold transition-colors shadow-md cursor-pointer flex items-center justify-center gap-2"
+                                                >
+                                                    Potvrdi
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </>
+                                }
+
                                 {selectedAssignmentFullDetails.cases.length > 0 ? (
-                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                                    <div className="mb-5 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                                         {selectedAssignmentFullDetails.cases.map((c) => (
-                                            <div key={c.id} className="relative flex flex-col bg-gray-700 rounded-2xl shadow-lg border border-gray-600 overflow-hidden hover:border-gray-500 transition-colors group">
+                                            <div 
+                                                key={c.id} 
+                                                onClick={removingCasesFromAssignment ? () => toggleCaseToRemove(c.id) : undefined} 
+                                                className={`${removingCasesFromAssignment && "hover:cursor-pointer"} ${(removingCasesFromAssignment && casesToRemoveIds.includes(c.id)) && "bg-red-700/30 border-red-800"} relative flex flex-col bg-gray-700 rounded-2xl shadow-lg border border-gray-600 overflow-hidden hover:border-gray-500 transition-colors group`}>
                                                 
                                                 <div className="absolute top-4 right-4">
                                                     <span className="bg-gray-800 text-gray-400 text-xs font-bold px-2 py-1 rounded-md border border-gray-600 shadow-sm">
@@ -1554,7 +1765,7 @@ function TeacherDashboard() {
                             )}
 
                             <h3 className="text-lg font-bold text-white mb-4 border-b border-gray-700 pb-2">Slučajevi u zadaći</h3>
-                            
+
                             <div className="space-y-4">
                                 {selectedAssignment.cases.map((c) => (
                                     <div key={c.id} className="flex justify-between items-center bg-gray-700 p-4 rounded-xl border border-gray-600">

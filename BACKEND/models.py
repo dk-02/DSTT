@@ -486,16 +486,23 @@ class AssignmentCreate(BaseModel):
 
 class AssignmentCasePreview(BaseModel):
     id: uuid.UUID
-    version: Optional[int]
+    version: Optional[int] = None
     title: str
     level: str
     topic_name: Optional[str] = None
     status: Optional[str] = None
+    correct_diagnosis: str
 
 class AssignmentUpdate(BaseModel):
     title: Optional[str] = None
     instructions: Optional[str] = None
     settings: Optional[AssignmentSettings] = None
+
+class AddCasesToAssignment(BaseModel):
+    case_ids: List[uuid.UUID]
+
+class RemoveCasesFromAssignment(BaseModel):
+    case_ids: List[uuid.UUID]
 
 
 # ----------- UPDATES & NOTIFICATIONS -------------

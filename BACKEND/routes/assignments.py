@@ -2,8 +2,8 @@ from typing import List
 import uuid
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import func, or_
-from sqlmodel import Session, select
-from models import Assignment, AssignmentCase, AssignmentCasePreview, AssignmentCreate, AssignmentSettings, AssignmentUpdate, Case, CaseCategory, Category, Group, GroupAssignment, GroupAssignmentLink, GroupMember, RandomCasePickerSettings, Role, SolveAttempt, User, UserRole
+from sqlmodel import Session, select, delete
+from models import AddCasesToAssignment, Assignment, AssignmentCase, AssignmentCasePreview, AssignmentCreate, AssignmentSettings, AssignmentUpdate, Case, CaseCategory, Category, Group, GroupAssignment, GroupAssignmentLink, GroupMember, RandomCasePickerSettings, RemoveCasesFromAssignment, Role, SolveAttempt, User, UserRole
 from routes.auth import get_current_active_user, get_current_teacher
 from database import engine
 
@@ -149,7 +149,8 @@ def preview_random_cases(settings: RandomCasePickerSettings, assignment_type: st
             id=row.Case.id, 
             title=row.Case.title, 
             level=row.Case.level, 
-            topic_name=row.topic_name
+            topic_name=row.topic_name,
+            correct_diagnosis=row.Case.correct_diagnosis
         ) for row in selected_cases
     ]
 
@@ -297,105 +298,141 @@ def delete_assignment(assignment_id: uuid.UUID, session: Session = Depends(get_s
     
 
 # --- CASES ---
-@router.post("/{assignment_id}/cases/{case_id}")
-def add_case_to_assignment(assignment_id: uuid.UUID, case_id: uuid.UUID, current_user: User = Depends(get_current_teacher), session: Session = Depends(get_session)):
+@router.get("/{assignment_id}/preview-cases")
+def preview_cases_for_adding(assignment_id: uuid.UUID, current_user: User = Depends(get_current_teacher), session: Session = Depends(get_session)):
+    assignment = session.get(Assignment, assignment_id)
+    if not assignment:
+        raise HTTPException(status_code=404, detail="Zadaća nije pronađena.")
+
+    visibility_filter = or_(
+        Case.is_public == True,
+        (Case.is_public == False) & (Case.created_by == current_user.id)
+    )
+
+    existing_cases_subquery = select(AssignmentCase.case_id).where(AssignmentCase.assignment_id == assignment_id)
+
+    case_query = (
+        select(Case, Category.name.label("topic_name"))
+        .outerjoin(CaseCategory, Case.id == CaseCategory.case_id)
+        .outerjoin(Category, CaseCategory.category_id == Category.id)
+        .where(visibility_filter)
+        .where(Case.status == "published")
+        .where(Case.id.not_in(existing_cases_subquery))
+    )
+
+    if assignment.type in ["practice", "practice_exam"]:
+        case_query = case_query.where(Case.type == "practice")
+    elif assignment.type == "exam":
+        case_query = case_query.where(Case.type == "exam")
+    
+    cases = session.exec(case_query).all()
+
+    return [
+        AssignmentCasePreview(
+            id=row.Case.id, 
+            title=row.Case.title, 
+            level=row.Case.level, 
+            topic_name=row.topic_name,
+            correct_diagnosis=row.Case.correct_diagnosis
+        ) for row in cases
+    ]
+
+@router.post("/{assignment_id}/cases")
+def add_case_to_assignment(assignment_id: uuid.UUID, data: AddCasesToAssignment, current_user: User = Depends(get_current_teacher), session: Session = Depends(get_session)):
     assignment = session.get(Assignment, assignment_id)
     if not assignment:
         raise HTTPException(status_code=404, detail="Zadaća nije pronađena.")
 
     if assignment.teacher_id != current_user.id:
-        raise HTTPException(status_code=403, detail="Možete mijenjati samo svoje zadaće."
-        )
+        raise HTTPException(status_code=403, detail="Možete mijenjati samo svoje zadaće.")
     
     visibility_filter = or_(
         Case.is_public == True,
         (Case.is_public == False) & (Case.created_by == current_user.id)
     )
 
-    case = session.exec(select(Case).where(Case.id == case_id).where(visibility_filter)).first()
+    cases_to_add = session.exec(
+        select(Case)
+        .where(Case.id.in_(data.case_ids))
+        .where(visibility_filter)
+    ).all()
 
-    if not case:
-        raise HTTPException(status_code=404, detail="Željeni slučaj nije pronađen ili niste vlasnik.")
+    if not cases_to_add:
+        raise HTTPException(status_code=404, detail="Nijedan od odabranih slučajeva nije pronađen ili nemate pravo pristupa.")
     
+    for case in cases_to_add:
+        if assignment.type in ["practice", "practice-exam"] and case.type != "practice":
+            raise HTTPException(status_code=400, detail=f"Slučaj '{case.title}' ne može se dodati u vježbu (može samo u ispit).")
+        if assignment.type == "exam" and case.type != "exam":
+            raise HTTPException(status_code=400, detail=f"Slučaj '{case.title}' ne može se dodati u ispit (može samo u vježbu).")
 
-    if assignment.type in ["practice", "practice_exam"] and case.type != "practice":
-        raise HTTPException(status_code=400, detail="U vježbu možete dodati samo slučajeve namijenjene vježbama.")
+    existing_links = session.exec(
+        select(AssignmentCase.case_id)
+        .where(AssignmentCase.assignment_id == assignment_id)
+        .where(AssignmentCase.case_id.in_(data.case_ids))
+    ).all()
     
-    if assignment.type == "exam" and case.type != "exam":
-        raise HTTPException(status_code=400, detail="U ispit možete dodati samo slučajeve namijenjene ispitima.")
-    
+    new_cases = [c for c in cases_to_add if c.id not in existing_links]
 
-    existing_link = session.exec(
-        select(AssignmentCase).where(
-            AssignmentCase.assignment_id == assignment_id, 
-            AssignmentCase.case_id == case_id
-        )
-    ).first()
-    
-    if existing_link:
-        raise HTTPException(status_code=400, detail="Ovaj slučaj je već dodan u zadaću.")
+    if not new_cases:
+        return {"message": "Svi odabrani slučajevi se već nalaze u zadaći."}
     
     max_seq = session.exec(
         select(func.max(AssignmentCase.sequence_no))
         .where(AssignmentCase.assignment_id == assignment_id)
     ).first() or 0
 
-    new_link = AssignmentCase(
-        assignment_id=assignment_id, 
-        case_id=case_id, 
-        sequence_no=max_seq + 1
-    )
-
     try:
-        session.add(new_link)
+        for case in new_cases:
+            max_seq += 1
+            new_link = AssignmentCase(
+                assignment_id=assignment_id,
+                case_id=case.id,
+                sequence_no=max_seq
+            )
+            session.add(new_link)
+
         session.commit()
-        return {"message": "Slučaj uspješno dodan u zadaću."}
+        return {"message": f"Uspješno dodano {len(new_cases)} slučajeva u zadaću."}
     
     except Exception as e:
         session.rollback()
-        raise HTTPException(status_code=500, detail=f"Greška pri dodavanju slučaja u zadaću: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Greška pri dodavanju slučajeva u zadaću: {str(e)}")
 
 
-@router.delete("/{assignment_id}/cases/{case_id}")
-def remove_case_from_assignment(assignment_id: uuid.UUID, case_id: uuid.UUID, current_user: User = Depends(get_current_teacher), session: Session = Depends(get_session)):
+@router.delete("/{assignment_id}/cases")
+def remove_case_from_assignment(assignment_id: uuid.UUID, data: RemoveCasesFromAssignment, current_user: User = Depends(get_current_teacher), session: Session = Depends(get_session)):
     assignment = session.get(Assignment, assignment_id)
 
     if not assignment:
         raise HTTPException(status_code=404, detail="Zadaća nije pronađena.")
     if assignment.teacher_id != current_user.id:
         raise HTTPException(status_code=403, detail="Nemate ovlasti za izmjenu ove zadaće.")
-
-    statement = select(AssignmentCase).where(
-        AssignmentCase.assignment_id == assignment_id, 
-        AssignmentCase.case_id == case_id
-    )
-    link_to_delete = session.exec(statement).first()
-
-    if not link_to_delete:
-        raise HTTPException(status_code=404, detail="Slučaj nije pronađen u ovoj zadaći.")
-
-    removed_sequence = link_to_delete.sequence_no
-
+    
     try:
-        session.delete(link_to_delete)
+        delete_stmt = delete(AssignmentCase).where(
+            AssignmentCase.assignment_id == assignment_id, 
+            AssignmentCase.case_id.in_(data.case_ids)
+        )
+        session.exec(delete_stmt)
 
         update_statement = (
             select(AssignmentCase)
             .where(AssignmentCase.assignment_id == assignment_id)
-            .where(AssignmentCase.sequence_no > removed_sequence)
+            .order_by(AssignmentCase.sequence_no)
         )
-        subsequent_cases = session.exec(update_statement).all()
+        remaining_cases = session.exec(update_statement).all()
         
-        for case in subsequent_cases:
-            case.sequence_no -= 1
-            session.add(case)
+        for idx, link in enumerate(remaining_cases, start=1):
+            link.sequence_no = idx
+            session.add(link)
 
         session.commit()
-        return {"message": "Slučaj uklonjen iz zadaće."}
+        return {"message": f"Uspješno obrisano slučajeva: {len(data.case_ids)}."}
     
     except Exception as e:
         session.rollback()
-        raise HTTPException(status_code=500, detail=f"Greška pri uklanjanju slučaja iz zadaće: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Greška pri uklanjanju slučajeva iz zadaće: {str(e)}")
 
 
 # --- ASSIGNING TO GROUPS ---
