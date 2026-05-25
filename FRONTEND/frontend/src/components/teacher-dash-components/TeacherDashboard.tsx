@@ -38,6 +38,7 @@ interface Assignment {
     type: string;
     available_until: string;
     instructions: string;
+    status: string; // active ili archived
 }
 
 interface User {
@@ -115,6 +116,7 @@ function TeacherDashboard() {
 
     // ASSIGNMENTS
     const [teacherAssignments, setTeacherAssignments] = useState<Assignment[]>([]);
+    const [archivedTeacherAssignments, setArchivedTeacherAssignments] = useState<Assignment[]>([]);    
     const [selectedAssignment, setSelectedAssignment] = useState<AssignmentDetails | null>(null);
     const [assignmentDetailsModalOpen, setAssignmentDetailsModalOpen] = useState(false);
     const [selectedAssignmentFullDetails, setSelectedAssignmentFullDetails] = useState<AssignmentDetails | null>(null);
@@ -126,6 +128,9 @@ function TeacherDashboard() {
         title: "",
         instructions: ""
     })
+    const [assignmentArchiveModalOpen, setAssignmentArchiveModalOpen] = useState<boolean>(false);
+    const [assignmentToArchiveId, setAssignmentToArchiveId] = useState<string>("");
+    const [assignmentFilter, setAssignmentFilter] = useState<"active" | "archived">("active");
 
     useEffect(() => {
         if (assignmentSettingsModalOpen && selectedAssignmentFullDetails?.settings) {
@@ -226,10 +231,16 @@ function TeacherDashboard() {
 
         const fetchAssignments = async () => {
             try {
-                const res = await fetch(`${backendURL}/assignments/dashboard`, {
+                const activeRes = await fetch(`${backendURL}/assignments/dashboard`, {
                     headers: { "Authorization": `Bearer ${token}` }
                 });
-                if (res.ok) setTeacherAssignments(await res.json());
+                if (activeRes.ok) setTeacherAssignments(await activeRes.json());
+
+                const archiveRes = await fetch(`${backendURL}/assignments/dashboard/archive`, {
+                    headers: { "Authorization": `Bearer ${token}` }
+                });
+                if (archiveRes.ok) setArchivedTeacherAssignments(await archiveRes.json());
+
             } catch (error) {
                 console.error("Greška pri dohvaćanju zadaća", error);
             }
@@ -376,7 +387,6 @@ function TeacherDashboard() {
         }
     };
 
-
     const handleUnarchiveCase = async (caseId: string) => {
         try {
             const response = await fetch(`${backendURL}/cases/${caseId}/unarchive`, {
@@ -396,7 +406,65 @@ function TeacherDashboard() {
             const cs = archivedCases.find(cs => cs.id === caseId);
             if (cs) {
                 setMyCases(prevCases => [...prevCases, { ...cs, status: "draft" }]);
-                setArchivedCases(prevCases => prevCases.filter(c => c.id !== cs.id));
+                setArchivedCases(prevArchived => prevArchived.filter(c => c.id !== cs.id));
+            }
+    
+        } catch (error) {
+            console.error("Greška:", error);
+        }
+    };
+
+
+    const handleArchiveAssignment = async (assignmentId: string) => {
+        try {
+            const response = await fetch(`${backendURL}/assignments/${assignmentId}/archive`, {
+                method: "PATCH",
+                headers: { 
+                    "Authorization": `Bearer ${token}`,
+                    "Content-Type": "application/json" 
+                }
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                alert(errorData.detail);
+                throw new Error(errorData.detail || "Greška pri arhiviranju");
+            }
+            
+            const ta = teacherAssignments.find(ta => ta.id === assignmentId);
+            if (ta) {
+                setTeacherAssignments(prevAssignments => prevAssignments.filter(a => a.id !== ta.id));
+                setArchivedTeacherAssignments(prevArchived => [...prevArchived, { ...ta, status: "archived" }]);
+            }
+
+            setAssignmentArchiveModalOpen(false);
+    
+        } catch (error) {
+            console.error("Greška:", error);
+        }
+    };
+
+
+    const handleUnarchiveAssignment = async (assignmentId: string) => {
+        try {
+            const response = await fetch(`${backendURL}/assignments/${assignmentId}/unarchive`, {
+                method: "PATCH",
+                headers: { 
+                    "Authorization": `Bearer ${token}`,
+                    "Content-Type": "application/json" 
+                }
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                alert(errorData.detail);
+                throw new Error(errorData.detail || "Greška pri vraćanju zadaće.");
+            }
+            
+            const ta = archivedTeacherAssignments.find(ta => ta.id === assignmentId);
+            if (ta) {
+                setTeacherAssignments(prevArchived => [...prevArchived, { ...ta, status: "active" }]);
+                setArchivedTeacherAssignments(prevAssignments => prevAssignments.filter(a => a.id !== ta.id));
             }
     
         } catch (error) {
@@ -1105,21 +1173,61 @@ function TeacherDashboard() {
                                         Nova zadaća
                                     </button>
                                 </div>
-                                
-                                <div className="flex gap-5 mt-5">
-                                    {teacherAssignments.map((a) => (
-                                        <div key={a.id} className="flex flex-col bg-gray-700 rounded-2xl shadow-lg border border-gray-600 overflow-hidden hover:border-gray-500 transition-colors group">
-                                            <div className="p-5 flex-1 flex flex-col justify-between">
-                                                <div>
-                                                    <h3 className="text-lg font-bold text-white mb-2">{a.title}</h3>
-                                                </div>
-                                                <button onClick={() => handleViewAssignment(a.id)} className="w-full mt-5 bg-gray-600 hover:bg-gray-500 text-white font-bold py-2.5 px-2 rounded-lg transition-all shadow-md active:scale-95 cursor-pointer border border-gray-500">
-                                                    Detalji zadaće
-                                                </button>
-                                            </div>
-                                        </div>
-                                    ))}
+
+                                <div className="w-fit my-5 flex bg-gray-700 p-1 rounded-lg border border-gray-600">
+                                    <button 
+                                        onClick={() => setAssignmentFilter("active")}
+                                        className={`hover:cursor-pointer px-4 py-1.5 rounded-md text-sm transition ${assignmentFilter === "active" ? "bg-gray-600 text-white shadow" : "text-gray-400"}`}
+                                    > Aktivne </button>
+                                    <button 
+                                        onClick={() => setAssignmentFilter("archived")}
+                                        className={`hover:cursor-pointer px-4 py-1.5 rounded-md text-sm transition ${assignmentFilter === "archived" ? "bg-gray-600 text-white shadow" : "text-gray-400"}`}
+                                    > Arhiva </button>
                                 </div>
+
+                                {assignmentFilter === "archived" ? 
+                                <div>
+                                    {archivedTeacherAssignments.length > 0 ? 
+                                    <div>
+                                        {archivedTeacherAssignments.map((aa) => (
+                                            <div key={aa.id}>
+                                                {aa.title}
+                                                <button onClick={() => handleUnarchiveAssignment(aa.id)}>Vrati zadaću</button>
+                                            </div>
+                                        ))}
+                                    </div> : renderEmptyState("Nema zadaća" , "Trenutno nemate arhiviranih zadaća.")}
+                                    
+                                </div>
+                                : 
+                                <div>
+                                    {teacherAssignments.length > 0 ? 
+                                    <div className="flex gap-5 mt-5">
+                                        {teacherAssignments.map((a) => (
+                                            <div key={a.id} className="relative flex flex-col bg-gray-700 rounded-2xl shadow-lg border border-gray-600 overflow-hidden hover:border-gray-500 transition-colors group">
+                                                <Dropdown
+                                                    onArchive={() => {
+                                                        setAssignmentToArchiveId(a.id);
+                                                        setAssignmentArchiveModalOpen(true);
+                                                    }}
+                                                />
+                                                <div className="p-5 flex-1 flex flex-col justify-between">
+                                                    <div>
+                                                        <h3 className="text-lg font-bold text-white mb-2">{a.title}</h3>
+                                                    </div>
+                                                    <button onClick={() => handleViewAssignment(a.id)} className="w-full mt-5 bg-gray-600 hover:bg-gray-500 text-white font-bold py-2.5 px-2 rounded-lg transition-all shadow-md active:scale-95 cursor-pointer border border-gray-500">
+                                                        Detalji zadaće
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div> : renderEmptyState("Nema zadaća", "Trenutno nemate aktivnih zadaća.")}
+                                    
+                                </div>
+                                
+                                }
+                                
+                                
+                                
                             </div>
                         }
                     </div>
@@ -1130,6 +1238,12 @@ function TeacherDashboard() {
             <Modal isOpen={caseArchiveModalOpen} onClose={() => setCaseArchiveModalOpen(false)} title="Arhivirati slučaj?">
                 <div className="flex justify-center w-full">
                     <button onClick={() => handleArchiveCase(caseToArchiveId)} className="cursor-pointer bg-red-500 text-orange-50 font-semibold px-3 py-2 rounded">Potvrdi</button>
+                </div>
+            </Modal>
+
+            <Modal isOpen={assignmentArchiveModalOpen} onClose={() => setAssignmentArchiveModalOpen(false)} title="Arhivirati zadaću?">
+                <div className="flex justify-center w-full">
+                    <button onClick={() => handleArchiveAssignment(assignmentToArchiveId)} className="cursor-pointer bg-red-500 text-orange-50 font-semibold px-3 py-2 rounded">Potvrdi</button>
                 </div>
             </Modal>
 

@@ -86,7 +86,28 @@ def get_my_assignments(session: Session = Depends(get_session), current_user: Us
         ]
 
     raise HTTPException(status_code=403, detail="Nemate ovlasti za ovu akciju.")
-    
+
+
+@router.get("/dashboard/archive")
+def get_my_archived_assignments(session: Session = Depends(get_session), current_user: User = Depends(get_current_teacher)):
+    assignments = session.exec(
+        select(Assignment)
+        .where(Assignment.teacher_id == current_user.id)
+        .where(Assignment.status == "archived")
+        ).all()
+
+    response = []
+    for a in assignments:
+        case_count = len(a.cases) if hasattr(a, "cases") else 0
+        
+        response.append({
+            "id": a.id,
+            "title": a.title,
+            "type": a.type,
+            "case_count": case_count
+        })
+
+    return response
 
 
 @router.post("/preview-random-cases", response_model=List[AssignmentCasePreview])
@@ -244,7 +265,7 @@ def unarchive_assignment(assignment_id: uuid.UUID, session: Session = Depends(ge
         )
 
     try:
-        assignment.status = "draft"
+        assignment.status = "active"
         
         session.add(assignment)
         session.commit()

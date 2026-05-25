@@ -20,7 +20,7 @@ export const Dropdown = ({ onArchive, onEdit }: CaseDropdownProps) => (
             <DropdownMenu>
                 <DropdownSeparator />
                 <DropdownSection>
-                    <DropdownItem onAction={onEdit}>Uredi</DropdownItem>
+                    {onEdit ? <DropdownItem onAction={onEdit}>Uredi</DropdownItem> : <></>}
                     <DropdownItem onAction={onArchive}>Arhiviraj</DropdownItem>
                 </DropdownSection>
                 <DropdownSeparator />
