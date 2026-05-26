@@ -281,6 +281,7 @@ class GroupMember(SQLModel, table=True):
 
 
 class GroupAssignmentLink(BaseModel):
+    group_id: uuid.UUID
     available_until: Optional[datetime] = None
 
     @field_validator("available_until")
@@ -491,18 +492,25 @@ class AssignmentCasePreview(BaseModel):
     level: str
     topic_name: Optional[str] = None
     status: Optional[str] = None
-    correct_diagnosis: str
+    correct_diagnosis: Optional[str] = None
 
 class AssignmentUpdate(BaseModel):
     title: Optional[str] = None
     instructions: Optional[str] = None
     settings: Optional[AssignmentSettings] = None
+    case_sequence: Optional[List[uuid.UUID]] = None
 
 class AddCasesToAssignment(BaseModel):
     case_ids: List[uuid.UUID]
 
 class RemoveCasesFromAssignment(BaseModel):
     case_ids: List[uuid.UUID]
+
+class AssignToGroupsData(BaseModel):
+    groups: List[GroupAssignmentLink]
+
+class UnassignFromGroupsData(BaseModel):
+    group_ids: List[uuid.UUID]
 
 
 # ----------- UPDATES & NOTIFICATIONS -------------

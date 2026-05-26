@@ -5,7 +5,7 @@ import { useAuthStore } from "../../store/useAuthStore";
 import { useCaseSolvingStore } from "../../store/useCaseSolveStore";
 import { useCaseStore, type DiagnosticUnit } from "../../store/useCaseStore";
 import { Dropdown } from "../UI/Dropdown";
-import { Star01, User01, Users01, Calendar, GraduationHat02, Settings01, Edit01 } from "@untitledui/icons";
+import { Star01, User01, Users01, Calendar, GraduationHat02, Settings01, Edit01, ArrowNarrowUp, ArrowNarrowDown } from "@untitledui/icons";
 
 interface Case {
     id: string;
@@ -83,6 +83,17 @@ interface AssignmentDetails {
     settings: Settings;
 }
 
+interface EditAssignmentFormData {
+    title: string;
+    instructions: string;
+    case_sequence?: string[];
+}
+
+interface GroupToAssign {
+    group_id: string;
+    available_until: string;
+}
+
 type filterTypes = "all" | "mine" | "public" | "drafts" | "archived";
 type TabName = "groups" | "assignments" | "cases";
 
@@ -124,10 +135,11 @@ function TeacherDashboard() {
     const [createAssignmentModalOpen, setCreateAssignmentModalOpen] = useState<boolean>(false);
     const [assignmentSettingsModalOpen, setAssignmentSettingsModalOpen] = useState<boolean>(false);
     const [localSettings, setLocalSettings] = useState<Settings | null>(null);
-    const [editingAssignment, setEditingAssignment] = useState<boolean>(false);
-    const [editAssignmentFormData, setEditAssignmentFormData] = useState({
+    const [editingAssignmentModalOpen, setEditingAssignmentModalOpen] = useState<boolean>(false);
+    const [editAssignmentFormData, setEditAssignmentFormData] = useState<EditAssignmentFormData>({
         title: "",
-        instructions: ""
+        instructions: "",
+        case_sequence: []
     })
     const [assignmentArchiveModalOpen, setAssignmentArchiveModalOpen] = useState<boolean>(false);
     const [assignmentToArchiveId, setAssignmentToArchiveId] = useState<string>("");
@@ -136,9 +148,23 @@ function TeacherDashboard() {
     const [removingCasesFromAssignment, setRemovingCaseFromAssignment] = useState<boolean>(false);
     const [casesToRemoveIds, setCasesToRemoveIds] = useState<string[]>([]);
 
-    const [addingCasesToAssignment, setAddingCasesToAssignment] = useState<boolean>();
+    const [assigningToGroupsModalOpen, setAssigningToGroupsModalOpen] = useState<boolean>(false);
+    const [groupsToAssign, setGroupsToAssign] = useState<GroupToAssign[]>([]);
+
+    const [unassigningFromGroupsModalOpen, setUnassigningFromGroupsModalOpen] = useState<boolean>(false);
+    const [groupsToUnassign, setGroupsToUnassign] = useState<string[]>([]);
+
+    const [addingCasesToAssignment, setAddingCasesToAssignment] = useState<boolean>(false);
     const [casesToAddIds, setCasesToAddIds] = useState<string[]>([]);
     const [previewCases, setPreviewCases] = useState<Case[]>([]);
+
+    const [localCases, setLocalCases] = useState<AssignmentCaseDetail[]>([]);
+
+    useEffect(() => {
+        if (editingAssignmentModalOpen && selectedAssignmentFullDetails?.cases) {
+            setLocalCases([...selectedAssignmentFullDetails.cases].sort((a, b) => a.sequence_no - b.sequence_no));
+        }
+    }, [editingAssignmentModalOpen, selectedAssignmentFullDetails]);
 
     useEffect(() => {
         if (assignmentSettingsModalOpen && selectedAssignmentFullDetails?.settings) {
@@ -682,7 +708,39 @@ function TeacherDashboard() {
         }
     };
 
+
+    const handleMoveCaseInModal = (index: number, direction: "up" | "down") => {
+        const targetIndex = direction === "up" ? index - 1 : index + 1;
+        
+        if (targetIndex < 0 || targetIndex >= localCases.length) return;
+
+        const updatedCases = [...localCases];
+       
+        const temp = updatedCases[index];
+        updatedCases[index] = updatedCases[targetIndex];
+        updatedCases[targetIndex] = temp;
+
+        setLocalCases(updatedCases);
+    };
+
+
     const handleUpdateAssignment = async () => {
+        if (!selectedAssignmentFullDetails) return;
+
+        const originalIds = selectedAssignmentFullDetails.cases.map(c => c.id);
+        const currentIds = localCases.map(c => c.id);
+
+        const isOrderChanged = JSON.stringify(originalIds) !== JSON.stringify(currentIds);
+
+        const requestBody: EditAssignmentFormData = {
+            title: editAssignmentFormData.title,
+            instructions: editAssignmentFormData.instructions,
+        };
+
+        if (isOrderChanged) {
+            requestBody.case_sequence = currentIds;
+        }
+
         try {
             const res = await fetch(`${backendURL}/assignments/${selectedAssignmentFullDetails?.id}`, {
                 method: "PATCH",
@@ -690,21 +748,12 @@ function TeacherDashboard() {
                     "Authorization": `Bearer ${token}`,
                     "Content-Type": "application/json"
                 },
-                body: JSON.stringify({ title: editAssignmentFormData.title, instructions: editAssignmentFormData.instructions }) 
+                body: JSON.stringify(requestBody) 
             });
 
             if (res.ok) {
-                setSelectedAssignmentFullDetails((prev) => {
-                    if (!prev) return null;
-
-                    return {
-                        ...prev,
-                        title: editAssignmentFormData.title,
-                        instructions: editAssignmentFormData.instructions
-                    }
-                });
-
-                setEditingAssignment(false);
+                await handleViewAssignment(selectedAssignmentFullDetails.id);
+                setEditingAssignmentModalOpen(false);
             } else {
                 const error = await res.json();
                 alert(`Greška pri spremanju: ${error.detail}`);
@@ -858,6 +907,95 @@ function TeacherDashboard() {
         setSelectedAssignment(null);
     };
 
+
+    // DODJELA/UKLANJANJE ZADAĆE GRUPI
+    const handleToggleGroupSelection = (groupId: string) => {
+        setGroupsToAssign(prev => {
+            const exists = prev.some(g => g.group_id === groupId);
+            
+            if (exists) {
+                return prev.filter(g => g.group_id !== groupId);
+            } else {
+                return [...prev, { group_id: groupId, available_until: "" }];
+            }
+        });
+    };
+
+    const handleGroupDateChange = (groupId: string, dateValue: string) => {
+        setGroupsToAssign(prev => 
+            prev.map(g => 
+                g.group_id === groupId ? { ...g, available_until: dateValue } : g
+            )
+        );
+    };
+
+    const handleAssignToGroup = async () => {
+        if (!selectedAssignmentFullDetails || groupsToAssign.length === 0) return;
+
+        const payload = groupsToAssign.map(g => {
+            let utcDate = null;
+
+            if (g.available_until !== "") {
+                utcDate = new Date(g.available_until).toISOString();
+            }
+
+            return {
+                group_id: g.group_id, 
+                available_until: utcDate
+            }
+        });
+
+        try {
+            const res = await fetch(`${backendURL}/assignments/${selectedAssignmentFullDetails.id}/groups`, {
+                method: "POST",
+                headers: {
+                    "Authorization": `Bearer ${token}`,
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({ groups: payload })
+            });
+
+            if (res.ok) {
+                await handleViewAssignment(selectedAssignmentFullDetails.id);
+                setAssigningToGroupsModalOpen(false);
+                if (selectedGroup) await handleViewGroup(selectedGroup);
+                setGroupsToAssign([]);
+            } else {
+                const error = await res.json();
+                alert(`Greška pri dodavanju: ${error.detail}`);
+            }
+        } catch (error) {
+            console.error("Greška:", error);
+        }
+    }
+
+    const handleUnassignFromGroup = async () => {
+        if (!selectedAssignmentFullDetails || groupsToUnassign.length === 0) return;
+
+        try {
+            const res = await fetch(`${backendURL}/assignments/${selectedAssignmentFullDetails.id}/groups`, {
+                method: "DELETE",
+                headers: {
+                    "Authorization": `Bearer ${token}`,
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({ group_ids: groupsToUnassign })
+            });
+
+            if (res.ok) {
+                await handleViewAssignment(selectedAssignmentFullDetails.id);
+                setUnassigningFromGroupsModalOpen(false);
+                if (selectedGroup) await handleViewGroup(selectedGroup);
+                setGroupsToUnassign([]);
+            } else {
+                const error = await res.json();
+                alert(`Greška pri dodavanju: ${error.detail}`);
+            }
+        } catch (error) {
+            console.error("Greška:", error);
+        }
+    }
+
     return (
         <div className="w-full h-full flex">
             <aside className="w-64 bg-gray-800 border-r border-gray-700 flex flex-col py-6 shrink-0">
@@ -1005,7 +1143,7 @@ function TeacherDashboard() {
                                                                 </div>
                                                             )}
                                                         </div>
-                                                        <button onClick={() => handleViewAssignment(a.id)} className="w-full mt-5 bg-gray-600 hover:bg-gray-500 text-white font-bold py-2.5 rounded-lg transition-all shadow-md active:scale-95 cursor-pointer border border-gray-500">
+                                                        <button onClick={() => handleViewAssignment(a.id)} className="w-full mt-5 bg-gray-600 text-white font-bold py-2.5 rounded-lg transition-all shadow-md active:scale-95 cursor-pointer border border-gray-500">
                                                             Detalji zadaće
                                                         </button>
                                                     </div>
@@ -1145,70 +1283,48 @@ function TeacherDashboard() {
                                 
                                 <div className="flex justify-between items-center bg-gray-800 p-6 rounded-2xl border border-gray-700 shadow-md mb-8">
                                     <div>
-                                        {editingAssignment ? 
-                                            <input 
-                                                type="text" 
-                                                name="title" 
-                                                value={editAssignmentFormData.title} 
-                                                onChange={handleEditAssignmentInputChange}
-                                                className="w-full px-2.5 py-2 bg-gray-700 border border-gray-600 text-white rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none transition-all placeholder-gray-400 mb-2"
-                                            />                                                 
-                                            : <h2 className="text-2xl font-bold text-white mb-3">{selectedAssignmentFullDetails.title}</h2>
-                                        }
-                                        
+                                        <h2 className="text-2xl font-bold text-white mb-3">{selectedAssignmentFullDetails.title}</h2>
+        
                                         <div className="flex flex-col gap-2">
-                                            {editingAssignment ? 
-                                                <input 
-                                                    type="text" 
-                                                    name="instructions" 
-                                                    value={editAssignmentFormData.instructions}
-                                                    onChange={handleEditAssignmentInputChange}
-                                                    className="w-full px-2.5 py-2 bg-gray-700 border border-gray-600 text-white rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none transition-all placeholder-gray-400"
-                                                /> 
-                                                : <span><strong>Upute:</strong> {selectedAssignmentFullDetails.instructions}</span>
-                                            }
+                                            <span><strong>Upute:</strong> {selectedAssignmentFullDetails.instructions}</span>
                                             
                                             <span><strong>Tip:</strong> {selectedAssignmentFullDetails.type === "practice" ? "Vježba" : selectedAssignmentFullDetails.type === "practice-exam" ? "Probni ispit" : "Ispit"}</span>
-
-                                            {editingAssignment && 
-                                                <div className="flex gap-2">
-                                                    <button 
-                                                        onClick={handleUpdateAssignment} 
-                                                        className="bg-green-600 text-white px-5 py-2.5 rounded-lg font-bold transition-colors shadow-md cursor-pointer flex items-center justify-center gap-2"
-                                                    >
-                                                        Pohrani promjene
-                                                    </button>
-                                                    <button 
-                                                        onClick={() => setEditingAssignment(false)} 
-                                                        className="bg-gray-700 text-gray-200 px-5 py-2.5 rounded-lg font-bold transition-colors shadow-md cursor-pointer flex items-center justify-center gap-2"
-                                                    >
-                                                        Odustani
-                                                    </button>
-                                                </div>
-                                            }
                                             
                                         </div>
                                     </div>
-                                    <div className="flex gap-2">
-                                        <button 
-                                            onClick={() => {
-                                                setEditingAssignment(true); 
-                                                setEditAssignmentFormData({title: selectedAssignmentFullDetails.title, instructions: selectedAssignmentFullDetails.instructions});
-                                            }} 
-                                            className="bg-gray-600 text-white px-5 py-2.5 rounded-lg font-bold transition-colors shadow-md cursor-pointer flex items-center justify-center gap-2"
-                                        >
-                                            <Edit01 className="w-6" />
-                                        </button>
-                                        <button 
-                                            onClick={() => setAssignmentSettingsModalOpen(true)} 
-                                            className="bg-gray-600 text-white px-5 py-2.5 rounded-lg font-bold transition-colors shadow-md cursor-pointer flex items-center justify-center gap-2"
-                                        >
-                                            <Settings01 className="w-6" />
-                                        </button>
-                                    </div>
+
+                                    {selectedAssignmentFullDetails.assigned_groups.length === 0 && 
+                                        <div className="flex gap-2">
+                                            <button 
+                                                onClick={() => {
+                                                    setEditingAssignmentModalOpen(true); 
+                                                    setEditAssignmentFormData({title: selectedAssignmentFullDetails.title, instructions: selectedAssignmentFullDetails.instructions, case_sequence: selectedAssignmentFullDetails.cases.map(c => c.id)});
+                                                }} 
+                                                className="bg-gray-600 text-white px-5 py-2.5 rounded-lg font-bold transition-colors shadow-md cursor-pointer flex items-center justify-center gap-2"
+                                            >
+                                                <Edit01 className="w-6" />
+                                            </button>
+                                            <button 
+                                                onClick={() => setAssignmentSettingsModalOpen(true)} 
+                                                className="bg-gray-600 text-white px-5 py-2.5 rounded-lg font-bold transition-colors shadow-md cursor-pointer flex items-center justify-center gap-2"
+                                            >
+                                                <Settings01 className="w-6" />
+                                            </button>
+                                        </div>
+                                    }
+                                    
                                 </div>
 
                                 <h3 className="text-xl font-bold text-gray-200 mb-4">Grupe kojima je dodijeljena zadaća</h3>
+
+                                <div className="flex gap-2 mb-5">
+                                    <button 
+                                        onClick={() => setAssigningToGroupsModalOpen(true)} 
+                                        className="bg-green-600 text-white px-5 py-2.5 rounded-lg font-bold transition-colors shadow-md cursor-pointer flex items-center justify-center gap-2"
+                                    >
+                                        Dodijeli
+                                    </button>
+                                </div>                                                                
                                 
                                 {selectedAssignmentFullDetails.assigned_groups.length > 0 ? (
                                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
@@ -1227,10 +1343,16 @@ function TeacherDashboard() {
                                                             </span>
                                                         ) : (
                                                             <span className="text-xs font-medium inline-block px-2.5 py-1.5 rounded-lg bg-green-900/40 text-green-400 border border-green-800/50">
-                                                                Bez vremenskog ograničenja
+                                                                Rok: Nema ograničenja
                                                             </span>
                                                         )}
                                                     </div>
+                                                    <button 
+                                                        onClick={() => {setGroupsToUnassign([...groupsToUnassign, g.group_id]); setUnassigningFromGroupsModalOpen(true)}} 
+                                                        className="mt-5 bg-gray-500 text-white px-5 py-2.5 rounded-lg font-bold transition-colors shadow-md cursor-pointer flex items-center justify-center gap-2"
+                                                    >
+                                                        Ukloni
+                                                    </button>
                                                 </div>
                                             </div>
                                         ))}
@@ -1241,7 +1363,7 @@ function TeacherDashboard() {
 
                                 <h3 className="text-xl font-bold text-gray-200 my-4">Slučajevi u zadaći</h3>
 
-                                {!removingCasesFromAssignment && !addingCasesToAssignment &&
+                                {selectedAssignmentFullDetails.assigned_groups.length === 0 && !removingCasesFromAssignment && !addingCasesToAssignment &&
                                     <div className="flex gap-2 mb-5">
                                         <button 
                                             onClick={() => {setAddingCasesToAssignment(true); handleGetAvailableCases();}} 
@@ -1412,8 +1534,11 @@ function TeacherDashboard() {
                                 : 
                                 <div>
                                     {teacherAssignments.length > 0 ? 
-                                    <div className="flex gap-5 mt-5">
-                                        {teacherAssignments.map((a) => (
+                                    <div className="my-5 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                                        {teacherAssignments.map((a) => {
+                                            const typeLabel = a.type === "practice" ? "Vježba" : a.type === "practice_exam" ? "Probni ispit" : "Ispit";
+
+                                            return (
                                             <div key={a.id} className="relative flex flex-col bg-gray-700 rounded-2xl shadow-lg border border-gray-600 overflow-hidden hover:border-gray-500 transition-colors group">
                                                 <Dropdown
                                                     onArchive={() => {
@@ -1424,13 +1549,14 @@ function TeacherDashboard() {
                                                 <div className="p-5 flex-1 flex flex-col justify-between">
                                                     <div>
                                                         <h3 className="text-lg font-bold text-white mb-2">{a.title}</h3>
+                                                        <p>{typeLabel}</p>
                                                     </div>
                                                     <button onClick={() => handleViewAssignment(a.id)} className="w-full mt-5 bg-gray-600 hover:bg-gray-500 text-white font-bold py-2.5 px-2 rounded-lg transition-all shadow-md active:scale-95 cursor-pointer border border-gray-500">
                                                         Detalji zadaće
                                                     </button>
                                                 </div>
                                             </div>
-                                        ))}
+                                        )})}
                                     </div> : renderEmptyState("Nema zadaća", "Trenutno nemate aktivnih zadaća.")}
                                     
                                 </div>
@@ -1455,6 +1581,12 @@ function TeacherDashboard() {
             <Modal isOpen={assignmentArchiveModalOpen} onClose={() => setAssignmentArchiveModalOpen(false)} title="Arhivirati zadaću?">
                 <div className="flex justify-center w-full">
                     <button onClick={() => handleArchiveAssignment(assignmentToArchiveId)} className="cursor-pointer bg-red-500 text-orange-50 font-semibold px-3 py-2 rounded">Potvrdi</button>
+                </div>
+            </Modal>
+
+            <Modal isOpen={unassigningFromGroupsModalOpen} onClose={() => setUnassigningFromGroupsModalOpen(false)} title="Ukloniti zadaću iz grupe?">
+                <div className="flex justify-center w-full">
+                    <button onClick={handleUnassignFromGroup} className="cursor-pointer bg-red-500 text-orange-50 font-semibold px-3 py-2 rounded">Potvrdi</button>
                 </div>
             </Modal>
 
@@ -1497,8 +1629,7 @@ function TeacherDashboard() {
                 </div>
             </Modal>
 
-            <Modal 
-                isOpen={addStudentToGroupModalOpen} 
+            <Modal isOpen={addStudentToGroupModalOpen} 
                 onClose={() => { 
                     setAddStudentToGroupModalOpen(false); 
                     setSelectedStudents([]);
@@ -1745,6 +1876,86 @@ function TeacherDashboard() {
                 )}
             </Modal>
 
+            <Modal isOpen={editingAssignmentModalOpen} onClose={() => setEditingAssignmentModalOpen(false)} title="Uredi zadaću">
+                <div className="flex flex-col gap-4 w-full">
+                    <div className="flex flex-col gap-3">
+                        <div>
+                            <label className="block text-gray-700 mb-2">Naslov</label>
+                            <input 
+                                type="text" 
+                                name="title" 
+                                value={editAssignmentFormData.title} 
+                                onChange={handleEditAssignmentInputChange}
+                                className="w-full px-2.5 py-2 bg-gray-200 border border-gray-400 text-gray-600 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none transition-all placeholder-gray-400 mb-2"
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-gray-700 mb-2">Upute</label>
+                            <input 
+                                type="text" 
+                                name="instructions" 
+                                value={editAssignmentFormData.instructions}
+                                onChange={handleEditAssignmentInputChange}
+                                className="w-full px-2.5 py-2 bg-gray-200 border border-gray-400 text-gray-600 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none transition-all placeholder-gray-400"
+                            /> 
+                        </div>
+                    </div>
+                      
+                    <div>
+                        <label className="block font-medium text-gray-700 mb-2">Redoslijed slučajeva</label>
+                        <div className="space-y-2 max-h-60 overflow-y-auto p-3 rounded-xl border border-gray-400">
+                            {localCases.map((c, index) => (
+                                <div key={c.id} className="flex items-center justify-between bg-gray-200 p-3 rounded-lg border border-gray-300 group">
+                                    <div className="flex items-center gap-3 truncate">
+                                        <span className="text-xs bg-gray-500 text-white px-2 py-0.5 rounded font-mono">#{index + 1}</span>
+                                        <span className="text-sm font-medium text-gray-800 truncate">{c.title}</span>
+                                    </div>
+                                    
+                                    <div className="flex gap-1 shrink-0">
+                                        <button 
+                                            type="button"
+                                            onClick={() => handleMoveCaseInModal(index, "up")}
+                                            disabled={index === 0}
+                                            className="p-1 rounded bg-orange-500 text-white disabled:bg-gray-400 disabled:opacity-50 cursor-pointer disabled:cursor-default text-xs"
+                                            title="Pomakni gore"
+                                        >
+                                            <ArrowNarrowUp />
+                                        </button>
+                                        <button 
+                                            type="button"
+                                            onClick={() => handleMoveCaseInModal(index, "down")}
+                                            disabled={index === localCases.length - 1}
+                                            className="p-1 rounded bg-orange-500 text-white disabled:bg-gray-400 disabled:opacity-50 cursor-pointer disabled:cursor-default text-xs"
+                                            title="Pomakni dolje"
+                                        >
+                                            <ArrowNarrowDown />
+                                        </button>
+                                    </div>
+                                </div>
+                            ))}
+                            {localCases.length === 0 && (
+                                <p className="text-xs text-gray-400 italic text-center py-2">Nema slučajeva u ovoj zadaći.</p>
+                            )}
+                        </div>
+                    </div>
+
+                    <div className="flex gap-2 justify-end pt-4 border-t border-gray-300 mt-2">
+                        <button 
+                            onClick={() => setEditingAssignmentModalOpen(false)} 
+                            className="bg-gray-700 text-gray-200 px-5 py-2.5 rounded-lg font-bold transition-colors shadow-md cursor-pointer flex items-center justify-center gap-2"
+                        >
+                            Odustani
+                        </button>
+                        <button 
+                            onClick={handleUpdateAssignment} 
+                            className="bg-green-600 text-white px-5 py-2.5 rounded-lg font-bold transition-colors shadow-md cursor-pointer flex items-center justify-center gap-2"
+                        >
+                            Pohrani promjene
+                        </button>
+                    </div>
+                </div>
+            </Modal>
+
             {assignmentDetailsModalOpen && selectedAssignment && (
                 <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
                     <div className="bg-gray-800 border border-gray-600 rounded-2xl w-full max-w-3xl max-h-[90vh] flex flex-col items-center shadow-2xl">
@@ -1799,6 +2010,93 @@ function TeacherDashboard() {
                     </div>
                 </div>
             )}
+
+            <Modal isOpen={assigningToGroupsModalOpen} 
+                onClose={() => {
+                    setAssigningToGroupsModalOpen(false);
+                    setGroupsToAssign([]);
+                }} 
+                title="Dodjela zadaće grupama"
+            >
+                <div className="flex flex-col max-h-[70vh] w-full">
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 overflow-y-auto pr-2 pb-4">
+                        {teacherGroups.map((g) => {
+                            const selectedGroup = groupsToAssign.find(item => item.group_id === g.id);
+                            const isSelected = !!selectedGroup;
+
+                            return (
+                                <div 
+                                    key={g.id} 
+                                    onClick={() => handleToggleGroupSelection(g.id)}
+                                    className={`flex flex-col rounded-2xl shadow-md border overflow-hidden transition-all group cursor-pointer ${
+                                        isSelected 
+                                            ? "bg-gray-700 border-orange-500 ring-1 ring-orange-500" 
+                                            : "bg-gray-800 border-gray-600 hover:border-gray-400"
+                                    }`}
+                                >
+                                    <div className="flex justify-between items-center p-4 border-b border-gray-600/50">
+                                        <span className="bg-gray-900/50 text-xs font-semibold px-2 py-1 rounded-md text-gray-300 truncate max-w-[65%]">
+                                            {g.institution_name || "Nepoznata ustanova"}
+                                        </span>
+                                        
+                                        <div className={`w-5 h-5 rounded border flex items-center justify-center transition-colors ${
+                                            isSelected ? "bg-orange-500 border-orange-500" : "bg-gray-700 border-gray-500"
+                                        }`}>
+                                            {isSelected && <span className="text-white text-xs font-bold">✓</span>}
+                                        </div>
+                                    </div>
+
+                                    <div className="p-4 flex-1">
+                                        <h3 className={`text-lg font-bold mb-3 transition-colors ${isSelected ? "text-orange-400" : "text-white"}`}>
+                                            {g.name}
+                                        </h3>
+                                        <div className="flex items-center gap-2 bg-gray-900/40 w-fit px-3 py-1.5 rounded-lg border border-gray-600/30">
+                                            <Users01 className={`w-4 ${isSelected ? "text-orange-400" : "text-gray-400"}`}/> 
+                                            <span className="text-gray-300 text-sm font-medium">{g.student_count} {getStudentWord(g.student_count)}</span>
+                                        </div>
+                                    </div>
+
+                                    {isSelected && (
+                                        <div 
+                                            className="p-4 bg-gray-900/50 border-t border-gray-600/50 animate-fadeIn"
+                                            onClick={(e) => e.stopPropagation()} 
+                                        >
+                                            <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">
+                                                Rok za rješavanje (Opcionalno)
+                                            </label>
+                                            <input 
+                                                type="datetime-local" 
+                                                value={selectedGroup?.available_until || ""}
+                                                onChange={(e) => handleGroupDateChange(g.id, e.target.value)}
+                                                className="w-full px-3 py-2 bg-gray-700 border border-gray-600 text-white text-sm rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none transition-all cursor-pointer color-scheme-dark"
+                                            />
+                                        </div>
+                                    )}
+                                </div>
+                            );
+                        })}
+                    </div>
+
+                    <div className="pt-4 border-t border-gray-700 flex justify-end gap-3 shrink-0 mt-2">
+                        <button 
+                            onClick={() => {
+                                setAssigningToGroupsModalOpen(false);
+                                setGroupsToAssign([]);
+                            }} 
+                            className="px-4 py-2 rounded-lg font-bold bg-gray-600 text-white hover:bg-gray-500 transition-colors cursor-pointer"
+                        >
+                            Odustani
+                        </button>
+                        <button 
+                            onClick={handleAssignToGroup}
+                            disabled={groupsToAssign.length === 0} 
+                            className="px-6 py-2 rounded-lg font-bold bg-orange-500 text-white hover:bg-orange-600 disabled:bg-gray-600 disabled:text-gray-400 disabled:cursor-not-allowed transition-colors shadow-md cursor-pointer"
+                        >
+                            Dodijeli zadaću ({groupsToAssign.length})
+                        </button>
+                    </div>
+                </div>
+            </Modal>
         </div>
     );
 };

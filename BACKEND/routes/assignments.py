@@ -3,7 +3,7 @@ import uuid
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import func, or_
 from sqlmodel import Session, select, delete
-from models import AddCasesToAssignment, Assignment, AssignmentCase, AssignmentCasePreview, AssignmentCreate, AssignmentSettings, AssignmentUpdate, Case, CaseCategory, Category, Group, GroupAssignment, GroupAssignmentLink, GroupMember, RandomCasePickerSettings, RemoveCasesFromAssignment, Role, SolveAttempt, User, UserRole
+from models import AddCasesToAssignment, AssignToGroupsData, Assignment, AssignmentCase, AssignmentCasePreview, AssignmentCreate, AssignmentSettings, AssignmentUpdate, Case, CaseCategory, Category, Group, GroupAssignment, GroupAssignmentLink, GroupMember, RandomCasePickerSettings, RemoveCasesFromAssignment, Role, SolveAttempt, UnassignFromGroupsData, User, UserRole
 from routes.auth import get_current_active_user, get_current_teacher
 from database import engine
 
@@ -214,9 +214,29 @@ def update_assignment(assignment_id: uuid.UUID, data: AssignmentUpdate, session:
             
         assignment.settings = new_settings
 
+    if "case_sequence" in update_data:
+        new_order = update_data["case_sequence"]
+
+        current_links = session.exec(
+            select(AssignmentCase).where(AssignmentCase.assignment_id == assignment_id)
+        ).all()
+
+        current_case_ids = {link.case_id for link in current_links}
+
+        if set(new_order) != current_case_ids:
+            raise HTTPException(status_code=400, detail="Popis za promjenu redoslijeda mora sadržavati točno one slučajeve koji su trenutno u zadaći.")
+        
+        link_map = {link.case_id: link for link in current_links}
+
+        for idx, case_id in enumerate(new_order, start=1):
+            link = link_map.get(case_id)
+            if link: 
+                link.sequence_no = idx
+                session.add(link)
+
 
     for key, value in update_data.items():
-        if key != "settings":
+        if key not in ["settings", "case_sequence"]:
             setattr(assignment, key, value)
 
     try:
@@ -436,9 +456,8 @@ def remove_case_from_assignment(assignment_id: uuid.UUID, data: RemoveCasesFromA
 
 
 # --- ASSIGNING TO GROUPS ---
-
-@router.post("/{assignment_id}/groups/{group_id}")
-def assign_assignment_to_group(assignment_id: uuid.UUID, group_id: uuid.UUID, data: GroupAssignmentLink, current_user: User = Depends(get_current_teacher), session: Session = Depends(get_session)):
+@router.post("/{assignment_id}/groups")
+def assign_assignment_to_group(assignment_id: uuid.UUID, data: AssignToGroupsData, current_user: User = Depends(get_current_teacher), session: Session = Depends(get_session)):
     assignment = session.get(Assignment, assignment_id)
 
     if not assignment:
@@ -446,69 +465,83 @@ def assign_assignment_to_group(assignment_id: uuid.UUID, group_id: uuid.UUID, da
     if assignment.teacher_id != current_user.id:
         raise HTTPException(status_code=403, detail="Možete dodjeljivati samo svoje zadaće.")
     
-    group = session.get(Group, group_id)
+    group_ids = [item.group_id for item in data.groups]
 
-    if not group:
-        raise HTTPException(status_code=404, detail="Grupa nije pronađena.")
-    if group.teacher_id != current_user.id:
-        raise HTTPException(status_code=403, detail="Možete dodjeljivati zadaće samo svojim grupama.")
+    groups_in_db = session.exec(
+        select(Group).where(Group.id.in_(group_ids))
+    ).all()
 
-    existing = session.exec(
-        select(GroupAssignment).where(
-            GroupAssignment.assignment_id == assignment_id, 
-            GroupAssignment.group_id == group_id
-        )
-    ).first()
+    if not groups_in_db:
+        raise HTTPException(status_code=404, detail="Nijedna od odabranih grupa nije pronađena.")
     
-    if existing:
-        raise HTTPException(status_code=400, detail="Zadatak je već dodijeljen ovoj grupi.")
+    for group in groups_in_db:
+        if group.teacher_id != current_user.id:
+            raise HTTPException(status_code=403, detail=f"Nemate ovlasti za grupu '{group.name}'.")
+
+    existing_links = session.exec(
+        select(GroupAssignment.group_id)
+        .where(GroupAssignment.assignment_id == assignment_id)
+        .where(GroupAssignment.group_id.in_(group_ids))
+    ).all()
+
+    items_to_add = [item for item in data.groups if item.group_id not in existing_links]
+    
+    if not items_to_add:
+        return {"message": "Zadaća je već dodijeljena svim odabranim grupama."}
 
     try:
-        new_link = GroupAssignment(
-            assignment_id=assignment_id, 
-            group_id=group_id,
-            available_until=data.available_until
-        )
+        for item in items_to_add:
+            new_link = GroupAssignment(
+                assignment_id=assignment_id, 
+                group_id=item.group_id,
+                available_until=item.available_until
+            )
+            session.add(new_link)
 
-        session.add(new_link)
         session.commit()
-        return {"message": "Zadatak uspješno dodijeljen grupi."}
+        return {"message": f"Zadatak uspješno dodijeljen grupama ({len(items_to_add)})."}
     
     except Exception as e:
         session.rollback()
-        raise HTTPException(status_code=500, detail=f"Greška pri dodjeli zadaće grupi: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Greška pri dodjeli zadaće: {str(e)}")
 
 
-@router.delete("/{assignment_id}/groups/{group_id}")
-def remove_assignment_from_group(assignment_id: uuid.UUID, group_id: uuid.UUID, current_user: User = Depends(get_current_teacher), session: Session = Depends(get_session)):
+@router.delete("/{assignment_id}/groups")
+def remove_assignment_from_group(assignment_id: uuid.UUID, data: UnassignFromGroupsData, current_user: User = Depends(get_current_teacher), session: Session = Depends(get_session)):
     assignment = session.get(Assignment, assignment_id)
     if not assignment:
         raise HTTPException(status_code=404, detail="Zadaća nije pronađena.")
     
-    group = session.get(Group, group_id)
-    if not group:
-        raise HTTPException(status_code=404, detail="Grupa nije pronađena.")
+    if assignment.teacher_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Nemate ovlasti za uklanjanje ove zadaće.")
     
-    if assignment.teacher_id != current_user.id or group.teacher_id != current_user.id:
-        raise HTTPException(status_code=403, detail="Nemate ovlasti za uklanjanje ove zadaće iz ove grupe.")
-
-    statement = select(GroupAssignment).where(
-        GroupAssignment.assignment_id == assignment_id, 
-        GroupAssignment.group_id == group_id
+    existing_attempts_stmt = (
+        select(SolveAttempt.id)
+        .join(GroupMember, GroupMember.student_id == SolveAttempt.user_id)
+        .where(SolveAttempt.assignment_id == assignment_id)
+        .where(GroupMember.group_id.in_(data.group_ids))
     )
-    link = session.exec(statement).first()
 
-    if not link:
-        raise HTTPException(status_code=404, detail="Ova zadaća nije dodijeljena navedenoj grupi.")
-    
+    if session.exec(existing_attempts_stmt).first():
+        raise HTTPException(
+            status_code=400, 
+            detail="Ne možete ukloniti zadaću jer su je neki studenti iz odabranih grupa već počeli rješavati. Umjesto toga, možete promijeniti rok."
+        )
+
     try:
-        session.delete(link)
+        delete_stmt = delete(GroupAssignment).where(
+            GroupAssignment.assignment_id == assignment_id, 
+            GroupAssignment.group_id.in_(data.group_ids)
+        )
+        
+        session.exec(delete_stmt)
         session.commit()
-        return {"message": "Zadatak uspješno uklonjen iz grupe."}
+
+        return {"message": "Zadaća uspješno uklonjena iz odabranih grupa."}
     
     except Exception as e:
         session.rollback()
-        raise HTTPException(status_code=500, detail=f"Greška pri uklanjanju zadaće iz grupe: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Greška pri uklanjanju zadaće iz grupa: {str(e)}")
     
 
 
