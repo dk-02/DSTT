@@ -282,7 +282,7 @@ def get_available_cases(session: Session = Depends(get_session), current_user: U
             title=row.Case.title,
             level=row.Case.level,
             topic_name=row.topic_name,
-            status=row.attempt_status or None
+            attempt_status=row.attempt_status or None
         ) for row in results
     ]
 

@@ -8,7 +8,7 @@ from jose import jwt
 from passlib.context import CryptContext
 from sqlmodel import Session, select
 from database import engine
-from models import AdminUserRegister, Institution, PasswordChange, User, UserRole, Role, UserRegister
+from models import AdminUserRegister, Institution, PasswordChange, PasswordChangeAdmin, User, UserRole, Role, UserRegister
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 import resend
@@ -257,6 +257,20 @@ def change_password(data: PasswordChange, current_user: User = Depends(get_curre
     session.commit()
 
     return {"message": "Lozinka uspješno promijenjena."}
+
+
+@router.post("/change-password-admin")
+def change_password_admin(data: PasswordChangeAdmin, current_user: User = Depends(get_current_admin), session: Session = Depends(get_session)):
+    user = session.get(User, data.user_id)
+
+    if not user:
+        raise HTTPException(status_code=404, detail="Korisnik nije pronađen.")
+
+    user.password_hash = hash_password(data.new_password)
+    session.add(user)
+    session.commit()
+
+    return {"message": f"Lozinka korisnika {user.email} uspješno promijenjena."}
 
 
 @router.post("/forgot-password")

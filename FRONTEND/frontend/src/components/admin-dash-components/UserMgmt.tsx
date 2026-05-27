@@ -1,4 +1,4 @@
-import { UserPlus01, SearchMd, ChevronUp, ChevronDown, ChevronSelectorVertical, Edit01, Trash01 } from "@untitledui/icons";
+import { UserPlus01, SearchMd, ChevronUp, ChevronDown, ChevronSelectorVertical, Edit01, Trash01, Key01 } from "@untitledui/icons";
 import { FilterDropdown } from "../UI/FilterDropdown";
 import { jwtDecode } from "jwt-decode";
 import { useState, useEffect } from "react";
@@ -56,10 +56,15 @@ export const UserMgmt = () => {
     // DELETE
     const [userToDelete, setUserToDelete] = useState<User | null>(null);
 
+    // PASSWORD
+    const [userToChangePassword, setUserToChangePassword] = useState<User | null>(null);
+    const [newPassword, setNewPassword] = useState<string>("");
+
     // MODALS
     const [addUserModalOpen, setAddUserModalOpen] = useState<boolean>(false);
     const [editUserModalOpen, setEditUserModalOpen] = useState<boolean>(false);
     const [deleteUserModalOpen, setDeleteUserModalOpen] = useState<boolean>(false);
+    const [changePasswordModalOpen, setChangePasswordModalOpen] = useState<boolean>(false);
 
     const token = useAuthStore((state) => state.token);
 
@@ -245,6 +250,31 @@ export const UserMgmt = () => {
     };
 
 
+    const handleUserPasswordChange = async () => {
+        if (!userToChangePassword || !newPassword) return;
+
+        try {
+            const res = await apiRequest(`/auth/password-change-admin`, {
+                method: "POST",
+                body: JSON.stringify({ user_id: userToChangePassword.id, new_password: newPassword })
+            });
+
+            if (res && res.ok) {
+                alert("Lozinka je uspješno promijenjena!");
+                setChangePasswordModalOpen(false);
+                setNewPassword("");
+                setUserToChangePassword(null);
+            } else if (res) {
+                const errorData = await res.json();
+                alert(`Greška pri promjeni lozinke: ${errorData.detail}`);
+            }
+        } catch (error) {
+            console.error("Greška:", error);
+            alert("Mrežna greška.");
+        }
+    };
+
+
     // FILTERING
     const handleFilterChange = (category: "status" | "role", value: string) => {
         setFilters(prev => ({
@@ -340,7 +370,6 @@ export const UserMgmt = () => {
 
     return(
         <>
-        {/* Main Content */}
             <div className="w-4/5 p-10 flex flex-col gap-6 h-full">
                 <header className="flex justify-between items-center">
                     <div>
@@ -353,7 +382,6 @@ export const UserMgmt = () => {
                     </button>
                 </header>
 
-                {/* Search Bar & Filter */}
                 <div className="flex items-center gap-4 shrink-0">
                     <div className="relative w-full max-w-md">
                         <SearchMd className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5" />
@@ -368,73 +396,79 @@ export const UserMgmt = () => {
                     <FilterDropdown filters={filters} onFilterChange={(status, role) => handleFilterChange(status, role)} onClearAll={handleClearFilters} />                    
                 </div>
 
-                <div className="bg-gray-800 rounded-lg border border-gray-800 shadow-xl flex flex-col flex-1 min-h-0">
-                    {/* Table Header */}
-                    <div className="grid grid-cols-6 p-4 bg-gray-750 border-b border-gray-700 text-sm font-bold text-gray-400 uppercase tracking-wider select-none">
-                        <div onClick={() => requestSort("first_name")} className="col-span-1 flex items-center"
-                        >
-                            Ime i prezime {sortConfig.key === "first_name" ? (sortConfig.direction === "asc" ? <ChevronUp className="scale-70"/> : <ChevronDown className="scale-70"/>) : <ChevronSelectorVertical className="scale-70"/>}
-                        </div>
-                        <div onClick={() => requestSort("email")} className="col-span-1 flex items-center">Email {sortConfig.key === "email" ? (sortConfig.direction === "asc" ? <ChevronUp className="scale-70"/> : <ChevronDown className="scale-70"/>) : <ChevronSelectorVertical className="scale-70"/>}</div>
-                        <div className="col-span-1 flex justify-center items-center">Status</div>
-                        <div className="col-span-1 flex items-center">Uloge</div>
-                    </div>
-
-                    {/* Table Body */}
-                    <div className="overflow-y-scroll h-full">
-                        {sortedUsers?.length === 0 && <div className="flex justify-center items-center h-full"><p className="text-gray-300 p-4">Nema korisnika.</p></div>}
-                        {sortedUsers?.map((user) => (
-                            <div key={user.id} className="grid grid-cols-6 p-4 items-center hover:bg-gray-750 border-b border-gray-700/50 transition-colors">
-                                <div className="font-medium">{user.first_name} {user.last_name}</div>
-                                <div className="text-gray-400 truncate pr-4">{user.email}</div>
-                                <div className="flex justify-center">
-                                    {user.is_active ? (
-                                        <span className="flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-green-500/10 text-green-400 border border-green-500/20">
-                                            <div className="w-1.5 h-1.5 rounded-full bg-green-400"></div> Aktivan
-                                        </span>
-                                    ) : (
-                                        <span className="flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-red-500/10 text-red-400 border border-red-500/20">
-                                            <div className="w-1.5 h-1.5 rounded-full bg-red-400"></div> Neaktivan
-                                        </span>
-                                    )}
-                                </div>
-                                <div className="text-gray-400 truncate pr-4 flex gap-1 col-span-2">
-                                    {user.roles.map((role, idx) => {
-                                        const colorClasses = roleStyles[role] || roleStyles.default;
-                                        return(
-                                            <span key={idx} className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium border ${colorClasses}`}>
-                                                {role}
-                                            </span>
-                                        )
-                                    })}
-                                </div>
-                                <div className="col-span-1 flex justify-end gap-2 px-2">
-                                    {user.is_active ? (
-                                        <button onClick={() => handleDeactivate(user)} className="flex items-center gap-2 px-3 py-1.5 hover:bg-red-500/20 hover:cursor-pointer text-red-400 rounded-lg transition-all" title="Deaktiviraj">
-                                            {/* <XCircle className="w-5 h-5 text-red-400" /> */}
-                                            <span className="text-sm">Deaktiviraj</span>
-                                        </button>
-                                    ) : (
-                                        <button onClick={() => handleReactivate(user)} className="flex items-center gap-2 px-3 py-1.5 hover:bg-green-500/10 hover:cursor-pointer text-green-400 rounded-lg transition-all" title="Aktiviraj">
-                                            {/* <CheckCircle className="w-5 h-5" /> */}
-                                            <span className="text-sm">Aktiviraj</span>
-                                        </button>
-                                    )}
-
-                                    <button onClick={() => {
-                                            setFormData({firstName: user.first_name, lastName: user.last_name, email: user.email, roles: user.roles, institution_id: user.institution_id || ""}); 
-                                            setUserToEditId(user.id);
-                                            setEditUserModalOpen(true); 
-                                        }} className="p-2 hover:bg-gray-700 hover:cursor-pointer rounded-lg text-gray-500 transition-colors" title="Uredi">
-                                        <Edit01 className="w-5 h-5" />
-                                    </button>
-
-                                    <button onClick={() => {setDeleteUserModalOpen(true); setUserToDelete(user)}} className="p-2 hover:bg-gray-700 hover:cursor-pointer rounded-lg text-gray-500 transition-colors" title="Obriši trajno">
-                                        <Trash01 className="w-5 h-5" />
-                                    </button>
-                                </div>
+                <div className="bg-gray-800 rounded-lg border border-gray-800 shadow-xl flex flex-col flex-1 min-h-0 overflow-x-auto">
+                    <div className="min-w-350 flex flex-col h-full flex-1">
+                        <div className="grid grid-cols-6 p-4 bg-gray-750 border-b border-gray-700 text-sm font-bold text-gray-400 uppercase tracking-wider select-none">
+                            <div onClick={() => requestSort("first_name")} className="col-span-1 flex items-center"
+                            >
+                                Ime i prezime {sortConfig.key === "first_name" ? (sortConfig.direction === "asc" ? <ChevronUp className="scale-70"/> : <ChevronDown className="scale-70"/>) : <ChevronSelectorVertical className="scale-70"/>}
                             </div>
-                        ))}
+                            <div onClick={() => requestSort("email")} className="col-span-1 flex items-center">Email {sortConfig.key === "email" ? (sortConfig.direction === "asc" ? <ChevronUp className="scale-70"/> : <ChevronDown className="scale-70"/>) : <ChevronSelectorVertical className="scale-70"/>}</div>
+                            <div className="col-span-1 flex items-center">Status</div>
+                            <div className="col-span-1 flex items-center">Uloge</div>
+                            <div className="col-span-1 flex items-center">Institucija</div>
+                        </div>
+
+                        <div className="overflow-y-auto flex-1">
+                            {sortedUsers?.length === 0 && <div className="flex justify-center items-center h-full"><p className="text-gray-300 p-4">Nema korisnika.</p></div>}
+                            {sortedUsers?.map((user) => (
+                                <div key={user.id} className="grid grid-cols-6 p-4 items-center hover:bg-gray-750 border-b border-gray-700/50 transition-colors">
+                                    <div className="font-medium">{user.first_name} {user.last_name}</div>
+                                    <div className="text-gray-400 truncate pr-4">{user.email}</div>
+                                    <div className="flex">
+                                        {user.is_active ? (
+                                            <span className="flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-green-500/10 text-green-400 border border-green-500/20">
+                                                <div className="w-1.5 h-1.5 rounded-full bg-green-400"></div> Aktivan
+                                            </span>
+                                        ) : (
+                                            <span className="flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-red-500/10 text-red-400 border border-red-500/20">
+                                                <div className="w-1.5 h-1.5 rounded-full bg-red-400"></div> Neaktivan
+                                            </span>
+                                        )}
+                                    </div>
+                                    <div className="text-gray-400 overflow-x-scroll pr-4 flex gap-1 col-span-1">
+                                        {user.roles.map((role, idx) => {
+                                            const colorClasses = roleStyles[role] || roleStyles.default;
+                                            return(
+                                                <span key={idx} className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium border ${colorClasses}`}>
+                                                    {role}
+                                                </span>
+                                            )
+                                        })}
+                                    </div>
+                                    <div className="text-gray-400 pr-4 flex gap-1 col-span-1">
+                                        {institutions.find(i => i.id === user.institution_id)?.name || "N/A"}
+                                    </div>
+                                    <div className="col-span-1 flex justify-end gap-2 px-2">
+                                        {user.is_active ? (
+                                            <button onClick={() => handleDeactivate(user)} className="flex items-center gap-2 px-3 py-1.5 hover:bg-red-500/20 hover:cursor-pointer text-red-400 rounded-lg transition-all" title="Deaktiviraj">
+                                                <span className="text-sm">Deaktiviraj</span>
+                                            </button>
+                                        ) : (
+                                            <button onClick={() => handleReactivate(user)} className="flex items-center gap-2 px-3 py-1.5 hover:bg-green-500/10 hover:cursor-pointer text-green-400 rounded-lg transition-all" title="Aktiviraj">
+                                                <span className="text-sm">Aktiviraj</span>
+                                            </button>
+                                        )}
+
+                                        <button onClick={() => {setUserToChangePassword(user); setChangePasswordModalOpen(true);}} className="p-2 hover:bg-gray-700 hover:cursor-pointer rounded-lg text-gray-500 transition-colors" title="Promijeni lozinku">
+                                            <Key01 className="w-5 h-5" />
+                                        </button>
+
+                                        <button onClick={() => {
+                                                setFormData({firstName: user.first_name, lastName: user.last_name, email: user.email, roles: user.roles, institution_id: user.institution_id || ""}); 
+                                                setUserToEditId(user.id);
+                                                setEditUserModalOpen(true); 
+                                            }} className="p-2 hover:bg-gray-700 hover:cursor-pointer rounded-lg text-gray-500 transition-colors" title="Uredi">
+                                            <Edit01 className="w-5 h-5" />
+                                        </button>
+
+                                        <button onClick={() => {setDeleteUserModalOpen(true); setUserToDelete(user)}} className="p-2 hover:bg-gray-700 hover:cursor-pointer rounded-lg text-gray-500 transition-colors" title="Obriši trajno">
+                                            <Trash01 className="w-5 h-5" />
+                                        </button>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
                     </div>
                 </div>
             </div>
@@ -528,6 +562,27 @@ export const UserMgmt = () => {
                     >
                         Potvrdi
                     </button>
+                </div>
+            </Modal>
+            <Modal isOpen={changePasswordModalOpen} onClose={() => {setChangePasswordModalOpen(false); setNewPassword("");}} title={`Nova lozinka za ${userToChangePassword?.email}`}>
+                <div className="flex flex-col gap-4 w-full">
+                    <p className="text-sm text-gray-600">Ova će akcija trenutno pregaziti postojeću lozinku korisnika.</p>
+                    <input 
+                        type="text"
+                        placeholder="Upišite novu lozinku..." 
+                        value={newPassword}
+                        onChange={(e) => setNewPassword(e.target.value)}
+                        className="p-2 bg-gray-200 text-gray-600 border border-gray-400 rounded focus:ring-2 focus:ring-orange-500 outline-none w-full"
+                    />
+                    <div className="flex justify-end mt-2">
+                        <button 
+                            onClick={handleUserPasswordChange}
+                            disabled={newPassword.length < 6} 
+                            className="bg-orange-500 text-white px-6 py-2 rounded-lg font-bold hover:cursor-pointer transition disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                            Promijeni lozinku
+                        </button>
+                    </div>
                 </div>
             </Modal>
         </>

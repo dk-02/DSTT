@@ -6,6 +6,7 @@ import { useCaseSolvingStore } from "../../store/useCaseSolveStore";
 import { useCaseStore, type DiagnosticUnit } from "../../store/useCaseStore";
 import { Dropdown } from "../UI/Dropdown";
 import { Star01, User01, Users01, Calendar, GraduationHat02, Settings01, Edit01, ArrowNarrowUp, ArrowNarrowDown } from "@untitledui/icons";
+import { AssignmentCreator } from "./AssignmentCreator";
 
 interface Case {
     id: string;
@@ -132,7 +133,7 @@ function TeacherDashboard() {
     const [selectedAssignment, setSelectedAssignment] = useState<AssignmentDetails | null>(null); // GROUPS prikaz
     const [assignmentDetailsModalOpen, setAssignmentDetailsModalOpen] = useState(false);
     const [selectedAssignmentFullDetails, setSelectedAssignmentFullDetails] = useState<AssignmentDetails | null>(null); // ASSIGNMENTS prikaz
-    const [createAssignmentModalOpen, setCreateAssignmentModalOpen] = useState<boolean>(false);
+    const [assignmentCreatorOpen, setAssignmentCreatorOpen] = useState<boolean>(false);
     const [assignmentSettingsModalOpen, setAssignmentSettingsModalOpen] = useState<boolean>(false);
     const [localSettings, setLocalSettings] = useState<Settings | null>(null);
     const [editingAssignmentModalOpen, setEditingAssignmentModalOpen] = useState<boolean>(false);
@@ -1272,7 +1273,25 @@ function TeacherDashboard() {
 
                 {menuTab === "assignments" && (
                     <div>
-                        {selectedAssignmentFullDetails ? 
+                        {assignmentCreatorOpen ? (
+                            <div className="mt-5">
+                                <button 
+                                    onClick={() => setAssignmentCreatorOpen(false)}
+                                    className="mb-6 flex items-center gap-2 text-gray-400 hover:text-white transition-colors w-fit font-medium cursor-pointer"
+                                >
+                                    <span>&larr;</span> Natrag na popis zadaća
+                                </button>
+                                <AssignmentCreator 
+                                    onClose={() => setAssignmentCreatorOpen(false)} 
+                                    onSuccess={async () => {
+                                        setAssignmentCreatorOpen(false);
+                                        const res = await fetch(`${backendURL}/assignments/dashboard`, { headers: { "Authorization": `Bearer ${token}` } });
+                                        if (res.ok) setTeacherAssignments(await res.json());
+                                    }} 
+                                />
+                            </div>
+                        ) : (
+                            selectedAssignmentFullDetails ? 
                             <div className="flex flex-col animate-fadeIn mt-5">
                                 <button 
                                     onClick={() => setSelectedAssignmentFullDetails(null)}
@@ -1287,9 +1306,7 @@ function TeacherDashboard() {
         
                                         <div className="flex flex-col gap-2">
                                             <span><strong>Upute:</strong> {selectedAssignmentFullDetails.instructions}</span>
-                                            
                                             <span><strong>Tip:</strong> {selectedAssignmentFullDetails.type === "practice" ? "Vježba" : selectedAssignmentFullDetails.type === "practice-exam" ? "Probni ispit" : "Ispit"}</span>
-                                            
                                         </div>
                                     </div>
 
@@ -1492,7 +1509,8 @@ function TeacherDashboard() {
                                 ) : (
                                     renderEmptyState("Nema slučajeva", "Ovoj zadaći trenutno nije dodijeljen nijedan slučaj.")
                                 )}
-                            </div> : 
+                            </div> 
+                            : 
                             <div className="mt-5">
                                 <div className="flex justify-between items-center bg-gray-800 p-5 rounded-2xl border border-gray-700 shadow-sm">
                                     <div>
@@ -1500,7 +1518,7 @@ function TeacherDashboard() {
                                         <p className="text-sm text-gray-400 mt-1">Upravljajte svojim zadaćama</p>
                                     </div>
                                     <button 
-                                        onClick={() => setCreateAssignmentModalOpen(true)} 
+                                        onClick={() => setAssignmentCreatorOpen(true)} 
                                         className="bg-green-600 hover:bg-green-500 text-white px-5 py-2.5 rounded-lg font-bold transition-colors shadow-md cursor-pointer flex items-center justify-center gap-2"
                                     >
                                         Nova zadaća
@@ -1519,57 +1537,51 @@ function TeacherDashboard() {
                                 </div>
 
                                 {assignmentFilter === "archived" ? 
-                                <div>
-                                    {archivedTeacherAssignments.length > 0 ? 
                                     <div>
-                                        {archivedTeacherAssignments.map((aa) => (
-                                            <div key={aa.id}>
-                                                {aa.title}
-                                                <button onClick={() => handleUnarchiveAssignment(aa.id)}>Vrati zadaću</button>
-                                            </div>
-                                        ))}
-                                    </div> : renderEmptyState("Nema zadaća" , "Trenutno nemate arhiviranih zadaća.")}
-                                    
-                                </div>
-                                : 
-                                <div>
-                                    {teacherAssignments.length > 0 ? 
-                                    <div className="my-5 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                                        {teacherAssignments.map((a) => {
-                                            const typeLabel = a.type === "practice" ? "Vježba" : a.type === "practice_exam" ? "Probni ispit" : "Ispit";
-
-                                            return (
-                                            <div key={a.id} className="relative flex flex-col bg-gray-700 rounded-2xl shadow-lg border border-gray-600 overflow-hidden hover:border-gray-500 transition-colors group">
-                                                <Dropdown
-                                                    onArchive={() => {
-                                                        setAssignmentToArchiveId(a.id);
-                                                        setAssignmentArchiveModalOpen(true);
-                                                    }}
-                                                />
-                                                <div className="p-5 flex-1 flex flex-col justify-between">
-                                                    <div>
-                                                        <h3 className="text-lg font-bold text-white mb-2">{a.title}</h3>
-                                                        <p>{typeLabel}</p>
-                                                    </div>
-                                                    <button onClick={() => handleViewAssignment(a.id)} className="w-full mt-5 bg-gray-600 hover:bg-gray-500 text-white font-bold py-2.5 px-2 rounded-lg transition-all shadow-md active:scale-95 cursor-pointer border border-gray-500">
-                                                        Detalji zadaće
-                                                    </button>
+                                        {archivedTeacherAssignments.length > 0 ? 
+                                        <div>
+                                            {archivedTeacherAssignments.map((aa) => (
+                                                <div key={aa.id}>
+                                                    {aa.title}
+                                                    <button onClick={() => handleUnarchiveAssignment(aa.id)}>Vrati zadaću</button>
                                                 </div>
-                                            </div>
-                                        )})}
-                                    </div> : renderEmptyState("Nema zadaća", "Trenutno nemate aktivnih zadaća.")}
-                                    
-                                </div>
-                                
+                                            ))}
+                                        </div> : renderEmptyState("Nema zadaća" , "Trenutno nemate arhiviranih zadaća.")}
+                                        
+                                    </div>
+                                    : 
+                                    <div>
+                                        {teacherAssignments.length > 0 ? 
+                                        <div className="my-5 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                                            {teacherAssignments.map((a) => {
+                                                const typeLabel = a.type === "practice" ? "Vježba" : a.type === "practice_exam" ? "Probni ispit" : "Ispit";
+
+                                                return (
+                                                <div key={a.id} className="relative flex flex-col bg-gray-700 rounded-2xl shadow-lg border border-gray-600 overflow-hidden hover:border-gray-500 transition-colors group">
+                                                    <Dropdown
+                                                        onArchive={() => {
+                                                            setAssignmentToArchiveId(a.id);
+                                                            setAssignmentArchiveModalOpen(true);
+                                                        }}
+                                                    />
+                                                    <div className="p-5 flex-1 flex flex-col justify-between">
+                                                        <div>
+                                                            <h3 className="text-lg font-bold text-white mb-2">{a.title}</h3>
+                                                            <p>{typeLabel}</p>
+                                                        </div>
+                                                        <button onClick={() => handleViewAssignment(a.id)} className="w-full mt-5 bg-gray-600 hover:bg-gray-500 text-white font-bold py-2.5 px-2 rounded-lg transition-all shadow-md active:scale-95 cursor-pointer border border-gray-500">
+                                                            Detalji zadaće
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            )})}
+                                        </div> : renderEmptyState("Nema zadaća", "Trenutno nemate aktivnih zadaća.")}
+                                    </div>
                                 }
-                                
-                                
-                                
                             </div>
-                        }
+                        )}
                     </div>
                 )}
-                
             </main>
             
             <Modal isOpen={caseArchiveModalOpen} onClose={() => setCaseArchiveModalOpen(false)} title="Arhivirati slučaj?">
@@ -1591,26 +1603,26 @@ function TeacherDashboard() {
             </Modal>
 
             <Modal isOpen={createGroupModalOpen} onClose={() => setCreateGroupModalOpen(false)} title="Nova grupa">
-                <div className="flex flex-col w-full gap-5 mt-2">
+                <div className="flex flex-col w-full gap-5">
                     <div>
-                        <label className="block text-sm font-medium text-gray-300 mb-1.5">Naziv grupe</label>
+                        <label className="block text-sm font-medium text-gray-500 mb-1.5">Naziv grupe</label>
                         <input 
                             type="text" 
-                            placeholder="npr. Programsko inženjerstvo P02" 
+                            placeholder="npr. Anatomija 1" 
                             name="name"
                             value={formData.name} 
                             onChange={handleChange} 
-                            className="w-full p-2.5 bg-gray-700 border border-gray-600 text-white rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none transition-all placeholder-gray-400"
+                            className="w-full p-2.5 bg-gray-200 border border-gray-400 text-gray-600 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none transition-all placeholder-gray-500"
                         />
                     </div>
                     
                     <div>
-                        <label className="block text-sm font-medium text-gray-300 mb-1.5">Akademska godina</label>
+                        <label className="block text-sm font-medium text-gray-500 mb-1.5">Akademska godina</label>
                         <select 
                             name="academic_year"
                             value={formData.academic_year} 
                             onChange={handleChange}
-                            className="w-full p-2.5 bg-gray-700 border border-gray-600 text-white rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none transition-all appearance-none cursor-pointer"
+                            className="w-full p-2.5 bg-gray-200 border border-gray-400 text-gray-600 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none transition-all cursor-pointer"
                         >
                             <option value="" disabled>Odaberite akademsku godinu...</option>
                             <option value="2025/2026">2025/2026</option>
@@ -1621,8 +1633,8 @@ function TeacherDashboard() {
 
                     <button 
                         onClick={handleCreateGroup} 
-                        disabled={!formData.name || !formData.academic_year} // Onemogućuje klik ako nisu popunjena oba polja
-                        className="mt-2 w-full cursor-pointer bg-orange-500 text-white font-bold px-4 py-3 rounded-lg hover:bg-orange-600 transition-colors disabled:bg-gray-600 disabled:text-gray-400 disabled:cursor-not-allowed shadow-md"
+                        disabled={!formData.name || !formData.academic_year}
+                        className="mt-2 w-full cursor-pointer bg-orange-500 text-white font-bold px-4 py-3 rounded-lg transition-colors disabled:bg-gray-400/50 disabled:text-gray-500/70 disabled:cursor-not-allowed shadow-md"
                     >
                         Kreiraj grupu
                     </button>
@@ -1806,10 +1818,6 @@ function TeacherDashboard() {
                         </button>
                     </div>
                 </div>
-            </Modal>
-
-            <Modal isOpen={createAssignmentModalOpen} onClose={() => setCreateAssignmentModalOpen(false)} title="Nova zadaća">
-                <div></div>
             </Modal>
 
             <Modal 

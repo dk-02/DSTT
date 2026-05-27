@@ -429,6 +429,10 @@ class PasswordChange(BaseModel):
     old_password: str
     new_password: str
 
+class PasswordChangeAdmin(BaseModel):
+    user_id: uuid.UUID
+    new_password: str
+
 
 # ------------ ASSIGNMENTS --------------
 
@@ -491,7 +495,7 @@ class AssignmentCasePreview(BaseModel):
     title: str
     level: str
     topic_name: Optional[str] = None
-    status: Optional[str] = None
+    attempt_status: Optional[str] = None
     correct_diagnosis: Optional[str] = None
 
 class AssignmentUpdate(BaseModel):
