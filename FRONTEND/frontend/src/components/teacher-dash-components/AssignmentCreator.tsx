@@ -224,8 +224,8 @@ export function AssignmentCreator({ onClose, onSuccess }: AssignmentCreatorProps
                             <div>
                                 <label className="block text-sm font-medium text-gray-300 mb-1">Tip zadaće</label>
                                 <select value={type} onChange={(e) => setType(e.target.value)} className="w-full px-3 py-2 bg-gray-700 border border-gray-600 text-white rounded-lg focus:ring-2 focus:ring-orange-500 outline-none">
-                                    <option value="practice">Vježba</option>
-                                    <option value="practice_exam">Probni ispit</option>
+                                    <option value="practice">Slobodna vježba</option>
+                                    <option value="practice_exam">Simulacija ispita</option>
                                     <option value="exam">Ispit</option>
                                 </select>
                             </div>

@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useAuthStore } from "../../store/useAuthStore";
 import { Modal } from "../UI/Modal";
-import { Edit01, Plus, Building01, Globe01, Link01 } from "@untitledui/icons";
+import { Edit01, Plus, Building01, Globe01, Link01, SearchMd } from "@untitledui/icons";
 
 interface Institution {
     id: string;
@@ -26,8 +26,7 @@ const backendURL = import.meta.env.VITE_APP_BACKEND;
 
 export const InstitutionMgmt = () => {
     const [institutions, setInstitutions] = useState<Institution[]>([]);
-    const token = useAuthStore((state) => state.token);
-
+    const [searchTerm, setSearchTerm] = useState<string>("");
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingInstitution, setEditingInstitution] = useState<Institution | null>(null);
     const [formData, setFormData] = useState<InstitutionFormData>({
@@ -38,6 +37,8 @@ export const InstitutionMgmt = () => {
         idp_metadata_url: ""
     });
 
+    const token = useAuthStore((state) => state.token);
+    
     useEffect(() => {    
         const loadInitialInstitutions = async () => {
             try {
@@ -154,24 +155,44 @@ export const InstitutionMgmt = () => {
         }
     };
 
+    const filteredInstitutions = institutions?.filter(inst => {
+        const matchesSearch = 
+        inst.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        inst.name_short.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        inst.domain.toLowerCase().includes(searchTerm.toLowerCase());
+        
+        return matchesSearch;
+    });
+
     return (
-        <div className="w-full h-full p-8 flex flex-col gap-6 animate-fadeIn">
-            <header className="flex justify-between items-center bg-gray-800 p-6 rounded-2xl border border-gray-700 shadow-md">
+        <div className="w-4/5 h-full p-10 flex flex-col gap-6 animate-fadeIn">
+            <header className="flex justify-between items-center">
                 <div>
-                    <h1 className="text-2xl font-bold text-white">Upravljanje institucijama</h1>
-                    <p className="text-sm text-gray-400 mt-1">Pregled, uređivanje i upravljanje pristupom obrazovnim ustanovama.</p>
+                    <h1 className="text-3xl font-semibold text-white">Upravljanje institucijama</h1>
+                    <p className="text-gray-400 mt-1">Pregled, uređivanje i upravljanje pristupom obrazovnim ustanovama.</p>
                 </div>
                 <button 
                     onClick={handleOpenCreateModal} 
-                    className="bg-green-600 hover:bg-green-500 text-white px-5 py-2.5 rounded-lg font-bold transition-colors shadow-md flex items-center gap-2 cursor-pointer"
+                    className="bg-green-600 hover:bg-green-500 text-white px-4 py-2 rounded-lg font-bold transition-colors shadow-md flex items-center gap-2 cursor-pointer"
                 >
                     <Plus className="w-5 h-5" /> Nova institucija
                 </button>
             </header>
 
+            <div className="relative w-full max-w-md">
+                <SearchMd className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5" />
+                <input 
+                    type="text" 
+                    placeholder="Pretraži..." 
+                    className="w-full bg-gray-700 border border-gray-500 rounded-lg py-2.5 pl-10 pr-4 focus:ring-2 focus:ring-orange-500 focus:outline-none transition-all"
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                />
+            </div>
+
             {institutions.length > 0 ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-                    {institutions.map((i) => (
+                    {filteredInstitutions.map((i) => (
                         <div key={i.id} className={`flex flex-col bg-gray-800 rounded-2xl shadow-lg border overflow-hidden transition-all ${i.is_active ? 'border-gray-600 hover:border-gray-500' : 'border-red-900/50 opacity-80'}`}>
                             
                             <div className="flex justify-between items-start p-5 border-b border-gray-700/50 bg-gray-900/30">

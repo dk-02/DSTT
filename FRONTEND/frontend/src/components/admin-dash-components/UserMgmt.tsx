@@ -374,9 +374,9 @@ export const UserMgmt = () => {
                 <header className="flex justify-between items-center">
                     <div>
                         <h1 className="text-3xl font-semibold">Upravljanje korisnicima</h1>
-                        <p className="text-gray-400">Pregled, uređivanje i aktivacija korisničkih računa.</p>
+                        <p className="text-gray-400 mt-1">Pregled, uređivanje i aktivacija korisničkih računa.</p>
                     </div>
-                    <button onClick={() => setAddUserModalOpen(true)} className="flex items-center gap-2 bg-orange-500 hover:bg-orange-400 hover:cursor-pointer text-white px-4 py-2 rounded-lg transition-all font-medium">
+                    <button onClick={() => setAddUserModalOpen(true)} className="flex items-center gap-2 bg-green-600 hover:cursor-pointer text-white px-4 py-2 rounded-lg transition-all font-bold">
                         <UserPlus01 className="w-5 h-5" />
                         Dodaj korisnika
                     </button>

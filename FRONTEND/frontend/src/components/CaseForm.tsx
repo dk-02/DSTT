@@ -10,7 +10,7 @@ import { useAuthStore } from "../store/useAuthStore";
 
 const backendURL = import.meta.env.VITE_APP_BACKEND;
 
-const CaseForm = () => {
+function CaseForm() {
     const [resetModalOpen, setResetModalOpen] = useState<boolean>(false);
     const [deleteDraftModalOpen, setDeleteDraftModalOpen] = useState<boolean>(false);
 

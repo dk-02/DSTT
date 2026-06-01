@@ -245,7 +245,7 @@ function SolveHistory() {
                             {selectedAttempt.evaluation_report && (
                                 <button 
                                     onClick={() => navigate(`/case/${selectedAttempt.id}/results`)}
-                                    className="bg-orange-500 hover:bg-orange-600 text-white px-6 py-3 rounded-lg font-bold transition-colors"
+                                    className="bg-orange-500 hover:cursor-pointer text-white px-6 py-3 rounded-lg font-bold transition-colors"
                                 >
                                     Pogledaj puni izvještaj
                                 </button>
