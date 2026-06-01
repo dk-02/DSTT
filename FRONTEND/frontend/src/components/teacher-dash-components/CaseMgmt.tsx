@@ -29,6 +29,10 @@ function CaseMgmt() {
     const [caseArchiveModalOpen, setCaseArchiveModalOpen] = useState<boolean>(false);
     const [archivedCases, setArchivedCases] = useState<Case[]>([]);
 
+    const [selectedPracticeMode, setSelectedPracticeMode] = useState<"practice" | "practice_exam">("practice");
+    const [caseToStartId, setCaseToStartId] = useState<string | null>(null);
+    const [startCaseModalOpen, setStartCaseModalOpen] = useState<boolean>(false);
+
     const navigate = useNavigate();
     const token = useAuthStore((state) => state.token);
     const setAttempt = useCaseSolvingStore((state) => state.setAttempt);
@@ -124,9 +128,9 @@ function CaseMgmt() {
     };
 
 
-    const handleStartCase = async (caseId: string, assignmentId: string | null = null, assignmentType: string | null = null) => {
+    const handleStartCase = async (caseId: string, assignmentId: string | null = null, assignmentType: string | null = null, selectedPracticeMode: string) => {
         const isPractice = assignmentId === null || assignmentType === "practice" || assignmentType === "practice_exam";
-        const isExamSimulation = assignmentType === "practice_exam";
+        const isExamSimulation = (assignmentId && assignmentType === "practice_exam") || (!assignmentId && selectedPracticeMode === "practice_exam");
         
         try {
             const response = await fetch(`${backendURL}/attempts/start`, {
@@ -224,11 +228,19 @@ function CaseMgmt() {
 
     return (
         <>
-            <div className="flex gap-4 mt-5 items-center">
-                <button onClick={() => navigate("/case/create")} className="bg-green-600 px-4 py-2 rounded font-bold hover:cursor-pointer">
+            <div className="mt-5 flex justify-between items-center bg-gray-800 p-5 rounded-2xl border border-gray-700 shadow-sm">
+                <div>
+                    <h2 className="text-xl font-bold text-white">Pregled dostupnih slučajeva</h2>
+                    <p className="text-sm text-gray-400 mt-1">Upravljajte svojim slučajevima, rješavajte dostupne</p>
+                </div>
+                <button 
+                    onClick={() => navigate("/case/create")} 
+                    className="bg-green-600 hover:bg-green-500 text-white px-5 py-2.5 rounded-lg font-bold transition-colors shadow-md cursor-pointer flex items-center justify-center gap-2"
+                >
                     Novi slučaj
                 </button>
-                
+            </div>
+            <div className="flex gap-4 mt-5 items-center">                
                 <div className="flex bg-gray-700 p-1 rounded-lg border border-gray-600">
                     <button 
                         onClick={() => setFilter("all")}
@@ -280,7 +292,13 @@ function CaseMgmt() {
 
                             {filter === "archived" ? <button onClick={() => handleUnarchiveCase(c.id)} className="mt-5 w-full bg-orange-500 text-white font-bold py-2 rounded-xl hover:bg-orange-600 hover:cursor-pointer transition shadow-md">
                                 Vrati slučaj
-                            </button> : <button onClick={() => handleStartCase(c.id)} className="mt-5 w-full bg-orange-500 text-white font-bold py-2 rounded-xl hover:bg-orange-600 hover:cursor-pointer transition shadow-md">
+                            </button> 
+                            : 
+                            <button onClick={() => {
+                                setCaseToStartId(c.id);
+                                setSelectedPracticeMode("practice");
+                                setStartCaseModalOpen(true);
+                            }} className="mt-5 w-full bg-orange-500 text-white font-bold py-2 rounded-xl hover:bg-orange-600 hover:cursor-pointer transition shadow-md">
                                 Isprobaj
                             </button>}
                             
@@ -301,7 +319,79 @@ function CaseMgmt() {
                 <div className="flex justify-center w-full">
                     <button onClick={() => handleArchiveCase(caseToArchiveId)} className="cursor-pointer bg-red-500 text-orange-50 font-semibold px-3 py-2 rounded">Potvrdi</button>
                 </div>
-            </Modal>         
+            </Modal>
+
+            <Modal isOpen={startCaseModalOpen} onClose={() => setStartCaseModalOpen(false)} title="Odabir načina rješavanja vježbe">
+                <div className="flex flex-col w-full gap-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div 
+                            onClick={() => setSelectedPracticeMode("practice")}
+                            className={`flex flex-col p-5 rounded-xl border-2 cursor-pointer transition-all duration-200 ${
+                                selectedPracticeMode === "practice" 
+                                ? "border-orange-500 bg-orange-500/10 shadow-[0_0_15px_rgba(249,115,22,0.15)]" 
+                                : "border-gray-400 bg-gray-200 hover:border-gray-500"
+                            }`}
+                        >
+                            <div className="flex items-center justify-between mb-3">
+                                <h3 className={`font-bold text-lg ${selectedPracticeMode === "practice" ? "text-orange-400" : "text-gray-700"}`}>
+                                    Slobodna vježba
+                                </h3>
+                                <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${selectedPracticeMode === "practice" ? "border-orange-500" : "border-gray-500"}`}>
+                                    {selectedPracticeMode === "practice" && <div className="w-2 h-2 bg-orange-500 rounded-full"></div>}
+                                </div>
+                            </div>
+                            <p className="text-sm text-gray-600 leading-relaxed">
+                                Dostupni su svi alati za pomoć (hintovi, poništavanje radnji, LLM mentor). Nema penalizacije za netočne dijagnoze. Idealno za učenje bez pritiska.
+                            </p>
+                        </div>
+
+                        <div 
+                            onClick={() => setSelectedPracticeMode("practice_exam")}
+                            className={`flex flex-col p-5 rounded-xl border-2 cursor-pointer transition-all duration-200 ${
+                                selectedPracticeMode === "practice_exam" 
+                                ? "border-orange-500 bg-orange-500/10 shadow-[0_0_15px_rgba(249,115,22,0.15)]" 
+                                : "border-gray-400 bg-gray-200 hover:border-gray-500"
+                            }`}
+                        >
+                            <div className="flex items-center justify-between mb-3">
+                                <h3 className={`font-bold text-lg ${selectedPracticeMode === "practice_exam" ? "text-orange-400" : "text-gray-700"}`}>
+                                    Simulacija ispita
+                                </h3>
+                                <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${selectedPracticeMode === "practice_exam" ? "border-orange-500" : "border-gray-500"}`}>
+                                    {selectedPracticeMode === "practice_exam" && <div className="w-2 h-2 bg-orange-500 rounded-full"></div>}
+                                </div>
+                            </div>
+                            <p className="text-sm text-gray-600 leading-relaxed">
+                                Alati za pomoć su potpuno isključeni. Svaki netočan pokušaj dijagnoze se penalizira. Pokrenite ako ste spremni za prave ispitne uvjete.
+                            </p>
+                        </div>
+                    </div>
+
+                    <div className="flex justify-end gap-3 pt-4 border-t border-gray-700">
+                        <button 
+                            onClick={() => {
+                                setStartCaseModalOpen(false);
+                                setCaseToStartId(null);
+                            }}
+                            className="px-4 py-2 rounded-lg font-bold bg-gray-700 text-gray-200 transition-colors cursor-pointer"
+                        >
+                            Odustani
+                        </button>
+                        
+                        <button 
+                            onClick={() => {
+                                if (caseToStartId) {
+                                    handleStartCase(caseToStartId, null, null, selectedPracticeMode);
+                                    setStartCaseModalOpen(false);
+                                }
+                            }}
+                            className="px-6 py-2 rounded-lg font-bold bg-orange-500 text-white transition-colors shadow-md cursor-pointer"
+                        >
+                            Započni
+                        </button>
+                    </div>
+                </div>
+            </Modal>
         </>
     );
 }

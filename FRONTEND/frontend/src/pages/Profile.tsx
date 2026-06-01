@@ -24,7 +24,7 @@ function Profile() {
         confirmNewPassword: ""
     });
     
-    const { isExaminee } = useRole();
+    const { isExaminee, isAdmin, isExpert, isTeacher } = useRole();
     const user = useAuthStore((state) => state.user);
     const token = useAuthStore((state) => state.token);
     const { logout } = useAuthStore();
@@ -137,19 +137,70 @@ function Profile() {
             <ArrowNarrowLeft onClick={() => navigate("/user/dashboard")} className="absolute top-5 left-5 scale-130 text-gray-50 hover:cursor-pointer" />
             <div className="w-1/4 p-10 bg-gray-800  h-full flex flex-col justify-between items-center">
                 <div className="flex flex-col items-center gap-5 w-full">
-                    <div className="flex items-center justify-center w-40 h-40 text-4xl bg-gray-900 border-2 border-orange-500 font-bold rounded-full">
-                        <span className="select-none">{user?.first_name.at(0)?.toUpperCase()}{user?.last_name.at(0)?.toUpperCase()}</span>
+                    <div className="flex items-center justify-center w-40 h-40 text-5xl bg-gray-900 border-4 border-gray-700 shadow-xl font-bold rounded-full relative">
+                        <span className="select-none text-gray-100">{user?.first_name?.at(0)?.toUpperCase()}{user?.last_name?.at(0)?.toUpperCase()}</span>
+                        <div className="absolute bottom-2 right-4 w-5 h-5 bg-green-500 border-4 border-gray-800 rounded-full"></div>
                     </div>
-                    {isExaminee && 
+                    {/* {isExaminee ?                         
                         <div className="flex gap-3 text-xl w-full">
-                            <div className="flex justify-center items-center border-2 border-gray-500 w-[50%] h-24 rounded">
-                                <span>{user?.xp_points} XP</span>
+                            <div className="flex flex-col justify-center items-center border border-gray-600 bg-gray-700/50 w-[50%] h-24 rounded-xl shadow-sm">
+                                <span className="flex items-end text-xl h-1/2 font-black text-orange-400">{user?.xp_points || 0}</span>
+                                <span className="text-[10px] h-1/2 text-gray-400 uppercase font-bold tracking-widest mt-1">XP Bodova</span>
                             </div>
-                            <div className="flex justify-center items-center border-2 border-gray-500 w-[50%] h-24 rounded">
-                                <span>{user?.expertise_level.toUpperCase()}</span>
+                            <div className="flex flex-col justify-center items-center border border-gray-600 bg-gray-700/50 w-[50%] h-24 rounded-xl shadow-sm px-2 text-center">
+                                <span className="flex items-end text-lg h-1/2 font-black text-blue-400 leading-tight">
+                                    {user?.expertise_level === "novice" ? "POČETNIK" : user?.expertise_level === "intermediate" ? "NAPREDNI" : "STRUČNJAK"}
+                                </span>
+                                <span className="text-[10px] h-1/2 text-gray-400 uppercase font-bold tracking-widest mt-1">Razina</span>
                             </div>
                         </div>
-                    }
+                                
+                        : <></>
+                    } */}
+                        <div className="w-full flex flex-col gap-3 mt-5">
+                            {isExaminee && 
+                                <div className="w-full flex flex-col gap-3">
+                                    <div className={"flex justify-center items-center border w-full py-3 rounded-xl shadow-sm bg-green-500/10 border-green-500/30"}>
+                                        <span className={"text-sm font-bold uppercase tracking-widest text-green-400"}>
+                                            Ispitanik/student
+                                        </span>
+                                    </div>
+                                </div>
+                            }
+
+                            {isAdmin && 
+                                <div className="w-full flex flex-col gap-3">
+                                    <div className={"flex justify-center items-center border w-full py-3 rounded-xl shadow-sm bg-purple-500/10 border-purple-500/30"}>
+                                        <span className={"text-sm font-bold uppercase tracking-widest text-purple-400"}>
+                                            Administrator
+                                        </span>
+                                    </div>
+                                </div>
+                            }
+
+                            {isTeacher && 
+                                <div className="w-full flex flex-col gap-3">
+                                    <div className={"flex justify-center items-center border w-full py-3 rounded-xl shadow-sm bg-blue-500/10 border-blue-500/30"}>
+                                        <span className={"text-sm font-bold uppercase tracking-widest text-blue-400"}>
+                                            Nastavnik 
+                                        </span>
+                                    </div>
+                                </div>
+                            }
+                            
+                            {isExpert && 
+                                <div className="w-full flex flex-col gap-3">
+                                    <div className={"flex justify-center items-center border w-full py-3 rounded-xl shadow-sm bg-orange-500/10 border-orange-500/30"}>
+                                        <span className={"text-sm font-bold uppercase tracking-widest text-orange-400"}>
+                                            Stručnjak
+                                        </span>
+                                    </div>
+                                </div>
+                            }
+                            
+                            
+                        </div>
+                        
                 </div>
 
                 <div className="w-full">

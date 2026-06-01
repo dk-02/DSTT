@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useAuthStore } from "../../store/useAuthStore";
 import { Modal } from "../UI/Modal";
-import { Calendar, GraduationHat02, Star01, User01, Users01 } from "@untitledui/icons";
+import { Calendar, GraduationHat02, User01, Users01 } from "@untitledui/icons";
 import { useSearchParams } from "react-router-dom";
 import { type User, useTeacherStore } from "../../store/useTeacherDashStore";
 
@@ -333,7 +333,7 @@ function GroupMgmt() {
                                     return (
                                         <div key={m.id} className="flex flex-col bg-gray-700 p-5 rounded-2xl shadow-lg border border-gray-600 hover:border-gray-400 hover:shadow-xl transition-all group">
                                             
-                                            <div className="flex items-center gap-4 mb-5">
+                                            <div className="flex items-center gap-4">
                                                 <div className="w-12 h-12 rounded-full bg-gray-800 border-2 border-gray-600 flex items-center justify-center text-gray-300 font-bold text-lg transition-colors shrink-0">
                                                     {initials || <User01 />}
                                                 </div>
@@ -348,7 +348,7 @@ function GroupMgmt() {
                                                 </div>
                                             </div>
 
-                                            <div className="flex items-center justify-between pt-4 border-t border-gray-600 mt-auto">
+                                            {/* <div className="flex items-center justify-between pt-4 border-t border-gray-600 mt-5">
                                                 <span className="bg-blue-900/40 text-blue-400 text-[11px] font-bold px-2.5 py-1 rounded-md uppercase tracking-wider">
                                                     {m.expertise_level || "NEMA RAZINE"}
                                                 </span>
@@ -356,7 +356,7 @@ function GroupMgmt() {
                                                 <span className="flex items-center gap-1.5 text-sm font-bold text-orange-400 bg-orange-900/20 px-2 py-1 rounded-lg">
                                                     <Star01 className="w-4" /> {m.xp_points || 0} XP
                                                 </span>
-                                            </div>
+                                            </div> */}
 
                                         </div>
                                     );
@@ -529,11 +529,10 @@ function GroupMgmt() {
 
                     </div>
 
-                    {/* Donja traka s akcijama */}
                     <div className="mt-4 pt-4 border-t border-gray-700 flex justify-end gap-3 shrink-0">
                         <button 
                             onClick={() => { setAddStudentToGroupModalOpen(false); setSelectedStudents([]); }} 
-                            className="px-4 py-2 rounded-lg font-bold bg-red-500 transition-colors cursor-pointer"
+                            className="px-4 py-2 rounded-lg font-bold bg-gray-600 transition-colors cursor-pointer"
                         >
                             Odustani
                         </button>
@@ -619,11 +618,10 @@ function GroupMgmt() {
 
                     </div>
 
-                    {/* Donja traka s akcijama */}
                     <div className="mt-4 pt-4 border-t border-gray-700 flex justify-end gap-3 shrink-0">
                         <button 
                             onClick={() => { setRemoveStudentFromGroupModalOpen(false); setStudentsToRemove([]); }} 
-                            className="px-4 py-2 rounded-lg font-bold bg-red-500 transition-colors cursor-pointer"
+                            className="px-4 py-2 rounded-lg font-bold bg-gray-600 transition-colors cursor-pointer"
                         >
                             Odustani
                         </button>

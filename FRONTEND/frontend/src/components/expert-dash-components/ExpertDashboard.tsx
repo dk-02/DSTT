@@ -1,25 +1,20 @@
 import { useSearchParams } from "react-router-dom";
+import CaseMgmt from "../teacher-dash-components/CaseMgmt";
 import SolveHistory from "../SolveHistory";
-import CaseMgmt from "./CaseMgmt";
-import GroupMgmt from "./GroupMgmt";
-import AssignmentMgmt from "./AssignmentMgmt";
 
-
-function TeacherDashboard() {
+function ExpertDashboard() {
     const menuTabs = [
         { name: "cases", label: "Slučajevi" },
-        { name: "groups", label: "Grupe" },
-        { name: "assignments", label: "Zadaće" },
         { name: "solve-history", label: "Povijest rješavanja" },
         // { name: "statistics", label: "Statistika" }
-    ]
+    ];
 
     const [searchParams, setSearchParams] = useSearchParams();
 
     const menuTab = searchParams.get("tab") || "cases";
 
     const changeTab = (newTab: string) => {
-        setSearchParams({tab: newTab});
+        setSearchParams({ tab: newTab });
     }
 
     return (
@@ -41,17 +36,13 @@ function TeacherDashboard() {
                     ))}
                 </nav>
             </aside>
+
             <main className="flex-1 px-5 overflow-y-scroll">
                 {menuTab === "cases" && <CaseMgmt />}
-
-                {menuTab === "groups" && <GroupMgmt />}
-
-                {menuTab === "assignments" && <AssignmentMgmt />}
-
                 {menuTab === "solve-history" && <SolveHistory />}
             </main>
         </div>
     );
-};
+}
 
-export default TeacherDashboard;
+export default ExpertDashboard;

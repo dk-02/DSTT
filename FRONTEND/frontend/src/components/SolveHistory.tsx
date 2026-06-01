@@ -75,9 +75,6 @@ function SolveHistory() {
                 });
                 if (res.ok) {
                     const data = await res.json();
-
-                    console.log(data)
-
                     setHistory(data);
                 }
             } catch (error) {
@@ -109,14 +106,19 @@ function SolveHistory() {
         }
     }
 
+    const renderEmptyState = (title: string, message: string) => (
+        <div className="flex flex-col items-center justify-center h-64 bg-gray-700/30 rounded-2xl border border-gray-600 border-dashed">
+            <h3 className="text-xl font-bold text-gray-300 mb-2">{title}</h3>
+            <p className="text-gray-400">{message}</p>
+        </div>
+    );
+
 
     return (
         <div className="mt-5 h-full overflow-y-auto">
             {!selectedAttempt ? (
                 <>
-                    {/* POPIS POKUŠAJA */}
-                    {/* <h2 className="text-2xl font-bold mb-6 text-gray-100">Povijest rješavanja</h2> */}
-                    <div className="flex justify-between items-center bg-gray-800 p-5 rounded-2xl border border-gray-700 shadow-sm">
+                    <div className="flex justify-between items-center bg-gray-800 p-5 rounded-2xl border border-gray-700 shadow-sm mb-5">
                         <div>
                             <h2 className="text-xl font-bold text-white">Povijest rješavanja</h2>
                             <p className="text-sm text-gray-400 mt-1">Pregledajte svoje pokušaje rješavanja slučajeva.</p>
@@ -124,9 +126,9 @@ function SolveHistory() {
                     </div>
                     
                     {loadingHistory ? (
-                        <p className="text-gray-400">Učitavanje povijesti...</p>
+                        <p className="text-gray-400 mt-5">Učitavanje povijesti...</p>
                     ) : history.length === 0 ? (
-                        <p className="text-gray-400">Nemate zabilježenih pokušaja rješavanja.</p>
+                        renderEmptyState("Nema pokušaja rješavanja", "Trenutno nemate zabilježen nijedan pokušaj rješavanja slučajeva.")
                     ) : (
                         <div className="flex flex-col gap-4 max-w-4xl mt-5">
                             {history.map((attempt) => (
@@ -168,7 +170,7 @@ function SolveHistory() {
                         onClick={() => setSelectedAttempt(null)}
                         className="mb-6 flex items-center gap-2 text-gray-400 hover:text-white transition-colors w-fit font-medium cursor-pointer"
                     >
-                        <span>&larr;</span> Natrag na popis zadaća
+                        <span>&larr;</span> Natrag na popis pokušaja rješavanja
                     </button>
 
                     <div className="flex justify-between items-center bg-gray-800 p-5 rounded-2xl border border-gray-700 shadow-sm">
@@ -232,7 +234,6 @@ function SolveHistory() {
                             </div>
                         )}
 
-                        {/* Akcijski gumbi */}
                         <div className="flex justify-end gap-4 mt-8 pt-6 border-t border-gray-700">
                             {selectedAttempt.status === "in_progress" && (
                                 <button 

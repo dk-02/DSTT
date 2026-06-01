@@ -2,12 +2,11 @@ import os
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import delete, func, or_
 from sqlmodel import Session, select
-from typing import List, Dict, Any
-from pydantic import BaseModel
+from typing import List
 import uuid
-from routes.auth import get_current_active_user, get_current_teacher
+from routes.auth import get_current_active_user
 from database import engine
-from models import Assignment, AssignmentCase, AssignmentCasePreview, Case, CaseCategory, CaseCreate, CaseEditRequest, CaseMediaFile, CaseReadWithMedia, CaseUpdate, Category, DUMediaFile, Hint, DiagnosticUnit, Media, Role, SolveAttempt, UnitDependency, UpdateNotification, User, HintReadCreate, UserRole
+from models import Assignment, AssignmentCase, AssignmentCasePreview, Case, CaseCategory, CaseCreate, CaseEditRequest, CaseMediaFile, CaseReadWithMedia, CaseUpdate, Category, DUMediaFile, Hint, DiagnosticUnit, Role, SolveAttempt, UnitDependency, UpdateNotification, User, UserRole
 
 router = APIRouter(prefix="/cases", tags=["Cases"])
 
@@ -17,12 +16,11 @@ def get_session():
 
 
 def create_update_notifications(session: Session, case_id: uuid.UUID, update_id: uuid.UUID, author_id: uuid.UUID):
-    # Tražimo jedinstvene ID-ove nastavnika koji koriste ovaj slučaj u svojim zadaćama
     statement = (
         select(Assignment.teacher_id)
         .join(AssignmentCase, AssignmentCase.assignment_id == Assignment.id)
         .where(AssignmentCase.case_id == case_id)
-        .where(Assignment.teacher_id != author_id) # Ne šalji obavijest autoru
+        .where(Assignment.teacher_id != author_id) # Ne šalje se obavijest autoru
         .distinct()
     )
     
@@ -171,7 +169,14 @@ def get_all_cases(session: Session = Depends(get_session)):
 
 # CASEOVI NEKOG NASTAVNIKA
 @router.get("/authored")
-def get_authored_cases(session: Session = Depends(get_session), current_user: User = Depends(get_current_teacher)):
+def get_authored_cases(session: Session = Depends(get_session), current_user: User = Depends(get_current_active_user)):
+    user_roles = session.exec(select(Role.name).join(UserRole).where(UserRole.user_id == current_user.id)).all()
+    is_expert = "expert" in user_roles
+    is_teacher = "teacher" in user_roles
+
+    if not is_expert and not is_teacher:
+        raise HTTPException(status_code=403, detail="Nemate ovlasti za ovu radnju.")
+
     latest_versions_subquery = (
         select(
             func.coalesce(Case.original_case_id, Case.id).label("group_id"),
@@ -207,7 +212,14 @@ def get_authored_cases(session: Session = Depends(get_session), current_user: Us
 
 
 @router.get("/authored/archive")
-def get_authored_archived_cases(session: Session = Depends(get_session), current_user: User = Depends(get_current_teacher)):
+def get_authored_archived_cases(session: Session = Depends(get_session), current_user: User = Depends(get_current_active_user)):
+    user_roles = session.exec(select(Role.name).join(UserRole).where(UserRole.user_id == current_user.id)).all()
+    is_expert = "expert" in user_roles
+    is_teacher = "teacher" in user_roles
+
+    if not is_expert and not is_teacher:
+        raise HTTPException(status_code=403, detail="Nemate ovlasti za ovu radnju.")
+
     statement = (
         select(Case, Category.name.label("topic_name"))
         .outerjoin(CaseCategory, Case.id == CaseCategory.case_id)
@@ -501,7 +513,14 @@ def delete_case(case_id: uuid.UUID, current_user: User = Depends(get_current_act
 # -------- EDIT ---------
 
 @router.put("/{case_id}")
-def edit_case(case_id: uuid.UUID, case_data: CaseEditRequest, current_user: User = Depends(get_current_teacher), session: Session = Depends(get_session)):
+def edit_case(case_id: uuid.UUID, case_data: CaseEditRequest, current_user: User = Depends(get_current_active_user), session: Session = Depends(get_session)):
+    user_roles = session.exec(select(Role.name).join(UserRole).where(UserRole.user_id == current_user.id)).all()
+    is_expert = "expert" in user_roles
+    is_teacher = "teacher" in user_roles
+    
+    if not is_expert and not is_teacher:
+        raise HTTPException(status_code=403, detail="Nemate ovlasti za ovu radnju.")
+    
     old_case = session.get(Case, case_id)
     if not old_case or old_case.created_by != current_user.id:
         raise HTTPException(status_code=403, detail="Nemate ovlasti.")

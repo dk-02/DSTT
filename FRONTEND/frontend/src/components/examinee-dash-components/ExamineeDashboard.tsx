@@ -3,6 +3,7 @@ import { useAuthStore } from "../../store/useAuthStore";
 import { useCaseSolvingStore } from "../../store/useCaseSolveStore";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { Calendar, GraduationHat02, User01, Users01 } from "@untitledui/icons";
+import { Modal } from "../UI/Modal";
 
 interface Case {
     id: string;
@@ -56,7 +57,10 @@ function ExamineeDashboard() {
     const [cases, setCases] = useState<Case[]>([]);
     const [studentGroups, setStudentGroups] = useState<Group[]>([]);
     const [studentAssignments, setStudentAssignments] = useState<Assignment[]>([]);
-    // const [menuTab, setMenuTab] = useState<TabName>("available_cases");
+
+    const [selectedPracticeMode, setSelectedPracticeMode] = useState<"practice" | "practice_exam">("practice");
+    const [caseToStartId, setCaseToStartId] = useState<string | null>(null);
+    const [startCaseModalOpen, setStartCaseModalOpen] = useState<boolean>(false);
 
     const [selectedAssignment, setSelectedAssignment] = useState<AssignmentDetails | null>(null);
     const [assignmentModalOpen, setAssignmentModalOpen] = useState(false);
@@ -71,7 +75,8 @@ function ExamineeDashboard() {
     const menuTabs = [
         { name: "available_cases", label: "Dostupni slučajevi" },
         { name: "groups", label: "Moje grupe" },
-        { name: "assignments", label: "Moje zadaće" }
+        { name: "assignments", label: "Moje zadaće" },
+        // { name: "statistics", label: "Statistika" }
     ]
 
     const [searchParams, setSearchParams] = useSearchParams();
@@ -183,9 +188,9 @@ function ExamineeDashboard() {
         setSelectedAssignment(null);
     };
 
-    const handleStartCase = async (caseId: string, assignmentId: string | null = null, assignmentType: string | null = null) => {
+    const handleStartCase = async (caseId: string, assignmentId: string | null = null, assignmentType: string | null = null, selectedPracticeMode?: string) => {
         const isPractice = assignmentId === null || assignmentType === "practice" || assignmentType === "practice_exam";
-        const isExamSimulation = assignmentType === "practice_exam";
+        const isExamSimulation = (assignmentId && assignmentType === "practice_exam") || (!assignmentId && selectedPracticeMode === "practice_exam");
 
         try {
             const response = await fetch(`${backendURL}/attempts/start`, {
@@ -287,7 +292,11 @@ function ExamineeDashboard() {
                                         </div>
                                         
                                         <button 
-                                            onClick={() => handleStartCase(c.id)} 
+                                            onClick={() => {
+                                                setCaseToStartId(c.id);
+                                                setSelectedPracticeMode("practice");
+                                                setStartCaseModalOpen(true);
+                                            }} 
                                             className="w-full bg-orange-500 text-white font-bold py-2.5 rounded-xl transition-all shadow-md active:scale-95 cursor-pointer"
                                         >
                                             {c.status === "in_progress" ? "Nastavi s rješavanjem" : "Pokreni vježbu"}
@@ -455,6 +464,79 @@ function ExamineeDashboard() {
                     )
                 )}
             </main>
+            
+            <Modal isOpen={startCaseModalOpen} onClose={() => setStartCaseModalOpen(false)} title="Odabir načina rješavanja vježbe">
+                <div className="flex flex-col w-full gap-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div 
+                            onClick={() => setSelectedPracticeMode("practice")}
+                            className={`flex flex-col p-5 rounded-xl border-2 cursor-pointer transition-all duration-200 ${
+                                selectedPracticeMode === "practice" 
+                                ? "border-orange-500 bg-orange-500/10 shadow-[0_0_15px_rgba(249,115,22,0.15)]" 
+                                : "border-gray-400 bg-gray-200 hover:border-gray-500"
+                            }`}
+                        >
+                            <div className="flex items-center justify-between mb-3">
+                                <h3 className={`font-bold text-lg ${selectedPracticeMode === "practice" ? "text-orange-400" : "text-gray-700"}`}>
+                                    Slobodna vježba
+                                </h3>
+                                <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${selectedPracticeMode === "practice" ? "border-orange-500" : "border-gray-500"}`}>
+                                    {selectedPracticeMode === "practice" && <div className="w-2 h-2 bg-orange-500 rounded-full"></div>}
+                                </div>
+                            </div>
+                            <p className="text-sm text-gray-600 leading-relaxed">
+                                Dostupni su svi alati za pomoć (hintovi, poništavanje radnji, LLM mentor). Nema penalizacije za netočne dijagnoze. Idealno za učenje bez pritiska.
+                            </p>
+                        </div>
+
+                        <div 
+                            onClick={() => setSelectedPracticeMode("practice_exam")}
+                            className={`flex flex-col p-5 rounded-xl border-2 cursor-pointer transition-all duration-200 ${
+                                selectedPracticeMode === "practice_exam" 
+                                ? "border-orange-500 bg-orange-500/10 shadow-[0_0_15px_rgba(249,115,22,0.15)]" 
+                                : "border-gray-400 bg-gray-200 hover:border-gray-500"
+                            }`}
+                        >
+                            <div className="flex items-center justify-between mb-3">
+                                <h3 className={`font-bold text-lg ${selectedPracticeMode === "practice_exam" ? "text-orange-400" : "text-gray-700"}`}>
+                                    Simulacija ispita
+                                </h3>
+                                <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${selectedPracticeMode === "practice_exam" ? "border-orange-500" : "border-gray-500"}`}>
+                                    {selectedPracticeMode === "practice_exam" && <div className="w-2 h-2 bg-orange-500 rounded-full"></div>}
+                                </div>
+                            </div>
+                            <p className="text-sm text-gray-600 leading-relaxed">
+                                Alati za pomoć su potpuno isključeni. Svaki netočan pokušaj dijagnoze se penalizira. Pokrenite ako ste spremni za prave ispitne uvjete.
+                            </p>
+                        </div>
+                    </div>
+
+                    <div className="flex justify-end gap-3 pt-4 border-t border-gray-700">
+                        <button 
+                            onClick={() => {
+                                setStartCaseModalOpen(false);
+                                setCaseToStartId(null);
+                            }}
+                            className="px-4 py-2 rounded-lg font-bold bg-gray-700 text-gray-200 transition-colors cursor-pointer"
+                        >
+                            Odustani
+                        </button>
+                        
+                        <button 
+                            onClick={() => {
+                                if (caseToStartId) {
+                                    handleStartCase(caseToStartId, null, null, selectedPracticeMode);
+                                    setStartCaseModalOpen(false);
+                                }
+                            }}
+                            className="px-6 py-2 rounded-lg font-bold bg-orange-500 text-white transition-colors shadow-md cursor-pointer"
+                        >
+                            Započni
+                        </button>
+                    </div>
+                </div>
+            </Modal>
+
             {assignmentModalOpen && selectedAssignment && (
                 <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
                     <div className="bg-gray-800 border border-gray-600 rounded-2xl w-full max-w-3xl max-h-[90vh] flex flex-col shadow-2xl">
