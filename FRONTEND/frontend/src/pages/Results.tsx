@@ -54,7 +54,7 @@ function Results() {
     useEffect(() => {
         const fetchReport = async () => {
             try {
-                const response = await fetch(`${backendURL}/attempts/${attemptId}`, {
+                const response = await fetch(`${backendURL}/attempts/${attemptId}/details`, {
                     headers: { "Authorization": `Bearer ${token}` }
                 });
                 

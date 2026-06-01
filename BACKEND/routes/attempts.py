@@ -254,13 +254,57 @@ def generate_evaluation_report(attempt_id: uuid.UUID, session: Session) -> Dict[
     return report
 
 
+@router.get("/my-history")
+def get_my_solve_history(current_user: User = Depends(get_current_active_user), session: Session = Depends(get_session)):
+    # Outer join s Assignment tablicom jer slobodna vježba nema zadaću
+    stmt = (
+        select(SolveAttempt, Case.title, Assignment.title, Assignment.type)
+        .join(Case, SolveAttempt.case_id == Case.id)
+        .join(Assignment, SolveAttempt.assignment_id == Assignment.id, isouter=True)
+        .where(SolveAttempt.user_id == current_user.id)
+        .order_by(SolveAttempt.started_at.desc())
+    )
+    
+    results = session.exec(stmt).all()
 
-@router.get("/{attempt_id}")
+    history = []
+    for attempt, case_title, assignment_title, assignment_type in results:
+        if assignment_title:
+            if assignment_type == "exam":
+                attempt_type = "Ispit"
+            elif assignment_type == "practice-exam":
+                attempt_type = "Simulacija ispita"
+            else:
+                attempt_type = "Zadaća"
+        else:
+            # Ako nema zadaće, gledamo postavke (simulacija ima isključene hintove i upaljenu penalizaciju)
+            if attempt.settings.get("penalize_wrong_diagnosis") and not attempt.settings.get("enable_hints"):
+                attempt_type = "Simulacija ispita"
+            else:
+                attempt_type = "Slobodna vježba"
+
+        history.append({
+            "id": str(attempt.id),
+            "case_title": case_title,
+            "assignment_title": assignment_title,
+            "attempt_type": attempt_type,
+            "status": attempt.status,
+            "is_practice": attempt.is_practice,
+            "started_at": attempt.started_at.isoformat(),
+            "finished_at": attempt.finished_at.isoformat() if attempt.finished_at else None,
+            "evaluation_report": attempt.evaluation_report
+        })
+        
+    return history
+
+
+@router.get("/{attempt_id}/details")
 async def get_attempt_details(attempt_id: uuid.UUID, session: Session = Depends(get_session)):
     attempt = session.get(SolveAttempt, attempt_id)
     if not attempt:
-        raise HTTPException(status_code=404, detail="Attempt not found")
+        raise HTTPException(status_code=404, detail="Pokušaj rješavanja nije pronađen.")
     return attempt
+
 
 
 @router.post("/start")

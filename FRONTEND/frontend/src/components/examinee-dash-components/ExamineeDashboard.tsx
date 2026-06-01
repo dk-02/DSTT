@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useAuthStore } from "../../store/useAuthStore";
 import { useCaseSolvingStore } from "../../store/useCaseSolveStore";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { Calendar, GraduationHat02, User01, Users01 } from "@untitledui/icons";
 
 interface Case {
@@ -50,15 +50,13 @@ interface AssignmentDetails {
     cases: AssignmentCaseDetail[];
 }
 
-type TabName = "groups" | "assignments" | "available_cases";
-
 const backendURL = import.meta.env.VITE_APP_BACKEND;
 
 function ExamineeDashboard() {    
     const [cases, setCases] = useState<Case[]>([]);
     const [studentGroups, setStudentGroups] = useState<Group[]>([]);
     const [studentAssignments, setStudentAssignments] = useState<Assignment[]>([]);
-    const [menuTab, setMenuTab] = useState<TabName>("available_cases");
+    // const [menuTab, setMenuTab] = useState<TabName>("available_cases");
 
     const [selectedAssignment, setSelectedAssignment] = useState<AssignmentDetails | null>(null);
     const [assignmentModalOpen, setAssignmentModalOpen] = useState(false);
@@ -75,6 +73,14 @@ function ExamineeDashboard() {
         { name: "groups", label: "Moje grupe" },
         { name: "assignments", label: "Moje zadaće" }
     ]
+
+    const [searchParams, setSearchParams] = useSearchParams();
+
+    const menuTab = searchParams.get("tab") || "available_cases";
+
+    const changeTab = (newTab: string) => {
+        setSearchParams({tab: newTab});
+    }
 
     const fetchedTabs = useRef({
         available_cases: false,
@@ -243,7 +249,7 @@ function ExamineeDashboard() {
                     {menuTabs.map((tab) => (
                         <button 
                             key={tab.name}
-                            onClick={() => setMenuTab(tab.name as TabName)} 
+                            onClick={() => changeTab(tab.name)} 
                             className={`hover:cursor-pointer hover:bg-gray-700 px-4 py-3 text-left rounded-xl transition-all duration-200 font-medium ${
                                 menuTab === tab.name 
                                 ? "bg-orange-500/10 text-orange-400 border border-orange-500/30" 

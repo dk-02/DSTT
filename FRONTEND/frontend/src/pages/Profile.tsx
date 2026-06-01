@@ -14,11 +14,7 @@ interface FormData {
     confirmNewPassword: string;
 }
 
-type MenuTabType = "data" | "solve-history";
-
 function Profile() {
-    const [menuTab, setMenuTab] = useState<MenuTabType>("data");
-
     const [deactivateModalOpen, setDeactivateModalOpen] = useState<boolean>(false);
     const [changePasswordModalOpen, setChangePasswordModalOpen] = useState<boolean>(false);
 
@@ -27,6 +23,13 @@ function Profile() {
         newPassword: "",
         confirmNewPassword: ""
     });
+    
+    const { isExaminee } = useRole();
+    const user = useAuthStore((state) => state.user);
+    const token = useAuthStore((state) => state.token);
+    const { logout } = useAuthStore();
+
+    const navigate = useNavigate();
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const { name, value } = e.target;
@@ -37,13 +40,6 @@ function Profile() {
         }));
     };
 
-    const {isExaminee} = useRole();
-
-    const user = useAuthStore((state) => state.user);
-    const token = useAuthStore((state) => state.token);
-    const { logout } = useAuthStore();
-
-    const navigate = useNavigate();
 
     const handleLogout = () => {
         if (!isExaminee) {
@@ -154,17 +150,6 @@ function Profile() {
                             </div>
                         </div>
                     }
-                    
-                    <nav className="w-full space-y-2">                        
-                        <div 
-                            onClick={() => setMenuTab("data")} 
-                            className={`p-3 ${menuTab === "data" && 'bg-gray-900'} hover:bg-gray-900 rounded-lg cursor-pointer text-center transition-all`}
-                        > Moji podatci </div>
-                        <div 
-                            onClick={() => setMenuTab("solve-history")} 
-                            className={`p-3 ${menuTab === "solve-history" && 'bg-gray-900'} hover:bg-gray-900 rounded-lg cursor-pointer text-center transition-all`}
-                        > Povijest rješavanja </div>
-                    </nav>
                 </div>
 
                 <div className="w-full">
@@ -172,36 +157,28 @@ function Profile() {
                 </div>
             </div>
 
-            {menuTab === "data" && 
-                <div className="w-3/4 p-10">
-                    <div className="w-1/3 flex flex-col text-lg">
-                        <span className="text-sm text-gray-300 mb-3">Email</span>
-                        <span>{user?.email}</span>
+            <div className="w-3/4 p-10">
+                <div className="w-1/3 flex flex-col text-lg">
+                    <span className="text-sm text-gray-300 mb-3">Email</span>
+                    <span>{user?.email}</span>
 
-                        <div className="border-b-2 border-b-gray-600 my-5" />
+                    <div className="border-b-2 border-b-gray-600 my-5" />
 
-                        <span className="text-sm text-gray-300 mb-3">Ime</span>
-                        <span>{user?.first_name}</span>
+                    <span className="text-sm text-gray-300 mb-3">Ime</span>
+                    <span>{user?.first_name}</span>
 
-                        <span className="text-sm text-gray-300 mb-3 mt-5">Prezime</span>
-                        <span>{user?.last_name}</span>
-                    </div>
-
-                    <div className="w-1/3 border-b-2 border-b-gray-600 my-5" />
-
-                    <div className="w-1/3 flex flex-col gap-2">
-                        <span className="text-sm text-gray-300 mb-2">Upravljanje podatcima</span>
-                        <button onClick={() => setChangePasswordModalOpen(true)} className="cursor-pointer border border-gray-600 font-semibold px-3 py-2 rounded">Promijeni lozinku</button>
-                        <button onClick={() => setDeactivateModalOpen(true)} className="cursor-pointer border border-gray-600 font-semibold px-3 py-2 rounded text-red-400">Deaktiviraj račun</button>
-                    </div>
+                    <span className="text-sm text-gray-300 mb-3 mt-5">Prezime</span>
+                    <span>{user?.last_name}</span>
                 </div>
-            }
 
-            {menuTab === "solve-history" && 
-                <div className="w-3/4 p-10">
-                    solveHistory
+                <div className="w-1/3 border-b-2 border-b-gray-600 my-5" />
+
+                <div className="w-1/3 flex flex-col gap-2">
+                    <span className="text-sm text-gray-300 mb-2">Upravljanje podatcima</span>
+                    <button onClick={() => setChangePasswordModalOpen(true)} className="cursor-pointer border border-gray-600 font-semibold px-3 py-2 rounded">Promijeni lozinku</button>
+                    <button onClick={() => setDeactivateModalOpen(true)} className="cursor-pointer border border-gray-600 font-semibold px-3 py-2 rounded text-red-400">Deaktiviraj račun</button>
                 </div>
-            }            
+            </div>            
             
             <Modal
                 isOpen={changePasswordModalOpen}

@@ -139,8 +139,7 @@ class DiagnosticUnit(SQLModel, table=True):
         link_model=UnitDependency,
         sa_relationship_kwargs={
             "primaryjoin": "DiagnosticUnit.id==UnitDependency.unit_id",
-            "secondaryjoin": "DiagnosticUnit.id==UnitDependency.required_unit_id",
-            "cascade": "all, delete-orphan"
+            "secondaryjoin": "DiagnosticUnit.id==UnitDependency.required_unit_id"
         }
     )
 
@@ -493,7 +492,7 @@ class Assignment(SQLModel, table=True):
     teacher_id: uuid.UUID = Field(foreign_key="users.id")
 
     group: List["Group"] = Relationship(back_populates="assignments", link_model=GroupAssignment)
-    cases: List["Case"] = Relationship(link_model=AssignmentCase, sa_relationship_kwargs={"cascade": "all, delete-orphan"})
+    cases: List["Case"] = Relationship(link_model=AssignmentCase)
 
 
 class CaseWithSequence(BaseModel):

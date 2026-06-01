@@ -1,4 +1,4 @@
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { Modal } from "../UI/Modal";
 import { useState, useEffect, useRef } from "react";
 import { useAuthStore } from "../../store/useAuthStore";
@@ -7,6 +7,7 @@ import { useCaseStore, type DiagnosticUnit } from "../../store/useCaseStore";
 import { Dropdown } from "../UI/Dropdown";
 import { Star01, User01, Users01, Calendar, GraduationHat02, Settings01, Edit01, ArrowNarrowUp, ArrowNarrowDown } from "@untitledui/icons";
 import { AssignmentCreator } from "./AssignmentCreator";
+import SolveHistory from "../SolveHistory";
 
 interface Case {
     id: string;
@@ -96,7 +97,6 @@ interface GroupToAssign {
 }
 
 type filterTypes = "all" | "mine" | "public" | "drafts" | "archived";
-type TabName = "groups" | "assignments" | "cases";
 
 const backendURL = import.meta.env.VITE_APP_BACKEND;
 
@@ -105,7 +105,6 @@ function TeacherDashboard() {
     const [myCases, setMyCases] = useState<Case[]>([]);
     const [publicCases, setPublicCases] = useState<Case[]>([]);
     const [filter, setFilter] = useState<filterTypes>("all");
-    const [menuTab, setMenuTab] = useState<TabName>("cases");
     const [caseToArchiveId, setCaseToArchiveId] = useState<string>("");
     const [caseArchiveModalOpen, setCaseArchiveModalOpen] = useState<boolean>(false);
     const [archivedCases, setArchivedCases] = useState<Case[]>([]);
@@ -183,8 +182,17 @@ function TeacherDashboard() {
     const menuTabs = [
         { name: "cases", label: "Slučajevi" },
         { name: "groups", label: "Grupe" },
-        { name: "assignments", label: "Zadaće" }
+        { name: "assignments", label: "Zadaće" },
+        { name: "solve-history", label: "Povijest rješavanja" }
     ]
+
+    const [searchParams, setSearchParams] = useSearchParams();
+
+    const menuTab = searchParams.get("tab") || "cases";
+
+    const changeTab = (newTab: string) => {
+        setSearchParams({tab: newTab});
+    }
 
     const fetchedTabs = useRef({
         cases: false,
@@ -1004,7 +1012,7 @@ function TeacherDashboard() {
                     {menuTabs.map((tab) => (
                         <button 
                             key={tab.name}
-                            onClick={() => setMenuTab(tab.name as TabName)} 
+                            onClick={() => changeTab(tab.name)} 
                             className={`hover:cursor-pointer hover:bg-gray-700 px-4 py-3 text-left rounded-xl transition-all duration-200 font-medium ${
                                 menuTab === tab.name 
                                 ? "bg-orange-500/10 text-orange-400 border border-orange-500/30" 
@@ -1582,6 +1590,10 @@ function TeacherDashboard() {
                         )}
                     </div>
                 )}
+
+                {menuTab === "solve-history" && (
+                    <SolveHistory />
+                )}
             </main>
             
             <Modal isOpen={caseArchiveModalOpen} onClose={() => setCaseArchiveModalOpen(false)} title="Arhivirati slučaj?">
@@ -2009,7 +2021,7 @@ function TeacherDashboard() {
                         </div>
                         
                         <button onClick={() => {
-                            setMenuTab("assignments"); 
+                            changeTab("assignments"); 
                             setAssignmentDetailsModalOpen(false); 
                             setSelectedAssignmentFullDetails(selectedAssignment);
                         }} className="mb-5 px-6 py-2 rounded-lg font-bold bg-orange-500 text-white hover:cursor-pointer transition-colors shadow-md">
