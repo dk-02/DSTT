@@ -1,5 +1,5 @@
 import { Lightbulb03, CheckCircle, Trash01 } from '@untitledui/icons';
-import { useCaseStore, type IncorrectDiagnosisConsequence } from '../../store/useCaseStore';
+import { useCaseStore } from '../../store/useCaseStore';
 
 export const HintsAndDiagnosis = () => {
   const { caseData, addHint, removeHint, updateCaseData } = useCaseStore();
@@ -8,7 +8,7 @@ export const HintsAndDiagnosis = () => {
     <div className="text-gray-50 space-y-8 animate-in slide-in-from-right duration-500">
       <div className="p-6 rounded-xl border space-y-4">
         <div className="flex items-center gap-3 font-bold text-lg">
-          <CheckCircle className="w-6 h-6 text-green-500" /> Definiranje Ispravne Dijagnoze
+          <CheckCircle className="w-6 h-6 text-green-500" /> Dijagnoza
         </div>
         <input 
           className="w-full p-3 border rounded-lg focus:ring-1 focus:ring-orange-500 outline-none"
@@ -16,18 +16,6 @@ export const HintsAndDiagnosis = () => {
           value={caseData.correct_diagnosis}
           onChange={(e) => updateCaseData({ correct_diagnosis: e.target.value })}
         />
-        <div className="flex items-center gap-4">
-          <span className="text-sm font-medium">U slučaju pogrešne dijagnoze:</span>
-          <select 
-            className="p-2 bg-gray-600 border rounded text-sm"
-            value={caseData.if_incorrect}
-            onChange={(e) => updateCaseData({ if_incorrect: e.target.value as IncorrectDiagnosisConsequence })}
-          >
-            <option value="terminate">Prekini (TERMINATE)</option>
-            <option value="penalize">Kazni (PENALIZE)</option>
-            <option value="continue">Nastavi (CONTINUE)</option>
-          </select>
-        </div>
       </div>
 
       <div className="space-y-4">
@@ -47,17 +35,6 @@ export const HintsAndDiagnosis = () => {
               onChange={(e) => {
                 const newHints = [...caseData.hints];
                 newHints[i].text = e.target.value;
-                updateCaseData({ hints: newHints });
-              }}
-            />
-            <label>Cijena:</label>
-            <input 
-              type="number"
-              className="w-24 p-2 border rounded text-sm focus:ring-1 focus:ring-orange-500 outline-none"
-              value={hint.cost}
-              onChange={(e) => {
-                const newHints = [...caseData.hints];
-                newHints[i].cost = Number(e.target.value);
                 updateCaseData({ hints: newHints });
               }}
             />

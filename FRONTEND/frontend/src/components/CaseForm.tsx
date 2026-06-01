@@ -12,6 +12,8 @@ const backendURL = import.meta.env.VITE_APP_BACKEND;
 
 const CaseForm = () => {
     const [resetModalOpen, setResetModalOpen] = useState<boolean>(false);
+    const [deleteDraftModalOpen, setDeleteDraftModalOpen] = useState<boolean>(false);
+
     const navigate = useNavigate();
     
     const { caseId } = useParams();
@@ -66,7 +68,6 @@ const CaseForm = () => {
             const processedHints = caseData.hints.map((h, index) => ({
                 ...h,
                 sequence_no: index + 1,
-                cost: Number(h.cost),
                 text: h.text
             }));
 
@@ -122,13 +123,39 @@ const CaseForm = () => {
             }
         
         } catch (error) {
-            console.error("Error creating case:", error);
+            console.error("Greška pri kreiranju slučaja:", error);
         }
     };
 
     const handleResetForm = () => {
         clearCaseData();
         setResetModalOpen(false);
+    }
+
+    const handleDeleteDraft = async () => {
+        try {
+            const response = await fetch(`${backendURL}/cases/${caseId}`, {
+                method: "DELETE",
+                headers: {
+                    "Authorization": `Bearer ${token}`,
+                    'Content-Type': 'application/json',
+                }
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.detail || 'Greška pri spremanju slučaja.');
+            }
+
+            alert("Skica uspješno izbrisana.");
+            clearCaseData();
+            setDeleteDraftModalOpen(false);
+
+            navigate("/user/dashboard");
+
+        } catch (error) {
+            console.error("Greška pri brisanju skice:", error);
+        }
     }
 
     return(
@@ -156,12 +183,22 @@ const CaseForm = () => {
                     {!isEditMode && <button onClick={() => handleSaveCase('draft')} className="cursor-pointer bg-orange-500 text-orange-50 font-semibold px-3 py-2 rounded-lg">Spremi skicu</button>} 
                     <button onClick={() => handleSaveCase('published')} className="cursor-pointer bg-orange-500 text-orange-50 font-semibold px-3 py-2 rounded-lg">{isEditMode ? ((caseData.status === "archived" || caseData.status === "draft") ? "Objavi" : "Pohrani promjene") : "Kreiraj"}</button>
                     <button onClick={() => setResetModalOpen(true)} className="cursor-pointer bg-red-600 text-orange-50 font-semibold px-3 py-2 rounded-lg">Resetiraj unos</button>
+                    {isEditMode && caseData.status === "draft" && <button onClick={() => setDeleteDraftModalOpen(true)} className="cursor-pointer bg-red-600 text-orange-50 font-semibold px-3 py-2 rounded-lg">Odbaci skicu</button>}
+                    
                 </div>
             </div>
+
             <Modal isOpen={resetModalOpen} onClose={() => setResetModalOpen(false)} title="Resetirati unos?">
                 <div className="flex flex-col items-center gap-5 justify-self-center w-full">
                     <p>Ova radnja briše sve podatke upisane u obrazac za kreiranje slučaja. Želite li nastaviti?</p>
                     <button onClick={handleResetForm} className="cursor-pointer bg-red-600 text-orange-50 font-semibold px-3 py-2 rounded-lg">Potvrdi</button>
+                </div>
+            </Modal>
+
+            <Modal isOpen={deleteDraftModalOpen} onClose={() => setDeleteDraftModalOpen(false)} title="Trajno izbrisati skicu?">
+                <div className="flex flex-col items-center gap-5 justify-self-center w-full">
+                    <p>Ova radnja trajno briše skicu iz baze podataka. Skicu nakon toga nije moguće vratiti. Želite li nastaviti?</p>
+                    <button onClick={handleDeleteDraft} className="cursor-pointer bg-red-600 text-orange-50 font-semibold px-3 py-2 rounded-lg">Potvrdi</button>
                 </div>
             </Modal>
         </div>

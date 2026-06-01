@@ -16,11 +16,16 @@ def get_session():
 
 def get_default_settings(assignment_type: str) -> AssignmentSettings:
     if assignment_type == "practice":
-        return AssignmentSettings()
+        return AssignmentSettings(
+            allow_diagnosis_retry=True,
+            penalize_wrong_diagnosis=False
+        )
     
     elif assignment_type == "practice_exam":
         return AssignmentSettings(
-            show_result_immediately=True
+            show_result_immediately=True,
+            allow_diagnosis_retry=False,
+            penalize_wrong_diagnosis=True
         )
     
     elif assignment_type == "exam":
@@ -29,7 +34,9 @@ def get_default_settings(assignment_type: str) -> AssignmentSettings:
             ignore_hint_cost=False,
             enable_undo=False,
             enable_LLM_mentor=False,
-            show_result_immediately=False
+            show_result_immediately=False,
+            allow_diagnosis_retry=False,
+            penalize_wrong_diagnosis=True
         )
     
     return AssignmentSettings()

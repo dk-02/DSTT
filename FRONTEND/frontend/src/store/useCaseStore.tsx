@@ -3,7 +3,6 @@ import { persist, createJSONStorage } from 'zustand/middleware';
 
 export type DUType = 'data' | 'action';
 export type DULevel = 1 | 2 | 3;
-export type IncorrectDiagnosisConsequence = 'terminate' | 'penalize' | 'continue';
 export type consequenceType = 'warning' | 'terminate';
 export type caseType = 'practice' | 'exam';
 
@@ -29,9 +28,8 @@ interface CaseData {
   is_public: boolean;
   initial_info: string;
   correct_diagnosis: string;
-  if_incorrect: IncorrectDiagnosisConsequence;
   category_id: string;
-  hints: { sequence_no: number, text: string; cost: number }[];
+  hints: { sequence_no: number, text: string; }[];
   diagnostic_units: DiagnosticUnit[];
   media: File[];
   changeLog: string;
@@ -70,7 +68,6 @@ const initialCaseData : CaseData = {
   is_public: false,
   initial_info: '',
   correct_diagnosis: '',
-  if_incorrect: 'terminate',
   category_id: '',
   hints: [],
   diagnostic_units: [],
@@ -150,8 +147,7 @@ export const useCaseStore = create<CaseState>()(
           hints: [
             ...state.caseData.hints, 
             { 
-              text: '', 
-              cost: 0, 
+              text: '',
               sequence_no: state.caseData.hints.length + 1
             }
           ]

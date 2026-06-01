@@ -106,20 +106,24 @@ def get_default_settings(case_data: CaseCreate):
     if case_data.type.lower() == "practice":
         computed_defaults = {
             "enable_hints": True,
-            "ignore_hint_cost": True,
+            "ignore_hint_penalty": True,
             "enable_undo": True,
             "enable_LLM_mentor": True,
             "ignore_terminating_consequences": True,
-            "show_result_immediately": True
+            "show_result_immediately": True,
+            "allow_diagnosis_retry": True,    
+            "penalize_wrong_diagnosis": False
         }
     elif case_data.type.lower() == "exam":
         computed_defaults = {
             "enable_hints": False,
-            "ignore_hint_cost": False,
+            "ignore_hint_penalty": False,
             "enable_undo": False,
             "enable_LLM_mentor": False,
             "ignore_terminating_consequences": False,
-            "show_result_immediately": False
+            "show_result_immediately": False,
+            "allow_diagnosis_retry": False,
+            "penalize_wrong_diagnosis": True
         }
 
     return computed_defaults
@@ -383,7 +387,6 @@ def get_full_case_details(case_id: uuid.UUID, current_user: User = Depends(get_c
     hints_data = [
         {
             "sequence_no": h.sequence_no,
-            "cost": h.cost,
             "text": h.text
         } for h in sorted(case.hints, key=lambda x: x.sequence_no)
     ]
@@ -412,7 +415,6 @@ def get_full_case_details(case_id: uuid.UUID, current_user: User = Depends(get_c
         "is_public": case.is_public,
         "initial_info": case.initial_info,
         "correct_diagnosis": case.correct_diagnosis,
-        "if_incorrect": case.if_incorrect,
         "category_id": category_id,
         "status": case.status,
         "version": case.version,
@@ -461,23 +463,34 @@ def delete_case(case_id: uuid.UUID, current_user: User = Depends(get_current_act
         raise HTTPException(status_code=404, detail="Slučaj nije pronađen")
     
     if not db_case.created_by == current_user.id:
-        raise HTTPException(status_code=403, detail="Ne možete brisati tuđe slučajeve.")
+        raise HTTPException(status_code=403, detail="Možete brisati samo vlastite slučajeve.")
+    
+    if db_case.status != "draft":
+        raise HTTPException(status_code=400, detail="Moguće je brisati samo slučajeve koji su u statusu skice (draft).")
     
     try:
-        media_records = db_case.media
+        media_to_check = set(db_case.media)
+        for du in db_case.diagnostic_units:
+            for m in du.media:
+                media_to_check.add(m)
 
-        for media in media_records:
+        for media in media_to_check:
             other_usage_case = session.exec(select(CaseMediaFile).where(CaseMediaFile.media_id == media.id, CaseMediaFile.case_id != case_id)).first()
-            other_usage_du = session.exec(select(DUMediaFile).where(DUMediaFile.media_id == media.id)).first()
+            other_dus_stmt = select(DiagnosticUnit).join(DUMediaFile).where(DUMediaFile.media_id == media.id, DiagnosticUnit.case_id != case_id)
+            other_usage_du = session.exec(other_dus_stmt).first()
 
             if not other_usage_case and not other_usage_du:
                 if os.path.exists(media.file_path):
                     os.remove(media.file_path)
                 session.delete(media)
 
+        test_attempts = session.exec(select(SolveAttempt).where(SolveAttempt.case_id == case_id)).all()
+        for attempt in test_attempts:
+            session.delete(attempt)
 
         session.delete(db_case)        
         session.commit()
+
         return {"status": "success", "message": f"Slučaj {case_id} je uspješno obrisan"}
         
     except Exception as e:
@@ -544,107 +557,3 @@ def edit_case(case_id: uuid.UUID, case_data: CaseEditRequest, current_user: User
         session.rollback()
         raise HTTPException(status_code=400, detail=f"Greška pri ažuriranju: {str(e)}")
     
-
-
-# @router.post("/")
-# def create_case(case_data: CaseCreate, current_user: User = Depends(get_current_active_user), session: Session = Depends(get_session)):
-#     try:
-#         new_case_id = uuid.uuid4()
-
-#         if case_data.type.lower() == "practice":
-#             computed_defaults = {
-#                 "enable_hints": True,
-#                 "ignore_hint_cost": True,
-#                 "enable_undo": True,
-#                 "enable_LLM_mentor": True,
-#                 "ignore_terminating_consequences": True,
-#                 "show_result_immediately": True
-#             }
-#         elif case_data.type.lower() == "exam":
-#             computed_defaults = {
-#                 "enable_hints": False,
-#                 "ignore_hint_cost": False,
-#                 "enable_undo": False,
-#                 "enable_LLM_mentor": False,
-#                 "ignore_terminating_consequences": False,
-#                 "show_result_immediately": False
-#             }
-        
-#         db_case = Case(
-#             id=new_case_id,
-#             title=case_data.title,
-#             level=case_data.level,
-#             type=case_data.type,
-#             is_public=case_data.is_public,
-#             initial_info=case_data.initial_info,
-#             correct_diagnosis=case_data.correct_diagnosis,
-#             if_incorrect=case_data.if_incorrect,
-#             default_settings=computed_defaults,
-#             created_by=current_user.id
-#         )
-#         session.add(db_case)
-
-#         if case_data.category_id:
-#             db_case_cat = CaseCategory(
-#                 case_id=new_case_id,
-#                 category_id=uuid.UUID(case_data.category_id)
-#             )
-#             session.add(db_case_cat)
-
-#         session.flush()
-
-#         for m_id in case_data.media_ids:
-#             media_item = session.get(Media, m_id)
-#             if media_item:
-#                 media_item.case_id = new_case_id
-#                 session.add(media_item)
-
-#         for hint in case_data.hints:
-#             db_hint = Hint(
-#                 id=uuid.uuid4(),
-#                 case_id=new_case_id,
-#                 sequence_no=hint.sequence_no,
-#                 cost=hint.cost,
-#                 text=hint.text
-#             )
-#             session.add(db_hint)
-
-#         for du in case_data.diagnostic_units:            
-#             db_du = DiagnosticUnit(
-#                 id=du.id,
-#                 case_id=new_case_id,
-#                 label=du.label,
-#                 name=du.name,
-#                 type=du.type,
-#                 level=int(du.level),
-#                 result_text=du.result_text,
-#                 provides=du.provides,
-#                 resources=du.resources,
-#                 consequences=du.consequences
-#             )
-#             session.add(db_du)
-        
-#         session.flush()
-
-#         for du in case_data.diagnostic_units:
-#             for req_id in du.required_units:
-#                 db_dep = UnitDependency(
-#                     unit_id=du.id,
-#                     required_unit_id=req_id
-#                 )
-#                 session.add(db_dep)
-
-#             for m_id in du.media_ids:
-#                 media_item = session.get(Media, m_id)
-#                 if media_item:
-#                     media_item.du_id = du.id
-#                     media_item.case_id = new_case_id
-#                     session.add(media_item)
-
-#         session.commit()
-        
-#         return {"status": "success", "case_id": str(new_case_id)}
-
-#     except Exception as e:
-#         session.rollback()
-#         raise HTTPException(status_code=400, detail=str(e))

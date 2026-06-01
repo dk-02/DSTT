@@ -12,14 +12,14 @@ from sqlalchemy import Column as SAColumn, UniqueConstraint
 class CaseMediaFile(SQLModel, table=True):
     __tablename__ = "case_media_files"
 
-    case_id: uuid.UUID = Field(foreign_key="cases.id", primary_key=True)
-    media_id: uuid.UUID = Field(foreign_key="media.id", primary_key=True)
+    case_id: uuid.UUID = Field(foreign_key="cases.id", ondelete="CASCADE", primary_key=True)
+    media_id: uuid.UUID = Field(foreign_key="media.id", ondelete="CASCADE", primary_key=True)
 
 class DUMediaFile(SQLModel, table=True):
     __tablename__ = "du_media_files"
 
-    du_id: uuid.UUID = Field(foreign_key="diagnostic_units.id", primary_key=True)
-    media_id: uuid.UUID = Field(foreign_key="media.id", primary_key=True)
+    du_id: uuid.UUID = Field(foreign_key="diagnostic_units.id", ondelete="CASCADE", primary_key=True)
+    media_id: uuid.UUID = Field(foreign_key="media.id", ondelete="CASCADE", primary_key=True)
     
 
 class Media(SQLModel, table=True):
@@ -62,7 +62,6 @@ class Case(SQLModel, table=True):
     is_public: bool = Field(default=False)
     initial_info: str
     correct_diagnosis: str = Field(max_length=150)
-    if_incorrect: str = Field(max_length=50)
     default_settings: Dict[str, Any] = Field(default={}, sa_column=SAColumn(JSONB))     
     created_by: uuid.UUID = Field(default=None, foreign_key="users.id")    
 
@@ -103,7 +102,6 @@ class Hint(SQLModel, table=True):
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
     sequence_no: int
-    cost: float = Field(default=0.0)
     text: str    
     case_id: uuid.UUID = Field(foreign_key="cases.id")
 
@@ -136,12 +134,13 @@ class DiagnosticUnit(SQLModel, table=True):
     case_id: uuid.UUID = Field(foreign_key="cases.id") 
 
     media: Optional[List["Media"]] = Relationship(back_populates="diagnostic_units", link_model=DUMediaFile)
-    case: Case = Relationship(back_populates="diagnostic_units")
+    case: "Case" = Relationship(back_populates="diagnostic_units")
     required_units: List["DiagnosticUnit"] = Relationship(
         link_model=UnitDependency,
         sa_relationship_kwargs={
             "primaryjoin": "DiagnosticUnit.id==UnitDependency.unit_id",
             "secondaryjoin": "DiagnosticUnit.id==UnitDependency.required_unit_id",
+            "cascade": "all, delete-orphan"
         }
     )
 
@@ -161,7 +160,6 @@ class DUCreate(BaseModel):
 
 class HintReadCreate(BaseModel):
     sequence_no: int
-    cost: float
     text: str
 
 class CaseCreate(BaseModel):
@@ -172,7 +170,6 @@ class CaseCreate(BaseModel):
     is_public: bool
     initial_info: str
     correct_diagnosis: str
-    if_incorrect: str
     category_id: str
     hints: List[HintReadCreate] = []
     diagnostic_units: List[DUCreate] = []
@@ -185,10 +182,10 @@ class CaseEditRequest(CaseCreate):
 
 # --------------- CASE SOLVING ---------------
 
-class ChatRequest(SQLModel):
+class ChatRequest(BaseModel):
     message: str
 
-class DiagnosisRequest(SQLModel):
+class DiagnosisRequest(BaseModel):
     student_diagnosis: str
 
 
@@ -197,26 +194,35 @@ class SolveAttempt(SQLModel, table=True):
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
     settings: Dict[str, Any] = Field(default={}, sa_column=SAColumn(JSONB))
-    status: str = Field(default="in_progress") # completed, terminated ili cancelled
+    status: str = Field(default="in_progress") # completed (točna ili netočna dijagnoza), terminated (greška kod rješavanja) ili cancelled (ručni prekid)
     is_practice: bool = Field(default=True)
     student_diagnosis: Optional[str] = None
     total_cost_money: float = Field(default=0.0)
     total_cost_time: int = Field(default=0)
     started_at: datetime = Field(default_factory=datetime.now)
     finished_at: Optional[datetime] = None
-    score: float = Field(default=100.0)
+    evaluation_report: Optional[Dict[str, Any]] = Field(default=None, sa_column=SAColumn(JSONB))
     
     case_id: uuid.UUID = Field(foreign_key="cases.id")
     user_id: uuid.UUID = Field(foreign_key="users.id")
     assignment_id: Optional[uuid.UUID] = Field(default=None, foreign_key="assignments.id", nullable=True)
+
+    logs: List["AttemptLog"] = Relationship(
+        back_populates="attempt", 
+        sa_relationship_kwargs={"cascade": "all, delete-orphan"}
+    )
+    submissions: List["DiagnosisSubmission"] = Relationship(
+        back_populates="attempt", 
+        sa_relationship_kwargs={"cascade": "all, delete-orphan"}
+    )
 
 
 class AttemptLog(SQLModel, table=True):
     __tablename__ = "attempt_logs"
     
     id: Optional[int] = Field(default=None, primary_key=True)
-    status: str = Field(default="no_mistake") # no_mistake, consequence_mistake, fatal_mistake
-    event_type: str # du_request, undo_request, hint_request
+    status: str = Field(default="no_mistake") # no_mistake, consequence_mistake, fatal_mistake, undone (nakon UNDO), redundant, unjustified_jump
+    event_type: str # du_request, undo_request, hint_request, mentor_request
     event_result_data: Dict = Field(default={}, sa_type=JSON)
     consequence: Dict = Field(default={}, sa_type=JSON)
     event_timestamp: datetime = Field(default_factory=datetime.now)
@@ -224,6 +230,7 @@ class AttemptLog(SQLModel, table=True):
     attempt_id: uuid.UUID = Field(foreign_key="solve_attempts.id")
     diagnostic_unit_id: Optional[uuid.UUID] = Field(default=None, foreign_key="diagnostic_units.id")
 
+    attempt: "SolveAttempt" = Relationship(back_populates="logs")
 
 class DiagnosisSubmission(SQLModel, table=True):
     __tablename__ = "diagnosis_submissions"
@@ -235,6 +242,15 @@ class DiagnosisSubmission(SQLModel, table=True):
     submitted_at: datetime = Field(default_factory=datetime.now)
     
     attempt_id: uuid.UUID = Field(foreign_key="solve_attempts.id")
+
+    attempt: "SolveAttempt" = Relationship(back_populates="submissions")
+
+
+class AttemptStart(BaseModel):
+    case_id: uuid.UUID
+    assignment_id: Optional[uuid.UUID] = None
+    is_practice: bool = True # practice ili practice_exam
+    is_exam_simulation: bool = False # practice_exam
 
 
 # --------- INSTITUTIONS --------------
@@ -443,7 +459,7 @@ class RandomCasePickerSettings(BaseModel):
 
 class AssignmentSettings(BaseModel):
     enable_hints: bool = True
-    ignore_hint_cost: bool = True
+    ignore_hint_penalty: bool = True
     enable_undo: bool = True
     enable_LLM_mentor: bool = True
     ignore_terminating_consequences: bool = False
@@ -451,6 +467,8 @@ class AssignmentSettings(BaseModel):
     random_case_picker_settings: Optional[RandomCasePickerSettings] = None
     show_result_immediately: bool = True
     case_sequence_lock: bool = False
+    allow_diagnosis_retry: bool = True
+    penalize_wrong_diagnosis: bool = False
 
 
 class AssignmentCase(SQLModel, table=True):
@@ -475,7 +493,7 @@ class Assignment(SQLModel, table=True):
     teacher_id: uuid.UUID = Field(foreign_key="users.id")
 
     group: List["Group"] = Relationship(back_populates="assignments", link_model=GroupAssignment)
-    cases: List["Case"] = Relationship(link_model=AssignmentCase)
+    cases: List["Case"] = Relationship(link_model=AssignmentCase, sa_relationship_kwargs={"cascade": "all, delete-orphan"})
 
 
 class CaseWithSequence(BaseModel):

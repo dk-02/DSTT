@@ -203,7 +203,7 @@ function ExamineeDashboard() {
 
             const data = await response.json();
 
-            setAttempt(data.attempt_id, Date.now());
+            setAttempt(data.attempt_id, data.started_at);
             navigate(`/case/solve/${data.attempt_id}`);
 
         } catch (error) {
