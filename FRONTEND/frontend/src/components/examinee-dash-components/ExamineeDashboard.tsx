@@ -9,7 +9,7 @@ interface Case {
     id: string;
     title: string;
     version: number;
-    level: number;
+    level: string;
     topic_name: string;
     status: string;
 }
@@ -277,7 +277,7 @@ function ExamineeDashboard() {
                                             {c.topic_name}
                                         </span>
                                         <span className="bg-orange-900/40 text-orange-400 text-xs font-bold px-2 py-1 rounded-md">
-                                            Level {c.level}
+                                            Težina: {c.level === "novice" ? "lagano" : c.level === "intermediate" ? "srednje" : "teško"} 
                                         </span>
                                     </div>
 
@@ -570,7 +570,7 @@ function ExamineeDashboard() {
                                             <div className="flex gap-3 text-sm text-gray-400">
                                                 <span>Tema: {c.topic_name || "Općenito"}</span>
                                                 <span>•</span>
-                                                <span>Level: {c.level}</span>
+                                                <span>Težina: {c.level === "novice" ? "lagano" : c.level === "intermediate" ? "srednje" : "teško"}</span>
                                             </div>
                                         </div>
                                         

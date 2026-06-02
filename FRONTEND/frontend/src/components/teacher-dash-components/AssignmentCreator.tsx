@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useAuthStore } from "../../store/useAuthStore";
-import { ArrowNarrowUp, ArrowNarrowDown } from "@untitledui/icons";
+import { ArrowNarrowUp, ArrowNarrowDown, SearchMd } from "@untitledui/icons";
 
 const backendURL = import.meta.env.VITE_APP_BACKEND;
 
@@ -25,6 +25,7 @@ interface Case {
     topic_name: string;
     status: string;
     type: string;
+    attempt_status: string;
 }
 
 interface Settings {
@@ -65,18 +66,18 @@ export function AssignmentCreator({ onClose, onSuccess }: AssignmentCreatorProps
     
     const [availableCases, setAvailableCases] = useState<CasePreview[]>([]);
     const [showManualPicker, setShowManualPicker] = useState(false);
+    const [searchTerm, setSearchTerm] = useState<string>("");
 
     const [randomCount, setRandomCount] = useState(1);
     const [randomLevel, setRandomLevel] = useState("");
 
     const [categories, setCategories] = useState<Category[]>([]);
     const [randomTopic, setRandomTopic] = useState("");
+
     
     useEffect(() => {
         const fetchAvailableCases = async () => {
             try {
-                // Napomena: Prilagodi ovaj URL ruti s koje želiš dohvatiti listu za manualni odabir!
-                // Ovdje pretpostavljamo da vraćaš sve što učitelj smije vidjeti
                 const res1 = await fetch(`${backendURL}/cases/authored`, { headers: { "Authorization": `Bearer ${token}` } });
                 const res2 = await fetch(`${backendURL}/cases/available`, { headers: { "Authorization": `Bearer ${token}` } });
                 
@@ -112,33 +113,11 @@ export function AssignmentCreator({ onClose, onSuccess }: AssignmentCreatorProps
         setSettings(prev => ({ ...prev, [key]: !prev[key] }));
     };
 
-    const handleFetchRandomCases = async () => {
-        try {
-            const res = await fetch(`${backendURL}/assignments/preview-random-cases?assignment_type=${type}`, {
-                method: "POST",
-                headers: {
-                    "Authorization": `Bearer ${token}`,
-                    "Content-Type": "application/json"
-                },
-                body: JSON.stringify({
-                    no_of_cases: randomCount,
-                    case_level: randomLevel || null,
-                    topic: randomTopic || null
-                })
-            });
-
-            if (res.ok) {
-                const newRandomCases = await res.json();
-                setSelectedCases(newRandomCases);
-                setSettings(prev => ({ ...prev, randomly_choose_cases: true }));
-            } else {
-                const err = await res.json();
-                alert(`Greška: ${err.detail}`);
-            }
-        } catch (error) {
-            console.error(error);
-        }
-    };
+    const filteredCases = availableCases?.filter(c => {
+        const matchesSearch = c.title.toLowerCase().includes(searchTerm.toLowerCase());
+        
+        return matchesSearch;
+    });
 
     const handleAddManualCase = (c: CasePreview) => {
         if (!selectedCases.some(sc => sc.id === c.id)) {
@@ -319,25 +298,37 @@ export function AssignmentCreator({ onClose, onSuccess }: AssignmentCreatorProps
                                             </select>
                                         </div>
 
-                                        <button onClick={handleFetchRandomCases} className="bg-orange-500 hover:bg-orange-600 text-white font-bold py-1.5 px-4 rounded text-sm cursor-pointer shadow-md">
+                                        {/* <button onClick={handleFetchRandomCases} className="bg-orange-500 hover:bg-orange-600 text-white font-bold py-1.5 px-4 rounded text-sm cursor-pointer shadow-md">
                                             Izvuci nasumično
-                                        </button>
+                                        </button> */}
                                     </div>
                                 </div>
                             ) : (
-                                <div className="bg-gray-800 p-4 rounded-xl border border-gray-700 max-h-48 overflow-y-auto space-y-2">
-                                    {availableCases.map(c => {
-                                        const isSelected = selectedCases.some(sc => sc.id === c.id);
-                                        return (
-                                            <div key={c.id} className="flex justify-between items-center p-2 rounded hover:bg-gray-700 border border-transparent hover:border-gray-600">
-                                                <div className="truncate pr-2 text-sm text-gray-200">{c.title} <span className="text-[10px] text-gray-500">({c.level})</span></div>
-                                                <button onClick={() => handleAddManualCase(c)} disabled={isSelected} className="text-xs px-2 py-1 bg-gray-600 text-white rounded cursor-pointer disabled:opacity-30 disabled:cursor-default shrink-0">
-                                                    {isSelected ? "Dodano" : "+ Dodaj"}
-                                                </button>
-                                            </div>
-                                        )
-                                    })}
-                                </div>
+                                <>
+                                    <div className="relative w-full mb-2">
+                                        <SearchMd className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5" />
+                                        <input 
+                                            type="text" 
+                                            placeholder="Pretraži slučajeve po naslovu..." 
+                                            className="w-full bg-gray-700 border border-gray-500 rounded-lg py-2 pl-10 pr-4 focus:ring-2 focus:ring-orange-500 focus:outline-none transition-all"
+                                            value={searchTerm}
+                                            onChange={(e) => setSearchTerm(e.target.value)}
+                                        />
+                                    </div>
+                                    <div className="bg-gray-800 p-4 rounded-xl border border-gray-700 h-44 overflow-y-auto space-y-2">
+                                        {filteredCases.map(c => {
+                                            const isSelected = selectedCases.some(sc => sc.id === c.id);
+                                            return (
+                                                <div key={c.id} className="flex justify-between items-center p-2 rounded hover:bg-gray-700 border border-transparent hover:border-gray-600">
+                                                    <div className="truncate pr-2 text-sm text-gray-200">{c.title} <span className="text-[10px] text-gray-500">({c.level})</span></div>
+                                                    <button onClick={() => handleAddManualCase(c)} disabled={isSelected} className="text-xs px-2 py-1 bg-gray-600 text-white rounded cursor-pointer disabled:opacity-30 disabled:cursor-default shrink-0">
+                                                        {isSelected ? "Dodano" : "+ Dodaj"}
+                                                    </button>
+                                                </div>
+                                            )
+                                        })}
+                                    </div>
+                                </>
                             )}
                         </div>
                     </div>

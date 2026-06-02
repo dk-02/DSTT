@@ -193,7 +193,7 @@ class SolveAttempt(SQLModel, table=True):
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
     settings: Dict[str, Any] = Field(default={}, sa_column=SAColumn(JSONB))
-    status: str = Field(default="in_progress") # completed (točna ili netočna dijagnoza), terminated (greška kod rješavanja) ili cancelled (ručni prekid)
+    status: str = Field(default="in_progress") # not_started (za nasumično odabrane slučajeve u zadaći), in_progress (u tijeku), completed (točna ili netočna dijagnoza), terminated (greška kod rješavanja) ili cancelled (ručni prekid)
     is_practice: bool = Field(default=True)
     student_diagnosis: Optional[str] = None
     total_cost_money: float = Field(default=0.0)
@@ -511,6 +511,7 @@ class AssignmentCasePreview(BaseModel):
     version: Optional[int] = None
     title: str
     level: str
+    status: str
     topic_name: Optional[str] = None
     attempt_status: Optional[str] = None
     correct_diagnosis: Optional[str] = None

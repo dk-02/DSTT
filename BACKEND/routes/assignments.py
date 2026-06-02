@@ -117,49 +117,49 @@ def get_my_archived_assignments(session: Session = Depends(get_session), current
     return response
 
 
-@router.post("/preview-random-cases", response_model=List[AssignmentCasePreview])
-def preview_random_cases(settings: RandomCasePickerSettings, assignment_type: str, session: Session = Depends(get_session), current_user: User = Depends(get_current_active_user)):
-    visibility_filter = or_(
-        Case.is_public == True,
-        (Case.is_public == False) & (Case.created_by == current_user.id)
-    )
+# @router.post("/preview-random-cases", response_model=List[AssignmentCasePreview])
+# def preview_random_cases(settings: RandomCasePickerSettings, assignment_type: str, session: Session = Depends(get_session), current_user: User = Depends(get_current_active_user)):
+#     visibility_filter = or_(
+#         Case.is_public == True,
+#         (Case.is_public == False) & (Case.created_by == current_user.id)
+#     )
 
-    case_query = (
-        select(Case, Category.name.label("topic_name"))
-        .join(CaseCategory, Case.id == CaseCategory.case_id)
-        .join(Category, CaseCategory.category_id == Category.id)
-        .where(visibility_filter)
-    )
+#     case_query = (
+#         select(Case, Category.name.label("topic_name"))
+#         .join(CaseCategory, Case.id == CaseCategory.case_id)
+#         .join(Category, CaseCategory.category_id == Category.id)
+#         .where(visibility_filter)
+#     )
 
-    if assignment_type in ["practice", "practice_exam"]:
-        case_query = case_query.where(Case.type == "practice")
-    elif assignment_type == "exam":
-        case_query = case_query.where(Case.type == "exam")
+#     if assignment_type in ["practice", "practice_exam"]:
+#         case_query = case_query.where(Case.type == "practice")
+#     elif assignment_type == "exam":
+#         case_query = case_query.where(Case.type == "exam")
 
-    if settings.topic:
-        case_query = case_query.where(CaseCategory.category_id == uuid.UUID(settings.topic))
+#     if settings.topic:
+#         case_query = case_query.where(CaseCategory.category_id == uuid.UUID(settings.topic))
     
-    if settings.case_level:
-        case_query = case_query.where(Case.level == settings.case_level)
+#     if settings.case_level:
+#         case_query = case_query.where(Case.level == settings.case_level)
 
-    case_query = case_query.order_by(func.random()).limit(settings.no_of_cases)    
-    selected_cases = session.exec(case_query).all()
+#     case_query = case_query.order_by(func.random()).limit(settings.no_of_cases)    
+#     selected_cases = session.exec(case_query).all()
 
-    if len(selected_cases) < settings.no_of_cases:
-        raise HTTPException(
-            status_code=400, 
-            detail=f"Nema dovoljno slučajeva koji zadovoljavaju tražene kriterije (traženo: {settings.no_of_cases}, pronađeno: {len(selected_cases)})."
-        )
+#     if len(selected_cases) < settings.no_of_cases:
+#         raise HTTPException(
+#             status_code=400, 
+#             detail=f"Nema dovoljno slučajeva koji zadovoljavaju tražene kriterije (traženo: {settings.no_of_cases}, pronađeno: {len(selected_cases)})."
+#         )
 
-    return [
-        AssignmentCasePreview(
-            id=row.Case.id, 
-            title=row.Case.title, 
-            level=row.Case.level, 
-            topic_name=row.topic_name,
-            correct_diagnosis=row.Case.correct_diagnosis
-        ) for row in selected_cases
-    ]
+#     return [
+#         AssignmentCasePreview(
+#             id=row.Case.id, 
+#             title=row.Case.title, 
+#             level=row.Case.level, 
+#             topic_name=row.topic_name,
+#             correct_diagnosis=row.Case.correct_diagnosis
+#         ) for row in selected_cases
+#     ]
 
 
 @router.post("/", status_code=201)
@@ -576,38 +576,107 @@ def get_assignment_details(assignment_id: uuid.UUID, session: Session = Depends(
     assignment, first_name, last_name = result
     teacher_full_name = f"{first_name} {last_name}"
 
-    latest_attempts_sq = (
-        select(SolveAttempt.case_id, SolveAttempt.status)
-        .where(
-            (SolveAttempt.user_id == current_user.id) &
-            (SolveAttempt.assignment_id == assignment_id)
-        )
-        .distinct(SolveAttempt.case_id) # Postgres DISTINCT ON
-        .order_by(SolveAttempt.case_id, SolveAttempt.started_at.desc())
-    ).subquery()
+    is_random = assignment.settings.get("randomly_choose_cases", False) if assignment.settings else False
 
-    stmt_cases = (
-        select(AssignmentCase.sequence_no, Case, Category.name.label("topic_name"), latest_attempts_sq.c.status.label("attempt_status"))
-        .join(Case, AssignmentCase.case_id == Case.id)
-        .outerjoin(CaseCategory, Case.id == CaseCategory.case_id)
-        .outerjoin(Category, CaseCategory.category_id == Category.id)
-        .outerjoin(latest_attempts_sq, latest_attempts_sq.c.case_id == Case.id)
-        .where(AssignmentCase.assignment_id == assignment_id)
-        .order_by(AssignmentCase.sequence_no)
-    )    
-    cases_data = session.exec(stmt_cases).all()
-    
-    cases_response = [
-        {
-            "id": row.Case.id,
-            "title": row.Case.title,
-            "version": row.Case.version,
-            "level": row.Case.level,
-            "topic_name": row.topic_name,
-            "sequence_no": row.sequence_no,
-            "status": row.attempt_status or None
-        } for row in cases_data
-    ]
+    if "examinee" in user_roles and is_random:
+        student_attempts = session.exec(
+            select(SolveAttempt)
+            .where(SolveAttempt.user_id == current_user.id)
+            .where(SolveAttempt.assignment_id == assignment_id)
+            .order_by(SolveAttempt.started_at.asc())
+        ).all()
+
+        if not student_attempts:
+            random_settings = assignment.settings.get("random_case_picker_settings", {})
+            no_of_cases = random_settings.get("no_of_cases", 1)
+            topic_id = random_settings.get("topic")
+            level = random_settings.get("case_level")
+
+            case_query = select(Case).where(Case.status == "published")
+            if assignment.type in ["practice", "practice_exam"]:
+                case_query = case_query.where(Case.type == "practice")
+            elif assignment.type == "exam":
+                case_query = case_query.where(Case.type == "exam")
+
+            if topic_id:
+                case_query = case_query.join(CaseCategory).where(CaseCategory.category_id == uuid.UUID(topic_id))
+            if level:
+                case_query = case_query.where(Case.level == level)
+
+            case_query = case_query.order_by(func.random()).limit(no_of_cases)
+            picked_cases = session.exec(case_query).all()
+
+            if len(picked_cases) < no_of_cases:
+                raise HTTPException(status_code=400, detail="Nema dovoljno dostupnih slučajeva koji zadovoljavaju kriterije ove zadaće.")
+
+            for c in picked_cases:
+                sa = SolveAttempt(
+                    user_id=current_user.id,
+                    assignment_id=assignment_id,
+                    case_id=c.id,
+                    status="not_started",
+                    is_practice=(assignment.type != "exam"),
+                    settings=assignment.settings
+                )
+                session.add(sa)
+            
+            session.commit()
+            
+            student_attempts = session.exec(
+                select(SolveAttempt)
+                .where(SolveAttempt.user_id == current_user.id)
+                .where(SolveAttempt.assignment_id == assignment_id)
+                .order_by(SolveAttempt.started_at.asc())
+            ).all()
+
+        cases_response = []
+        for idx, att in enumerate(student_attempts, 1):
+            c = session.get(Case, att.case_id)
+            topic = session.exec(select(Category.name).join(CaseCategory).where(CaseCategory.case_id == c.id)).first()
+            
+            cases_response.append({
+                "id": c.id,
+                "title": c.title,
+                "version": c.version,
+                "level": c.level,
+                "topic_name": topic,
+                "sequence_no": idx,
+                "status": att.status if att.status != "not_started" else None
+            })
+
+    else:
+        latest_attempts_sq = (
+            select(SolveAttempt.case_id, SolveAttempt.status)
+            .where(
+                (SolveAttempt.user_id == current_user.id) &
+                (SolveAttempt.assignment_id == assignment_id)
+            )
+            .distinct(SolveAttempt.case_id) # Postgres DISTINCT ON
+            .order_by(SolveAttempt.case_id, SolveAttempt.started_at.desc())
+        ).subquery()
+
+        stmt_cases = (
+            select(AssignmentCase.sequence_no, Case, Category.name.label("topic_name"), latest_attempts_sq.c.status.label("attempt_status"))
+            .join(Case, AssignmentCase.case_id == Case.id)
+            .outerjoin(CaseCategory, Case.id == CaseCategory.case_id)
+            .outerjoin(Category, CaseCategory.category_id == Category.id)
+            .outerjoin(latest_attempts_sq, latest_attempts_sq.c.case_id == Case.id)
+            .where(AssignmentCase.assignment_id == assignment_id)
+            .order_by(AssignmentCase.sequence_no)
+        )    
+        cases_data = session.exec(stmt_cases).all()
+        
+        cases_response = [
+            {
+                "id": row.Case.id,
+                "title": row.Case.title,
+                "version": row.Case.version,
+                "level": row.Case.level,
+                "topic_name": row.topic_name,
+                "sequence_no": row.sequence_no,
+                "status": row.attempt_status or None
+            } for row in cases_data
+        ]
 
     response_data = {
         "id": assignment.id,
@@ -619,7 +688,7 @@ def get_assignment_details(assignment_id: uuid.UUID, session: Session = Depends(
 
     if "examinee" in user_roles:
         response_data["teacher_name"] = teacher_full_name
-    
+
     if "teacher" in user_roles:
         stmt_groups = (
             select(Group.id, Group.name, GroupAssignment.available_until)
@@ -636,7 +705,7 @@ def get_assignment_details(assignment_id: uuid.UUID, session: Session = Depends(
             } for r in group_results
         ]
 
-        res_settings = assignment.settings.copy() if assignment.settings else {}
+        res_settings = assignment.settings.model_copy() if assignment.settings else {}
         random_settings = res_settings.get("random_case_picker_settings")
 
         if random_settings and "topic" in random_settings:
@@ -649,7 +718,5 @@ def get_assignment_details(assignment_id: uuid.UUID, session: Session = Depends(
 
         response_data["assigned_groups"] = assigned_groups
         response_data["settings"] = res_settings
-
-        return response_data
 
     return response_data

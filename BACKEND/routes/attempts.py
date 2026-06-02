@@ -312,19 +312,54 @@ async def start_attempt(data: AttemptStart, current_user: User = Depends(get_cur
     existing_attempt_stmt = select(SolveAttempt).where(
         SolveAttempt.user_id == current_user.id,
         SolveAttempt.case_id == data.case_id,
-        SolveAttempt.assignment_id == data.assignment_id,
-        SolveAttempt.status == "in_progress"
-    )
+        SolveAttempt.assignment_id == data.assignment_id
+    ).order_by(SolveAttempt.started_at.desc())
+
     existing_attempt = session.exec(existing_attempt_stmt).first()
 
     if existing_attempt:
-        return { 
-            "attempt_id": existing_attempt.id, 
-            "settings": existing_attempt.settings, 
-            "started_at": existing_attempt.started_at,
-            "message": "Nastavak postojećeg rješavanja."
-        }
+        if existing_attempt.status == "in_progress":
+            return { 
+                "attempt_id": existing_attempt.id, 
+                "settings": existing_attempt.settings, 
+                "started_at": existing_attempt.started_at,
+                "message": "Nastavak postojećeg rješavanja."
+            }
+        
+        elif existing_attempt.status == "not_started":
+            existing_attempt.status = "in_progress"
+            existing_attempt.started_at = datetime.now()
+            
+            if data.is_exam_simulation:
+                simulation_overrides = {
+                    "enable_hints": False,
+                    "ignore_hint_penalty": False,
+                    "enable_undo": False,
+                    "enable_LLM_mentor": False,
+                    "ignore_terminating_consequences": False,
+                    "show_result_immediately": True,
+                    "allow_diagnosis_retry": False,
+                    "penalize_wrong_diagnosis": True
+                }
+
+                current_settings = existing_attempt.settings or {}
+                current_settings.update(simulation_overrides)
+                existing_attempt.settings = current_settings
+
+            session.add(existing_attempt)
+            session.commit()
+
+            return { 
+                "attempt_id": existing_attempt.id, 
+                "settings": existing_attempt.settings, 
+                "started_at": existing_attempt.started_at 
+            }
+        
+        elif existing_attempt.status in ["completed", "terminated", "cancelled"]:
+            if not existing_attempt.is_practice:
+                raise HTTPException(status_code=403, detail="Ovaj slučaj ste već riješili.")
     
+
     case = session.get(Case, data.case_id)
     if not case:
         raise HTTPException(status_code=404, detail="Slučaj nije pronađen.")

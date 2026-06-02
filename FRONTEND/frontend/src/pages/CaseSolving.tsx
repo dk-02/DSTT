@@ -87,7 +87,7 @@ function CaseSolving() {
 
     useEffect(() => {
         const fetchIds = async () => {
-            const attRes = await fetch(`${backendURL}/attempts/${attemptId}`, {
+            const attRes = await fetch(`${backendURL}/attempts/${attemptId}/details`, {
                 headers: { "Authorization": `Bearer ${token}` }
             });
             const attemptData = await attRes.json();

@@ -46,7 +46,7 @@ function Header() {
                         <button onClick={() => navigate("/admin/dashboard")} className="cursor-pointer border border-gray-600 font-semibold px-3 rounded">Admin dash</button>
                         } 
                         {!isDashboard && <button onClick={() => navigate("/user/dashboard")} className="cursor-pointer border border-gray-600 font-semibold px-3 rounded">Dashboard</button>}
-                        {isDashboard && <div onClick={() => navigate("/user/profile")} className="hover:bg-gray-700 hover:cursor-pointer flex items-center justify-center w-12.5 h-12.5 bg-gray-900 font-bold rounded-full">
+                        {user && <div onClick={() => navigate("/user/profile")} className="hover:bg-gray-700 hover:cursor-pointer flex items-center justify-center w-12.5 h-12.5 bg-gray-900 font-bold rounded-full">
                             <span className="select-none">{user.first_name.at(0)?.toUpperCase()}{user.last_name.at(0)?.toUpperCase()}</span>
                         </div>}
                         

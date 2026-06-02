@@ -207,8 +207,8 @@ def login(request: Request, user_data: OAuth2PasswordRequestForm = Depends(), se
             "email": user.email,
             "first_name": user.first_name,
             "last_name": user.last_name,
-            "expertise_level": user.expertise_level,
-            "xp_points": user.xp_points
+            # "expertise_level": user.expertise_level,
+            # "xp_points": user.xp_points
         }
     }
 

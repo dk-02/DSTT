@@ -370,8 +370,8 @@ export const UserMgmt = () => {
 
     return(
         <>
-            <div className="w-4/5 p-10 flex flex-col gap-6 h-full">
-                <header className="flex justify-between items-center">
+            <div className="w-4/5 py-5 px-10 flex flex-col gap-6 h-full">
+                <div className="flex justify-between items-center">
                     <div>
                         <h1 className="text-3xl font-semibold">Upravljanje korisnicima</h1>
                         <p className="text-gray-400 mt-1">Pregled, uređivanje i aktivacija korisničkih računa.</p>
@@ -380,7 +380,7 @@ export const UserMgmt = () => {
                         <UserPlus01 className="w-5 h-5" />
                         Dodaj korisnika
                     </button>
-                </header>
+                </div>
 
                 <div className="flex items-center gap-4 shrink-0">
                     <div className="relative w-full max-w-md">
@@ -426,7 +426,7 @@ export const UserMgmt = () => {
                                             </span>
                                         )}
                                     </div>
-                                    <div className="text-gray-400 overflow-x-scroll pr-4 flex gap-1 col-span-1">
+                                    <div className="text-gray-400 overflow-x-auto pr-4 flex gap-1 col-span-1">
                                         {user.roles.map((role, idx) => {
                                             const colorClasses = roleStyles[role] || roleStyles.default;
                                             return(
