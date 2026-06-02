@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from jose import jwt
 from passlib.context import CryptContext
+from sqlalchemy import func
 from sqlmodel import Session, select
 from database import engine
 from models import AdminUserRegister, Institution, PasswordChange, PasswordChangeAdmin, User, UserRole, Role, UserRegister
@@ -99,12 +100,12 @@ def create_reset_token(data: dict, expires_delta: int):
 
 @router.post("/register")
 def register(user_data: UserRegister, session: Session = Depends(get_session)):
-    statement = select(User).where(User.email == user_data.email)
+    statement = select(User).where(func.lower(User.email) == func.lower(user_data.email))
     existing_user = session.exec(statement).first()
     if existing_user:
         raise HTTPException(
             status_code=400, 
-            detail="Korisnik s ovim emailom već postoji"
+            detail="Korisnik s ovim emailom već postoji."
         )
     
     domain = user_data.email.split("@")[-1].lower()
@@ -112,9 +113,12 @@ def register(user_data: UserRegister, session: Session = Depends(get_session)):
     inst_stmt = select(Institution).where(Institution.domain == domain)
     inst = session.exec(inst_stmt).first()
 
+
     try:
+        clean_email = user_data.email.lower().strip()
+
         new_user = User(
-            email=user_data.email,
+            email=clean_email,
             password_hash=hash_password(user_data.password),
             first_name=user_data.first_name,
             last_name=user_data.last_name,
@@ -142,19 +146,22 @@ def register(user_data: UserRegister, session: Session = Depends(get_session)):
 
 @router.post("/admin-register")
 def admin_register(user_data: AdminUserRegister, current_admin: User = Depends(get_current_admin), session: Session = Depends(get_session)):
-    statement = select(User).where(User.email == user_data.email)
+    statement = select(User).where(func.lower(User.email) == func.lower(user_data.email))
     existing_user = session.exec(statement).first()
+
     if existing_user:
         raise HTTPException(
             status_code=400, 
-            detail="Korisnik s ovim emailom već postoji"
+            detail="Korisnik s ovim emailom već postoji."
         )
 
     try:
         is_examinee = "examinee" in user_data.roles
 
+        clean_email = user_data.email.lower().strip()
+
         new_user = User(
-            email=user_data.email,
+            email=clean_email,
             password_hash=hash_password(user_data.password),
             first_name=user_data.first_name,
             last_name=user_data.last_name,
@@ -182,13 +189,14 @@ def admin_register(user_data: AdminUserRegister, current_admin: User = Depends(g
 
 @router.post("/login")
 def login(request: Request, user_data: OAuth2PasswordRequestForm = Depends(), session: Session = Depends(get_session)):
-    statement = select(User).where(User.email == user_data.username) #OAuth zbog Swagger testiranja; username = email
+    email_input = user_data.username.lower().strip()
+    statement = select(User).where(func.lower(User.email) == email_input) #OAuth zbog Swagger testiranja; username = email
     user = session.exec(statement).first()
 
     if not user or not verify_password(user_data.password, user.password_hash):
         raise HTTPException(
             status_code=401,
-            detail="Pogrešan email ili lozinka",
+            detail="Pogrešan email ili lozinka.",
             headers={"WWW-Authenticate": "Bearer"},
         )
 
