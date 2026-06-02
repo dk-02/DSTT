@@ -1,6 +1,6 @@
 import { useNavigate } from "react-router-dom";
 import { useAuthStore } from "../store/useAuthStore";
-import { ArrowNarrowLeft } from "@untitledui/icons";
+import { ArrowNarrowLeft, Check, XClose } from "@untitledui/icons";
 import { Modal } from "../components/UI/Modal";
 import { useState } from "react";
 import { useCaseStore } from "../store/useCaseStore";
@@ -132,9 +132,26 @@ function Profile() {
         }
     ]
 
+    const passwordChecks = {
+        hasMinLength: formData.newPassword.length >= 8,
+        hasUpperCase: /[A-Z]/.test(formData.newPassword),
+        hasLowerCase: /[a-z]/.test(formData.newPassword),
+        hasNumber: /[0-9]/.test(formData.newPassword),
+        hasSpecialChar: /[!@#$%^&*(),.?":{}|<>_+\-[\]/\\]/.test(formData.newPassword),
+    };
+    const isPasswordValid = Object.values(passwordChecks).every(Boolean);
+
+    const handleNavigateBack = () => {
+        if (window.history.length <= 1) {
+            navigate("/user/dashboard");
+        } else {
+            navigate(-1);
+        }
+    };
+
     return(
         <div className="flex justify-center items-center w-screen h-screen bg-gray-700 text-white relative">
-            <ArrowNarrowLeft onClick={() => navigate("/user/dashboard")} className="absolute top-5 left-5 scale-130 text-gray-50 hover:cursor-pointer" />
+            <ArrowNarrowLeft onClick={handleNavigateBack} className="absolute top-5 left-5 scale-130 text-gray-50 hover:cursor-pointer" />
             <div className="w-1/4 p-10 bg-gray-800  h-full flex flex-col justify-between items-center">
                 <div className="flex flex-col items-center gap-5 w-full">
                     <div className="flex items-center justify-center w-40 h-40 text-5xl bg-gray-900 border-4 border-gray-700 shadow-xl font-bold rounded-full relative">
@@ -237,19 +254,59 @@ function Profile() {
                 title="Promjena lozinke"
             >
                 <div className="w-full flex flex-col items-center gap-3">
-                    {passwordChangeInputs.map((i, idx) => (
-                        <div key={idx} className="relative flex items-center w-1/2">
-                            <input 
-                                type={"password"} 
-                                placeholder={i.label} 
-                                name={i.name} 
-                                value={i.value}
-                                onChange={handleChange} 
-                                className="p-2 bg-gray-200 text-gray-600 border border-gray-400 rounded focus:ring-2 focus:ring-orange-500 outline-none w-full"
-                            />
+                    {passwordChangeInputs.map((i, idx) => {
+                        const isConfirmField = i.name === "confirmNewPassword";
+                        const hasTypedConfirm = formData.confirmNewPassword.length > 0;
+                        const isMismatched = formData.confirmNewPassword !== formData.newPassword;
+                        const hasError = isConfirmField && hasTypedConfirm && isMismatched;
+
+                        return(
+                            <div key={idx} className="relative flex flex-col justify-center-center w-1/2">
+                                <input 
+                                    type={"password"} 
+                                    placeholder={i.label} 
+                                    name={i.name} 
+                                    value={i.value}
+                                    onChange={handleChange} 
+                                    className={`p-2 bg-gray-200 text-gray-600 border rounded outline-none w-full transition-all ${
+                                        hasError 
+                                            ? "border-red-500 ring-2 ring-red-500 focus:ring-red-500 focus:border-red-500" 
+                                            : "border-gray-400 focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                                    }`}
+                                />
+                                {hasError && (
+                                    <span className="text-[11px] text-red-400 font-medium mt-1 animate-fadeIn">
+                                        Nove lozinke se ne podudaraju.
+                                    </span>
+                                )}
+                            </div>
+                        )
+                    })}
+
+                    {formData.newPassword.length > 0 && (
+                        <div className="w-1/2 bg-gray-200 p-3 rounded-lg border border-gray-600/40 space-y-1.5 text-xs animate-fadeIn">
+                            <p className="font-semibold text-gray-500 mb-2">Sigurnost lozinke:</p>
+                            
+                            {[
+                                { checked: passwordChecks.hasMinLength, label: "Minimalno 8 znakova" },
+                                { checked: passwordChecks.hasUpperCase, label: "Barem jedno veliko slovo (A-Z)" },
+                                { checked: passwordChecks.hasLowerCase, label: "Barem jedno malo slovo (a-z)" },
+                                { checked: passwordChecks.hasNumber, label: "Barem jedan broj (0-9)" },
+                                { checked: passwordChecks.hasSpecialChar, label: "Barem jedan posebni znak (npr. !, @, #, $)" },
+                            ].map((rule, index) => (
+                                <div key={index} className="flex items-center gap-2 transition-all">
+                                    <span className={`font-bold ${rule.checked ? "text-green-400" : "text-red-400"}`}>
+                                        {rule.checked ? <Check className="scale-70" /> : <XClose className="scale-70" />}
+                                    </span>
+                                    <span className={rule.checked ? "text-gray-400" : "text-gray-500"}>
+                                        {rule.label}
+                                    </span>
+                                </div>
+                            ))}
                         </div>
-                    ))}
-                    <button onClick={handleChangePassword} className="cursor-pointer border bg-red-600 font-semibold px-3 py-2 rounded-md">Potvrdi</button>
+                    )}
+
+                    <button disabled={!isPasswordValid} onClick={handleChangePassword} className="disabled:bg-gray-500 disabled:cursor-not-allowed cursor-pointer border bg-red-600 font-semibold px-3 py-2 rounded-md">Potvrdi</button>
                 </div>
             </Modal>
 

@@ -1,4 +1,5 @@
 import os
+import re
 from datetime import datetime, timedelta, timezone
 from typing import Dict
 import uuid
@@ -85,6 +86,33 @@ def hash_password(password: str):
 def verify_password(plain_password: str, hashed_password: str):
     return pwd_context.verify(plain_password, hashed_password)
 
+def validate_password_strength(password: str) -> None:
+    if len(password) < 8:
+        raise HTTPException(
+            status_code=400, 
+            detail="Lozinka mora sadržavati minimalno 8 znakova."
+        )
+    if not re.search(r"[A-Z]", password):
+        raise HTTPException(
+            status_code=400, 
+            detail="Lozinka mora sadržavati barem jedno veliko slovo."
+        )
+    if not re.search(r"[a-z]", password):
+        raise HTTPException(
+            status_code=400, 
+            detail="Lozinka mora sadržavati barem jedno malo slovo."
+        )
+    if not re.search(r"[0-9]", password):
+        raise HTTPException(
+            status_code=400, 
+            detail="Lozinka mora sadržavati barem jedan broj."
+        )
+    if not re.search(r"[!@#$%^&*(),.?\":{}|<>_+\-\[\]\/\\]", password):
+        raise HTTPException(
+            status_code=400, 
+            detail="Lozinka mora sadržavati barem jedan posebni znak."
+        )
+
 def create_access_token(data: dict):
     to_encode = data.copy()
     expire = datetime.now(timezone.utc) + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
@@ -100,6 +128,8 @@ def create_reset_token(data: dict, expires_delta: int):
 
 @router.post("/register")
 def register(user_data: UserRegister, session: Session = Depends(get_session)):
+    validate_password_strength(user_data.password)
+
     statement = select(User).where(func.lower(User.email) == func.lower(user_data.email))
     existing_user = session.exec(statement).first()
     if existing_user:
@@ -146,6 +176,8 @@ def register(user_data: UserRegister, session: Session = Depends(get_session)):
 
 @router.post("/admin-register")
 def admin_register(user_data: AdminUserRegister, current_admin: User = Depends(get_current_admin), session: Session = Depends(get_session)):
+    validate_password_strength(user_data.password)
+
     statement = select(User).where(func.lower(User.email) == func.lower(user_data.email))
     existing_user = session.exec(statement).first()
 
@@ -189,8 +221,7 @@ def admin_register(user_data: AdminUserRegister, current_admin: User = Depends(g
 
 @router.post("/login")
 def login(request: Request, user_data: OAuth2PasswordRequestForm = Depends(), session: Session = Depends(get_session)):
-    email_input = user_data.username.lower().strip()
-    statement = select(User).where(func.lower(User.email) == email_input) #OAuth zbog Swagger testiranja; username = email
+    statement = select(User).where(User.email == user_data.username.lower().strip()) #OAuth zbog Swagger testiranja; username = email
     user = session.exec(statement).first()
 
     if not user or not verify_password(user_data.password, user.password_hash):
@@ -259,6 +290,8 @@ def change_password(data: PasswordChange, current_user: User = Depends(get_curre
             status_code=400, 
             detail="Trenutna lozinka nije ispravna."
         )
+    
+    validate_password_strength(data.new_password)
 
     current_user.password_hash = hash_password(data.new_password)
     session.add(current_user)
@@ -273,6 +306,8 @@ def change_password_admin(data: PasswordChangeAdmin, current_user: User = Depend
 
     if not user:
         raise HTTPException(status_code=404, detail="Korisnik nije pronađen.")
+    
+    validate_password_strength(data.new_password)
 
     user.password_hash = hash_password(data.new_password)
     session.add(user)

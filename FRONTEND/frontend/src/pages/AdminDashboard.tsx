@@ -23,6 +23,14 @@ function AdminDashboard() {
         }
     ]
 
+    const handleNavigateBack = () => {
+        if (window.history.length <= 1) {
+            navigate("/user/dashboard");
+        } else {
+            navigate(-1);
+        }
+    };
+
     return (
         <>
             <Header />
@@ -30,7 +38,7 @@ function AdminDashboard() {
                 <div className="w-1/5 p-8 bg-gray-800 border-r border-gray-700 flex flex-col justify-between items-center">
                     <div className="flex flex-col items-center gap-6 w-full">
                         <ArrowNarrowLeft 
-                            onClick={() => navigate("/")} 
+                            onClick={handleNavigateBack} 
                             className="self-start mb-4 scale-125 cursor-pointer" 
                         />
                         <nav className="w-full space-y-2">

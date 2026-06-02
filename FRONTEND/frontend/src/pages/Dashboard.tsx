@@ -3,9 +3,10 @@ import { useRole } from "../hooks/useRole";
 import TeacherDashboard from "../components/teacher-dash-components/TeacherDashboard";
 import ExamineeDashboard from "../components/examinee-dash-components/ExamineeDashboard";
 import ExpertDashboard from "../components/expert-dash-components/ExpertDashboard";
+import AdminCases from "../components/admin-dash-components/AdminCases";
 
 function Dashboard() {
-    const { isTeacher, isExpert, isExaminee } = useRole();
+    const { isTeacher, isExpert, isExaminee, isAdmin } = useRole();
 
     return (
         <div className="w-screen h-screen bg-gray-700 flex flex-col text-gray-100">
@@ -14,6 +15,7 @@ function Dashboard() {
                 {isTeacher && <TeacherDashboard/>}
                 {isExpert && <ExpertDashboard />}
                 {isExaminee && <ExamineeDashboard/>}
+                {isAdmin && <AdminCases />}
             </main>
         </div>
     );

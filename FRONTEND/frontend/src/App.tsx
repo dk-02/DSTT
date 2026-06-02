@@ -55,10 +55,6 @@ function App() {
                 <Route path="/user/login" element={<Login />} />
                 <Route path="/user/profile" element={<Profile />} />
                 <Route path="/user/dashboard" element={<Dashboard />} />
-                {/* <Route path="/user/dashboard" element={<Dashboard />}>
-                    <Route index element={<TeacherActiveCases />} />
-                    <Route path="archive" element={<CaseArchive />} />
-                </Route> */}
                 <Route path="/about" element={<About />} />
                 <Route path="/contact" element={<Contact />} />
                 <Route 

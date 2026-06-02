@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ArrowNarrowLeft, Eye, EyeOff, HelpCircle } from "@untitledui/icons";
+import { ArrowNarrowLeft, Check, Eye, EyeOff, HelpCircle, XClose } from "@untitledui/icons";
 import { useNavigate } from "react-router-dom";
 import { useAuthStore } from "../store/useAuthStore";
 import { Tooltip, TooltipTrigger } from "../components/base/tooltip/tooltip";
@@ -168,6 +168,16 @@ export const Register = ({ isAdminMode = false, onSuccess } : RegisterProps) => 
         setPasswordVisible(prev => !prev);
     }
 
+    const passwordChecks = {
+        hasMinLength: formData.password.length >= 8,
+        hasUpperCase: /[A-Z]/.test(formData.password),
+        hasLowerCase: /[a-z]/.test(formData.password),
+        hasNumber: /[0-9]/.test(formData.password),
+        hasSpecialChar: /[!@#$%^&*(),.?":{}|<>_+\-[\]/\\]/.test(formData.password),
+    };
+
+    const isPasswordValid = Object.values(passwordChecks).every(Boolean);
+
     const containerClasses = isAdminMode 
         ? "w-full p-2 text-white"
         : "flex justify-center items-center w-full h-screen bg-gray-800 relative";
@@ -229,6 +239,29 @@ export const Register = ({ isAdminMode = false, onSuccess } : RegisterProps) => 
 
                 </div>
 
+                {formData.password.length > 0 && (
+                    <div className="bg-gray-800/40 p-3 rounded-lg border border-gray-600/40 space-y-1.5 text-xs animate-fadeIn">
+                        <p className="font-semibold text-gray-400 mb-2">Sigurnost lozinke:</p>
+                        
+                        {[
+                            { checked: passwordChecks.hasMinLength, label: "Minimalno 8 znakova" },
+                            { checked: passwordChecks.hasUpperCase, label: "Barem jedno veliko slovo (A-Z)" },
+                            { checked: passwordChecks.hasLowerCase, label: "Barem jedno malo slovo (a-z)" },
+                            { checked: passwordChecks.hasNumber, label: "Barem jedan broj (0-9)" },
+                            { checked: passwordChecks.hasSpecialChar, label: "Barem jedan posebni znak (npr. !, @, #, $)" },
+                        ].map((rule, index) => (
+                            <div key={index} className="flex items-center gap-2 transition-all">
+                                <span className={`font-bold ${rule.checked ? "text-green-400" : "text-red-400"}`}>
+                                    {rule.checked ? <Check className="w-5" /> : <XClose className="w-5" />}
+                                </span>
+                                <span className={rule.checked ? "text-gray-300" : "text-gray-400"}>
+                                    {rule.label}
+                                </span>
+                            </div>
+                        ))}
+                    </div>
+                )}
+
                 {isAdminMode && (
                     <div className="flex flex-col gap-2 mt-2">
                         <div className="flex items-center gap-1">
@@ -282,7 +315,11 @@ export const Register = ({ isAdminMode = false, onSuccess } : RegisterProps) => 
                     </div>
                 )}
 
-                <button type="submit" className="bg-orange-500 p-2 rounded hover:cursor-pointer">
+                <button 
+                    type="submit"
+                    disabled={!isPasswordValid || !formData.email || !formData.firstName || !formData.lastName}
+                    className="disabled:bg-gray-500 disabled:cursor-not-allowed bg-orange-500 p-2 rounded hover:cursor-pointer"
+                >
                     {isAdminMode ? "Kreiraj račun" : "Registriraj se"}
                 </button>
             </form>
