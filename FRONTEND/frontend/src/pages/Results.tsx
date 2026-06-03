@@ -7,14 +7,15 @@ const backendURL = import.meta.env.VITE_APP_BACKEND;
 
 interface EvaluationReport {
     attempt_status: string;
-    is_late?: boolean;
-    late_readable?: string;
     action_history: {
         type: string;
         status: string;
         description: string;
         feedback?: string;
     }[],
+    time_spent: number;
+    is_late?: boolean;
+    late_readable?: string;
     metrics: {
         accuracy: {
             verdict: string;
@@ -23,9 +24,14 @@ interface EvaluationReport {
         efficiency: {
             total_cost_money: number;
             total_cost_time_seconds: number;
-            readable_time: string;
+            penalty_cost_money: number;
+            penalty_cost_time_seconds: number;
+            readable_time_total: string;
+            readable_time_penalty: string;
             budget_money_limit: number | null;
+            budget_time_limit: number | null;
             budget_exceeded: boolean;
+            efficiency_category: string;
         };
         methodology: {
             score_percentage: number;
@@ -111,6 +117,18 @@ function Results() {
         return "bg-gray-400"; // Običan DU request
     };
 
+    const formatTime = (timeSeconds: number) => {
+        const hours = Math.floor(timeSeconds / 3600);
+        const minutes = Math.floor((timeSeconds % 3600) / 60).toString().padStart(2, '0');
+        const seconds = (timeSeconds % 60).toString().padStart(2, '0');
+        
+        if (hours > 0) {
+            return `${hours}:${minutes}:${seconds}`;
+        } else {
+            return`${minutes}:${seconds}`;
+        }
+    }
+
     return (
         <div className="min-h-screen text-gray-100 p-8 bg-gray-700 font-sans relative">
             <ArrowNarrowLeft 
@@ -122,6 +140,7 @@ function Results() {
                     <div>
                         <h1 className="text-3xl font-bold text-gray-100">Analitički izvještaj</h1>
                         <p className="text-gray-300 mt-1">Detaljan pregled vašeg dijagnostičkog postupka</p>
+                        <p className="text-gray-300 mt-5"><span className="text-orange-400">VRIJEME RJEŠAVANJA:</span> {formatTime(report.time_spent)}</p>
                     </div>
                 </div>
 
@@ -170,15 +189,34 @@ function Results() {
                     {/* 3. EFIKASNOST */}
                     <div className="bg-gray-800 rounded-2xl shadow-sm p-6 flex flex-col">
                         <h2 className="text-lg font-bold text-gray-100 uppercase tracking-wider mb-4 border-b border-b-gray-700 pb-2">3. Efikasnost (Efficiency)</h2>
+
+                        {/* Značka za kategoriju efikasnosti */}
+                        {efficiency.efficiency_category && <div className={`mb-5 p-2 rounded-lg border font-bold text-center uppercase tracking-wide text-sm
+                            ${efficiency.efficiency_category === 'bolje_od_kriterija' ? 'bg-green-100 text-green-800 border-green-300' :
+                              efficiency.efficiency_category === 'losije_od_kriterija' ? 'bg-red-100 text-red-800 border-red-300' :
+                              'bg-blue-100 text-blue-800 border-blue-300'}`}>
+                            {efficiency.efficiency_category.replace(/_/g, ' ')}
+                        </div>}
+                        
                         
                         <div className="grid grid-cols-2 gap-4 mb-4">
                             <div className="bg-blue-50 border border-blue-100 p-4 rounded-xl text-center">
                                 <p className="text-blue-500 text-xs font-bold uppercase mb-1">Simulirano Vrijeme</p>
-                                <p className="text-2xl font-black text-blue-900">{efficiency.readable_time}</p>
+                                <p className="text-2xl font-black text-blue-900">{efficiency.readable_time_total}</p>
+                                {efficiency.penalty_cost_time_seconds > 0 && (
+                                    <p className="text-xs text-red-600 mt-1 font-semibold">
+                                        (+ {Math.floor(efficiency.penalty_cost_time_seconds / 60)} min kazne)
+                                    </p>
+                                )}
                             </div>
                             <div className="bg-green-50 border border-green-100 p-4 rounded-xl text-center">
                                 <p className="text-green-500 text-xs font-bold uppercase mb-1">Potrošeni Novac</p>
-                                <p className="text-2xl font-black text-green-900">${efficiency.total_cost_money}</p>
+                                <p className="text-2xl font-black text-green-900">€{efficiency.total_cost_money}</p>
+                                {efficiency.penalty_cost_money > 0 && (
+                                    <p className="text-xs text-red-600 mt-1 font-semibold">
+                                        (+ €{efficiency.penalty_cost_money} kazne)
+                                    </p>
+                                )}
                             </div>
                         </div>
 
@@ -188,9 +226,21 @@ function Results() {
                             </p>
                         )}
 
+                        {(efficiency.budget_money_limit !== null || efficiency.budget_time_limit !== null) && (
+                            <div className="bg-gray-700 p-3 rounded-lg text-sm text-gray-300 mb-2">
+                                <p className="font-bold mb-1 text-gray-100">Dopušteni budžet slučaja:</p>
+                                <ul className="list-disc list-inside ml-4">
+                                    {efficiency.budget_money_limit !== null && <li>Novac: €{efficiency.budget_money_limit}</li>}
+                                    {efficiency.budget_time_limit !== null && 
+                                        <li>Vrijeme: {Math.floor(efficiency.budget_time_limit / 3600)}h {Math.floor((efficiency.budget_time_limit % 3600) / 60)}m</li>
+                                    }
+                                </ul>
+                            </div>
+                        )}
+
                         {report.is_late && (
                             <div className="mt-4 p-3 bg-red-50 border border-red-200 text-red-700 rounded-lg text-sm font-medium text-center">
-                                ⚠️ Rad je predan s kašnjenjem od {report.late_readable}.
+                                Rad je predan s kašnjenjem od {report.late_readable}.
                             </div>
                         )}
                     </div>

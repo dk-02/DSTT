@@ -64,6 +64,7 @@ class Case(SQLModel, table=True):
     correct_diagnosis: str = Field(max_length=150)
     default_settings: Dict[str, Any] = Field(default={}, sa_column=SAColumn(JSONB))     
     created_by: uuid.UUID = Field(default=None, foreign_key="users.id")    
+    budget: Dict[str, Any] = Field(default={}, sa_column=SAColumn(JSONB))
 
     media: List["Media"] = Relationship(back_populates="cases", link_model=CaseMediaFile)
     hints: List["Hint"] = Relationship(back_populates="case", sa_relationship_kwargs={"cascade": "all, delete-orphan"})
@@ -173,6 +174,7 @@ class CaseCreate(BaseModel):
     hints: List[HintReadCreate] = []
     diagnostic_units: List[DUCreate] = []
     media_ids: List[str] = []
+    budget: Dict[str, Any] = {}
 
 class CaseEditRequest(CaseCreate):
     change_log: Optional[str] = None
@@ -196,8 +198,10 @@ class SolveAttempt(SQLModel, table=True):
     status: str = Field(default="in_progress") # not_started (za nasumično odabrane slučajeve u zadaći), in_progress (u tijeku), completed (točna ili netočna dijagnoza), terminated (greška kod rješavanja) ili cancelled (ručni prekid)
     is_practice: bool = Field(default=True)
     student_diagnosis: Optional[str] = None
-    total_cost_money: float = Field(default=0.0)
+    total_cost_money: float = Field(default=0.0) # Trošak DU-ova
     total_cost_time: int = Field(default=0)
+    penalty_cost_money: float = Field(default=0.0) # Trošak kazni
+    penalty_cost_time: int = Field(default=0)
     started_at: datetime = Field(default_factory=datetime.now)
     finished_at: Optional[datetime] = None
     evaluation_report: Optional[Dict[str, Any]] = Field(default=None, sa_column=SAColumn(JSONB))

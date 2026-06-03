@@ -434,7 +434,8 @@ def get_full_case_details(case_id: uuid.UUID, current_user: User = Depends(get_c
         "version": case.version,
         "media_ids": case_media_ids,
         "hints": hints_data,
-        "diagnostic_units": du_data
+        "diagnostic_units": du_data,
+        "budget": case.budget or {}
     }
 
 

@@ -97,7 +97,7 @@ export const BasicInfo = () => {
           
           <button 
               onClick={() => setIsAdding({ parentId })}
-              className="p-2 bg-gray-600 border rounded-lg hover:bg-gray-500 transition-colors"
+              className="p-2 bg-gray-600 border rounded-lg hover:bg-gray-500 cursor-pointer transition-colors"
               title="Dodaj novu kategoriju na ovu razinu"
           >
               <Plus className="w-5 h-5 text-orange-400" />

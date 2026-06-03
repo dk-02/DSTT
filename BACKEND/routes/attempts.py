@@ -134,15 +134,48 @@ def generate_evaluation_report(attempt_id: uuid.UUID, session: Session) -> Dict[
     # (2) EFIKASNOST (efficiency) - resursi
     total_money = attempt.total_cost_money
     total_time_seconds = attempt.total_cost_time
+    penalty_money = attempt.penalty_cost_money
+    penalty_time_seconds = attempt.penalty_cost_time
 
-    hours = total_time_seconds // 3600
-    minutes = (total_time_seconds % 3600) // 60
-    readable_time = f"{hours}h {minutes}m" if hours > 0 else f"{minutes}m"
+    # Ukupni zbrojeni trošak s kaznama
+    final_money = total_money + penalty_money
+    final_time = total_time_seconds + penalty_time_seconds
 
-    budget_money = case.default_settings.get("budget_money") if case else None
+    hours_total = total_time_seconds // 3600
+    minutes_total = (total_time_seconds % 3600) // 60
+    readable_time_total = f"{hours_total}h {minutes_total}m" if hours_total > 0 else f"{minutes_total}m"
+
+    hours_penalty = penalty_time_seconds // 3600
+    minutes_penalty = (penalty_time_seconds % 3600) // 60
+    readable_time_penalty = f"{hours_penalty}h {minutes_penalty}m" if hours_penalty > 0 else f"{minutes_penalty}m"
+
+    # BUDŽET I KATEGORITACIJA
+    budget_dict = case.budget or {}
+    budget_money = budget_dict.get("money")
+    budget_time_raw = budget_dict.get("time")
+    budget_time_unit = budget_dict.get("time_unit")
+
+    budget_time_seconds = None
+    if budget_time_raw is not None and budget_time_unit:
+        budget_time_seconds = int(budget_time_raw)
+
+        if budget_time_unit == "minutes":
+            budget_time_seconds *= 60
+        elif budget_time_unit == "hours":
+            budget_time_seconds *= 3600
+        elif budget_time_unit == "days":
+            budget_time_seconds *= 86400
+    
     budget_exceeded = False
-    if budget_money and total_money > budget_money:
-        budget_exceeded = True
+    efficiency_category = "unutar_kriterija"
+
+    if budget_money is not None and budget_time_seconds is not None:
+        if final_money > budget_money or final_time > budget_time_seconds:
+            budget_exceeded = True
+            efficiency_category = "losije_od_kriterija"
+        else:
+            efficiency_category = "bolje_od_kriterija"
+
 
     # (3) METODIČNOST (methodology) - slijed koraka, pogreške
     redundant_count = sum(1 for log in valid_logs if log.status == "redundant")
@@ -154,7 +187,8 @@ def generate_evaluation_report(attempt_id: uuid.UUID, session: Session) -> Dict[
     methodology_score = 100
     methodology_score -= (redundant_count * 10)          # -10% za svaki redundantni upit
     methodology_score -= (indicator_warnings * 15)       # -15% za ignoriranje preduvjeta
-    methodology_score -= (wrong_diagnosis_count * 15)    # -15% za svaki netočan pokušaj dijagnoze
+    if attempt.settings.get("penalize_wrong_diagnosis") == True:
+        methodology_score -= (wrong_diagnosis_count * 15)    # -15% za svaki netočan pokušaj dijagnoze
     if fatal_mistakes > 0:
         methodology_score = 0                            # 0% ako je bilo fatalnih pogreški
         
@@ -228,9 +262,14 @@ def generate_evaluation_report(attempt_id: uuid.UUID, session: Session) -> Dict[
             "efficiency": {
                 "total_cost_money": total_money,
                 "total_cost_time_seconds": total_time_seconds,
-                "readable_time": readable_time,
+                "penalty_cost_money": penalty_money,
+                "penalty_cost_time_seconds": penalty_time_seconds,
+                "readable_time_total": readable_time_total,
+                "readable_time_penalty": readable_time_penalty,
                 "budget_money_limit": budget_money,
-                "budget_exceeded": budget_exceeded
+                "budget_time_limit": budget_time_seconds,
+                "budget_exceeded": budget_exceeded,
+                "efficiency_category": efficiency_category
             },
             "methodology": {
                 "score_percentage": methodology_score,
@@ -548,6 +587,27 @@ async def get_DU(attempt_id: uuid.UUID, request: ChatRequest, session: Session =
                 applied_consequence = consequence
                 result_text = consequence.get("value", "Nedostaje logički preduvjet.")
 
+                if consequence:
+                    attempt.penalty_cost_money += consequence.get("penalty_money", 0.0)
+
+                    unit = consequence.get("penalty_time_unit", "")
+                    penalty_cost_time_raw = consequence.get("penalty_time", 0)
+
+                    penalty_cost_time_seconds = 0
+
+                    if penalty_cost_time_raw is not None and unit:
+                        penalty_cost_time_seconds = int(penalty_cost_time_raw)
+
+                        if unit == "minutes":
+                            penalty_cost_time_seconds *= 60
+                        elif unit == "hours":
+                            penalty_cost_time_seconds *= 3600
+                        elif unit == "days":
+                            penalty_cost_time_seconds *= 86400
+
+                    attempt.penalty_cost_time += penalty_cost_time_seconds
+
+
             else:
                 is_redundant = check_redundancy(session, attempt_id, selected_du)
 
@@ -670,6 +730,11 @@ async def submit_diagnosis(attempt_id: uuid.UUID, data: DiagnosisRequest, sessio
 
     else:
         if attempt.settings.get("allow_diagnosis_retry", True):
+            if attempt.settings.get("penalize_wrong_diagnosis") == True:
+                attempt.penalty_cost_time += 1800  # Kazna: 30 minuta (1800 sekundi)
+                session.add(attempt)
+                feedback = f"{feedback}\n\nKAZNA: Zbog netočne dijagnoze dodano je 30 minuta na vaše simulirano vrijeme izvođenja akcija."
+
             pass
 
         else:

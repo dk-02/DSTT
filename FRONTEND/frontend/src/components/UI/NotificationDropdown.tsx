@@ -62,7 +62,7 @@ export const NotificationDropdown = () => {
     return (
         <div className="relative">
             <button onClick={() => setIsOpen(!isOpen)} className="relative p-2 text-gray-400 hover:text-white transition">
-                <Bell01 className="w-6 h-6" />
+                <Bell01 className="w-6 h-6 cursor-pointer" />
                 {notifications.length > 0 && (
                     <span className="absolute top-1 right-1 w-3 h-3 bg-red-500 rounded-full border border-gray-800"></span>
                 )}

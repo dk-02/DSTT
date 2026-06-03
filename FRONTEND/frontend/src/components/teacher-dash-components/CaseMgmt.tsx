@@ -115,7 +115,12 @@ function CaseMgmt() {
                     ...du,
                     media: [], 
                     required_units: du.required_units || []
-                }))
+                })),
+                budget: {
+                    money: fullCaseData.budget?.money || 0,
+                    time: fullCaseData.budget?.time || 0,
+                    time_unit: fullCaseData.budget?.time_unit || 'minutes'
+                }
             };
 
             setCaseData(dataForStore);

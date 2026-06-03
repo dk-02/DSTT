@@ -91,7 +91,8 @@ function CaseForm() {
                 diagnostic_units: processedDUs,
                 hints: processedHints,
                 status: targetStatus,
-                change_log: finalChangeLog || "Promjena vidljivosti u 'private'."
+                change_log: finalChangeLog || "Promjena vidljivosti u 'private'.",
+                budget: caseData.budget
             };
 
             const response = await fetch(url, {
