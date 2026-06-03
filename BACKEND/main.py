@@ -4,7 +4,7 @@ from fastapi.staticfiles import StaticFiles
 from sqlmodel import SQLModel
 from database import engine
 from fastapi.middleware.cors import CORSMiddleware
-from routes import cases, media, templates, categories, auth, attempts, users, institutions, groups, assignments, contact
+from routes import cases, media, templates, categories, auth, attempts, users, institutions, groups, assignments, contact, updates
 from config import UPLOAD_DIR
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
@@ -44,3 +44,4 @@ app.include_router(institutions.router)
 app.include_router(groups.router)
 app.include_router(assignments.router)
 app.include_router(contact.router)
+app.include_router(updates.router)

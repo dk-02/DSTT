@@ -30,7 +30,8 @@ def create_update_notifications(session: Session, case_id: uuid.UUID, update_id:
         notification = UpdateNotification(
             update_id=update_id,
             user_id=teacher_id,
-            status="decision_pending"
+            status="decision_pending",
+            case_id=case_id
         )
         session.add(notification)
 
@@ -481,6 +482,12 @@ def delete_case(case_id: uuid.UUID, current_user: User = Depends(get_current_act
     if db_case.status != "draft":
         raise HTTPException(status_code=400, detail="Moguće je brisati samo slučajeve koji su u statusu skice (draft).")
     
+    if db_case.version > 1:
+        raise HTTPException(
+            status_code=400, 
+            detail="Ovaj slučaj ne možete trajno obrisati jer je već bio objavljivan i posjeduje povijest verzija. Ako ga ne želite koristiti, možete ga ponovno arhivirati."
+        )
+
     try:
         media_to_check = set(db_case.media)
         for du in db_case.diagnostic_units:
@@ -525,6 +532,8 @@ def edit_case(case_id: uuid.UUID, case_data: CaseEditRequest, current_user: User
     old_case = session.get(Case, case_id)
     if not old_case or old_case.created_by != current_user.id:
         raise HTTPException(status_code=403, detail="Nemate ovlasti.")
+    
+    original_group_id = old_case.original_case_id or old_case.id
 
     try:
         target_id = case_id
@@ -539,12 +548,44 @@ def edit_case(case_id: uuid.UUID, case_data: CaseEditRequest, current_user: User
             populate_case_content(session, case_id, case_data, force_new_ids=False)
             target_id = case_id
 
-        elif case_data.status == "published":
+        elif old_case.status == "published":
+            # Zaštita od višestrukih verzija s istim brojem (ne mogu postojati dvije verzije 3 nekog slučaja)
+            latest_version = session.exec(
+                select(func.max(Case.version))
+                .where(func.coalesce(Case.original_case_id, Case.id) == original_group_id)
+            ).first()
+
+            if latest_version and latest_version > old_case.version:
+                raise HTTPException(
+                    status_code=400, 
+                    detail="Već postoji novija verzija ovog slučaja."
+                )
+            
+            # Soft revoke - dozvoljen nastavak korištenja u već postojećim zadaćama, ali uklanjanje iz izbornika dostupnih slučajeva
+            if old_case.is_public == True and case_data.is_public == False:
+                affected_assignments = session.exec(
+                    select(AssignmentCase)
+                    .join(Assignment, AssignmentCase.assignment_id == Assignment.id)
+                    .join(Case, AssignmentCase.case_id == Case.id)
+                    .where(func.coalesce(Case.original_case_id, Case.id) == original_group_id)
+                    .where(Assignment.teacher_id != current_user.id)
+                ).all()
+
+                affected_teachers = {session.get(Assignment, ac.assignment_id).teacher_id for ac in affected_assignments if session.get(Assignment, ac.assignment_id)}
+                
+                for teacher_id in affected_teachers:
+                    session.add(UpdateNotification(
+                        user_id=teacher_id, 
+                        type="revoked", 
+                        status="decision_pending",
+                        case_id=old_case.id
+                    ))
+
             new_case_id = uuid.uuid4()
             new_case = Case(
                 id=new_case_id,
                 version=old_case.version + 1,
-                original_case_id=old_case.original_case_id or old_case.id,
+                original_case_id=original_group_id,
                 created_by=current_user.id,
                 default_settings=old_case.default_settings,
                 status="published",
@@ -555,16 +596,17 @@ def edit_case(case_id: uuid.UUID, case_data: CaseEditRequest, current_user: User
             
             populate_case_content(session, new_case_id, case_data, force_new_ids=True)
             
-            update_log = CaseUpdate(
-                previous_case_id=case_id, 
-                new_case_id=new_case_id, 
-                change_log=case_data.change_log, 
-                new_version=new_case.version
-            )
+            if case_data.is_public == True:
+                update_log = CaseUpdate(
+                    previous_case_id=case_id, 
+                    new_case_id=new_case_id, 
+                    change_log=case_data.change_log, 
+                    new_version=new_case.version
+                )
+                session.add(update_log)
+                session.flush()
+                create_update_notifications(session, case_id, update_log.id, current_user.id)
 
-            session.add(update_log)
-            session.flush()
-            create_update_notifications(session, case_id, update_log.id, current_user.id)
             target_id = new_case_id
 
         else:
@@ -573,6 +615,9 @@ def edit_case(case_id: uuid.UUID, case_data: CaseEditRequest, current_user: User
         session.commit()
         return {"status": "success", "case_id": str(target_id)}
 
+    except HTTPException:
+        session.rollback()
+        raise
     except Exception as e:
         session.rollback()
         raise HTTPException(status_code=400, detail=f"Greška pri ažuriranju: {str(e)}")

@@ -20,7 +20,7 @@ interface EditAssignmentFormData {
 interface Case {
     id: string;
     title: string;
-    level: number;
+    level: string;
     topic_name: string;
     version: number;
     status?: string;
@@ -571,7 +571,7 @@ function AssignmentMgmt() {
                     selectedAssignmentFullDetails ? 
                     <div className="flex flex-col animate-fadeIn mt-5">
                         <button 
-                            onClick={() => setSelectedAssignmentFullDetails(null)}
+                            onClick={() => {setSelectedAssignmentFullDetails(null); setAddingCasesToAssignment(false);}}
                             className="mb-6 flex items-center gap-2 text-gray-400 hover:text-white transition-colors w-fit font-medium cursor-pointer"
                         >
                             <span>&larr;</span> Natrag na popis zadaća
@@ -712,7 +712,7 @@ function AssignmentMgmt() {
                                                 
                                                 <div className="mt-auto flex flex-wrap gap-2">
                                                     <span className="bg-orange-900/40 text-orange-400 text-xs font-bold px-2 py-1 rounded-md border border-orange-800/50">
-                                                        Razina: {c.level}
+                                                        Razina: {c.level === "novice" ? "početna" : c.level === "intermediate" ? "srednja" : "napredna"}
                                                     </span>
                                                     
                                                     {c.status && (
@@ -766,7 +766,7 @@ function AssignmentMgmt() {
                                             
                                             <div className="mt-auto flex flex-wrap gap-2">
                                                 <span className="bg-orange-900/40 text-orange-400 text-xs font-bold px-2 py-1 rounded-md border border-orange-800/50">
-                                                    Razina: {c.level}
+                                                    Razina: {c.level === "novice" ? "početna" : c.level === "intermediate" ? "srednja" : "napredna"}
                                                 </span>
                                                 
                                                 <span className="bg-gray-800 text-gray-400 text-xs font-bold px-2 py-1 rounded-md border border-gray-600">

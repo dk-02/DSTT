@@ -511,7 +511,7 @@ class AssignmentCasePreview(BaseModel):
     version: Optional[int] = None
     title: str
     level: str
-    status: str
+    status: Optional[str] = None
     topic_name: Optional[str] = None
     attempt_status: Optional[str] = None
     correct_diagnosis: Optional[str] = None
@@ -553,7 +553,13 @@ class UpdateNotification(SQLModel, table=True):
     __tablename__ = "update_notifications"
     
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
-    update_id: uuid.UUID = Field(foreign_key="case_updates.id")
+    update_id: Optional[uuid.UUID] = Field(default=None, foreign_key="case_updates.id", nullable=True)
+    case_id: Optional[uuid.UUID] = Field(default=None, foreign_key="cases.id", nullable=True)
     user_id: uuid.UUID = Field(foreign_key="users.id")
+    type: str = Field(default="version_update") # 'version_update' ili 'revoked'
     status: str = Field(default="decision_pending") # 'decision_pending', 'accepted', 'declined'
     decision_at: Optional[datetime] = None
+
+
+class DecisionRequest(BaseModel):
+    decision: Literal["accepted", "declined", "read"]

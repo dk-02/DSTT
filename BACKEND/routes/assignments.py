@@ -336,15 +336,26 @@ def preview_cases_for_adding(assignment_id: uuid.UUID, current_user: User = Depe
         (Case.is_public == False) & (Case.created_by == current_user.id)
     )
 
-    existing_cases_subquery = select(AssignmentCase.case_id).where(AssignmentCase.assignment_id == assignment_id)
+    existing_cases_subquery = select(AssignmentCase.case_id).where(AssignmentCase.assignment_id == assignment_id).subquery()
+
+    latest_versions_subquery = (
+        select(
+            func.coalesce(Case.original_case_id, Case.id).label("group_id"),
+            func.max(Case.version).label("max_version")
+        )
+        .where(Case.status == "published")
+        .group_by("group_id")
+    ).subquery()
 
     case_query = (
         select(Case, Category.name.label("topic_name"))
         .outerjoin(CaseCategory, Case.id == CaseCategory.case_id)
         .outerjoin(Category, CaseCategory.category_id == Category.id)
+        .join(latest_versions_subquery, (func.coalesce(Case.original_case_id, Case.id) == latest_versions_subquery.c.group_id))
         .where(visibility_filter)
         .where(Case.status == "published")
-        .where(Case.id.not_in(existing_cases_subquery))
+        .where(Case.version == latest_versions_subquery.c.max_version)
+        .where(Case.id.not_in(select(existing_cases_subquery.c.case_id)))
     )
 
     if assignment.type in ["practice", "practice_exam"]:
@@ -363,6 +374,7 @@ def preview_cases_for_adding(assignment_id: uuid.UUID, current_user: User = Depe
             correct_diagnosis=row.Case.correct_diagnosis
         ) for row in cases
     ]
+
 
 @router.post("/{assignment_id}/cases")
 def add_case_to_assignment(assignment_id: uuid.UUID, data: AddCasesToAssignment, current_user: User = Depends(get_current_teacher), session: Session = Depends(get_session)):
@@ -705,7 +717,7 @@ def get_assignment_details(assignment_id: uuid.UUID, session: Session = Depends(
             } for r in group_results
         ]
 
-        res_settings = assignment.settings.model_copy() if assignment.settings else {}
+        res_settings = dict(assignment.settings) if assignment.settings else {}
         random_settings = res_settings.get("random_case_picker_settings")
 
         if random_settings and "topic" in random_settings:

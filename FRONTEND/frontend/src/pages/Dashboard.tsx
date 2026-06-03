@@ -15,7 +15,7 @@ function Dashboard() {
                 {isTeacher && <TeacherDashboard/>}
                 {isExpert && <ExpertDashboard />}
                 {isExaminee && <ExamineeDashboard/>}
-                {isAdmin && <AdminCases />}
+                {isAdmin && !isExpert && !isTeacher && <AdminCases />}
             </main>
         </div>
     );

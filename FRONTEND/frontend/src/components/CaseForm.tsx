@@ -75,10 +75,13 @@ function CaseForm() {
             const method = caseData.id ? 'PUT' : 'POST';
             const url = caseData.id ? `${backendURL}/cases/${caseData.id}` : `${backendURL}/cases`;
             
-            if (isEditMode && targetStatus === 'published' && caseData.id && !caseData.changeLog) {
+            let finalChangeLog = caseData.changeLog || "Inicijalna objava ili draft izmjena";
+
+            if (isEditMode && caseData.is_public && caseData.status !== "draft" && targetStatus === 'published' && caseData.id && !caseData.changeLog) {
                 const log = prompt("Molimo opišite što ste promijenili u ovoj verziji:");
-                if (!log) return; // Prekini ako korisnik odustane
-                setChangeLog(log); // Spremi u store prije slanja
+                if (!log) return;
+                setChangeLog(log); 
+                finalChangeLog = log;
             }
 
             const finalPayload = {
@@ -88,7 +91,7 @@ function CaseForm() {
                 diagnostic_units: processedDUs,
                 hints: processedHints,
                 status: targetStatus,
-                change_log: caseData.changeLog || "Inicijalna objava ili draft izmjena"
+                change_log: finalChangeLog || "Promjena vidljivosti u 'private'."
             };
 
             const response = await fetch(url, {
@@ -102,25 +105,23 @@ function CaseForm() {
 
             if (!response.ok) {
                 const errorData = await response.json();
-                throw new Error(errorData.detail || 'Greška pri spremanju slučaja.');
+                throw new Error(errorData.detail || "Greška pri spremanju slučaja.");
             }
 
             const result = await response.json();
 
             if (result.case_id) {
                 setCaseId(result.case_id);
-                alert(targetStatus === 'draft' ? 'Skica spremljena!' : 'Slučaj objavljen!');
-            }
-           
-            if (targetStatus === 'published') {
-                if (isEditMode) {
-                    alert('Promjene pohranjene!');
+
+                if (targetStatus === 'published') {
+                    const successMsg = isEditMode ? 'Promjene pohranjene i slučaj objavljen!' : 'Slučaj uspješno kreiran i objavljen!';
+                    alert(successMsg);
+                    clearCaseData();
+                    navigate('/user/dashboard');
                 } else {
-                    alert('Slučaj uspješno kreiran!')
+                    alert('Skica uspješno spremljena!');
                 }
-                clearCaseData();
-                navigate('/user/dashboard'); 
-            }
+            } 
         
         } catch (error) {
             console.error("Greška pri kreiranju slučaja:", error);

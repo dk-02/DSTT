@@ -114,7 +114,7 @@ export function AssignmentCreator({ onClose, onSuccess }: AssignmentCreatorProps
     };
 
     const filteredCases = availableCases?.filter(c => {
-        const matchesSearch = c.title.toLowerCase().includes(searchTerm.toLowerCase());
+        const matchesSearch = c.title.toLowerCase().includes(searchTerm.toLowerCase()) || c.topic_name?.toLowerCase().includes(searchTerm.toLowerCase());
         
         return matchesSearch;
     });
@@ -253,7 +253,7 @@ export function AssignmentCreator({ onClose, onSuccess }: AssignmentCreatorProps
                                         <span className="text-xs font-bold text-gray-400">#{index + 1}</span>
                                         <div>
                                             <p className="text-sm font-bold text-white">{c.title}</p>
-                                            <p className="text-[10px] text-gray-400 uppercase tracking-wider">{c.level}</p>
+                                            <p className="text-[10px] text-gray-400 uppercase tracking-wider">{c.level === "novice" ? "lagano" : c.level === "intermediate" ? "srednje" : "teško"}</p>
                                         </div>
                                     </div>
                                     <div className="flex gap-1">
@@ -282,9 +282,9 @@ export function AssignmentCreator({ onClose, onSuccess }: AssignmentCreatorProps
                                             <label className="block text-xs text-gray-400 mb-1">Razina (opcionalno)</label>
                                             <select value={randomLevel} onChange={(e) => setRandomLevel(e.target.value)} className="w-full px-3 py-1.5 bg-gray-700 border border-gray-600 text-white rounded text-sm outline-none">
                                                 <option value="">Bilo koja</option>
-                                                <option value="Početna">Početna</option>
-                                                <option value="Srednja">Srednja</option>
-                                                <option value="Napredna">Napredna</option>
+                                                <option value="novice">Početna</option>
+                                                <option value="intermediate">Srednja</option>
+                                                <option value="expert">Napredna</option>
                                             </select>
                                         </div>
 
@@ -297,10 +297,6 @@ export function AssignmentCreator({ onClose, onSuccess }: AssignmentCreatorProps
                                                 ))}
                                             </select>
                                         </div>
-
-                                        {/* <button onClick={handleFetchRandomCases} className="bg-orange-500 hover:bg-orange-600 text-white font-bold py-1.5 px-4 rounded text-sm cursor-pointer shadow-md">
-                                            Izvuci nasumično
-                                        </button> */}
                                     </div>
                                 </div>
                             ) : (
@@ -309,7 +305,7 @@ export function AssignmentCreator({ onClose, onSuccess }: AssignmentCreatorProps
                                         <SearchMd className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5" />
                                         <input 
                                             type="text" 
-                                            placeholder="Pretraži slučajeve po naslovu..." 
+                                            placeholder="Pretraži slučajeve po naslovu ili temi..." 
                                             className="w-full bg-gray-700 border border-gray-500 rounded-lg py-2 pl-10 pr-4 focus:ring-2 focus:ring-orange-500 focus:outline-none transition-all"
                                             value={searchTerm}
                                             onChange={(e) => setSearchTerm(e.target.value)}
@@ -320,7 +316,7 @@ export function AssignmentCreator({ onClose, onSuccess }: AssignmentCreatorProps
                                             const isSelected = selectedCases.some(sc => sc.id === c.id);
                                             return (
                                                 <div key={c.id} className="flex justify-between items-center p-2 rounded hover:bg-gray-700 border border-transparent hover:border-gray-600">
-                                                    <div className="truncate pr-2 text-sm text-gray-200">{c.title} <span className="text-[10px] text-gray-500">({c.level})</span></div>
+                                                    <div className="truncate pr-2 text-sm text-gray-200">{c.title} <span className="text-[11px] text-gray-500">(RAZINA: {c.level === "novice" ? "početna" : c.level === "intermediate" ? "srednja" : "napredna"} | TEMA: {c.topic_name})</span></div>
                                                     <button onClick={() => handleAddManualCase(c)} disabled={isSelected} className="text-xs px-2 py-1 bg-gray-600 text-white rounded cursor-pointer disabled:opacity-30 disabled:cursor-default shrink-0">
                                                         {isSelected ? "Dodano" : "+ Dodaj"}
                                                     </button>

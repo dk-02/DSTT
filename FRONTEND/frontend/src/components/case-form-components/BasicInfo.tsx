@@ -75,7 +75,7 @@ export const BasicInfo = () => {
         </label>
         <div className="flex gap-2">
           <select 
-            className="flex-1 px-3 border rounded-lg bg-gray-600 text-gray-50 outline-none"
+            className="flex-1 px-1 border rounded-lg bg-gray-600 text-gray-50 outline-none"
             value={currentSelectedId}
             onChange={(e) => {
               const newValue = e.target.value;
