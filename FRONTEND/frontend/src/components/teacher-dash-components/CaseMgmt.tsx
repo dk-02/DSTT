@@ -303,7 +303,7 @@ function CaseMgmt() {
                                 setCaseToStartId(c.id);
                                 setSelectedPracticeMode("practice");
                                 setStartCaseModalOpen(true);
-                            }} className="mt-5 w-full bg-orange-500 text-white font-bold py-2 rounded-xl hover:bg-orange-600 hover:cursor-pointer transition shadow-md">
+                            }} className="mt-5 w-full bg-orange-500 text-white font-bold py-2 rounded-lg hover:cursor-pointer transition shadow-md">
                                 Isprobaj
                             </button>}
                             

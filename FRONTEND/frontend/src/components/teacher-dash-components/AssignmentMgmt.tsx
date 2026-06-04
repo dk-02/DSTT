@@ -41,7 +41,7 @@ interface AssignmentCaseDetail {
 interface Settings {
     enable_undo: boolean;
     enable_hints: boolean;
-    ignore_hint_cost: boolean;
+    ignore_hint_penalty: boolean;
     enable_LLM_mentor: boolean;
     case_sequence_lock: boolean;
     randomly_choose_cases: boolean;
@@ -816,13 +816,23 @@ function AssignmentMgmt() {
                         {assignmentFilter === "archived" ? 
                             <div>
                                 {archivedTeacherAssignments.length > 0 ? 
-                                <div>
-                                    {archivedTeacherAssignments.map((aa) => (
-                                        <div key={aa.id}>
-                                            {aa.title}
-                                            <button onClick={() => handleUnarchiveAssignment(aa.id)}>Vrati zadaću</button>
-                                        </div>
-                                    ))}
+                                <div className="my-5 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                                    {archivedTeacherAssignments.map((aa) => {
+                                        const typeLabel = aa.type === "practice" ? "Slobodna vježba" : aa.type === "practice_exam" ? "Simulacija ispita" : "Ispit";
+
+                                        return(
+                                            <div key={aa.id} className="relative flex flex-col bg-gray-600 rounded-xl border border-gray-700 p-5 shadow-lg group">
+                                                <div className="mt-4 flex-1">
+                                                    <h3 className="text-lg font-bold text-white leading-tight">{aa.title}</h3>
+                                                    <p className="text-sm text-gray-300 mt-1">{typeLabel}</p>
+                                                </div>
+
+                                                <button onClick={() => handleUnarchiveAssignment(aa.id)} className="mt-5 w-full bg-orange-500 text-white font-bold py-2 rounded-lg hover:cursor-pointer transition shadow-md">
+                                                    Vrati zadaću
+                                                </button>                                              
+                                            </div>
+                                        )
+                                    })}
                                 </div> : renderEmptyState("Nema zadaća" , "Trenutno nemate arhiviranih zadaća.")}
                                 
                             </div>
@@ -834,28 +844,23 @@ function AssignmentMgmt() {
                                         const typeLabel = a.type === "practice" ? "Slobodna vježba" : a.type === "practice_exam" ? "Simulacija ispita" : "Ispit";
 
                                         return (
-                                        <div key={a.id} className="relative flex flex-col bg-gray-700 rounded-2xl shadow-lg border border-gray-600 overflow-hidden hover:border-gray-500 transition-colors group">
-                                            <Dropdown
-                                                onArchive={() => {
-                                                    setAssignmentToArchiveId(a.id);
-                                                    setAssignmentArchiveModalOpen(true);
-                                                }}
-                                            />
-                                            <div className="p-5 flex-1 flex flex-col justify-between">
-                                                <div>
-                                                    <h3 className="text-lg font-bold text-white mb-4">{a.title}</h3>
-                                                    <div className="border-b border-gray-600 mb-2"></div>
-                                                    <div className="mt-5 text-sm text-gray-400 space-y-2">
-                                                        <p className="flex items-center gap-2 bg-orange-500/40 w-fit px-3 py-1.5 rounded-lg border border-orange-600/40">
-                                                            <span className="text-gray-100 font-medium">Tip: {typeLabel}</span>
-                                                        </p>
-                                                    </div>
+                                            <div key={a.id} className="relative flex flex-col bg-gray-600 rounded-xl border border-gray-700 p-5 shadow-lg group">
+                                                <Dropdown
+                                                    onArchive={() => {
+                                                        setAssignmentToArchiveId(a.id);
+                                                        setAssignmentArchiveModalOpen(true);
+                                                    }}
+                                                />                                                
+                                                
+                                                <div className="mt-4 flex-1">
+                                                    <h3 className="text-lg font-bold text-white leading-tight">{a.title}</h3>
+                                                    <p className="text-sm text-gray-300 mt-1">{typeLabel}</p>
                                                 </div>
-                                                <button onClick={() => handleViewAssignment(a.id)} className="w-full mt-5 bg-gray-600 text-white font-bold py-2.5 px-2 rounded-lg transition-all shadow-md active:scale-95 cursor-pointer border border-gray-500">
+
+                                                <button onClick={() => handleViewAssignment(a.id)} className="mt-5 w-full bg-orange-500 text-white font-bold py-2 rounded-lg hover:cursor-pointer transition shadow-md">
                                                     Detalji zadaće
-                                                </button>
+                                                </button>                                                
                                             </div>
-                                        </div>
                                     )})}
                                 </div> : renderEmptyState("Nema zadaća", "Trenutno nemate aktivnih zadaća.")}
                             </div>
@@ -892,9 +897,11 @@ function AssignmentMgmt() {
                                 { key: "enable_LLM_mentor", label: "Omogući AI Mentora", desc: "Dopusti studentima korištenje AI asistenta." },
                                 { key: "enable_hints", label: "Omogući Hintove", desc: "Prikazuj gumb za pomoć." },
                                 { key: "enable_undo", label: "Omogući Undo", desc: "Dopusti poništavanje zadnjeg poteza." },
-                                { key: "ignore_hint_cost", label: "Besplatni hintovi", desc: "Korištenje hintova ne oduzima bodove." },
+                                { key: "ignore_hint_penalty", label: "Hintovi bez kazni", desc: "Korištenje hintova ne utječe na ocjenu za samostalnost." },
                                 { key: "ignore_terminating_consequences", label: "Ignoriraj fatalne greške", desc: "Spriječi pad na slučaju zbog jedne velike greške." },
-                                { key: "show_result_immediately", label: "Prikaži rezultat odmah", desc: "Student vidi ishod čim završi slučaj." }
+                                { key: "show_result_immediately", label: "Prikaži rezultat odmah", desc: "Student vidi ishod čim završi slučaj." },
+                                { key: "allow_diagnosis_retry", label: "Studentima je dozvoljeno ponoviti pokušaj dijagnoze proizvoljan broj puta." },
+                                { key: "penalize_wrong_diagnosis", label: "Pogrešne dijagnoze se kažnjavaju." }
                             ].map((setting) => (
                                 <div key={setting.key} className="flex items-center justify-between">
                                     <div className="pr-4">

@@ -29,7 +29,7 @@ interface AssignedGroups {
 interface Settings {
     enable_undo: boolean;
     enable_hints: boolean;
-    ignore_hint_cost: boolean;
+    ignore_hint_penalty: boolean;
     enable_LLM_mentor: boolean;
     case_sequence_lock: boolean;
     randomly_choose_cases: boolean;

@@ -34,7 +34,7 @@ function CaseCreating() {
     const handleExit = () => {
         if (confirm("Ova će radnja poništiti sve nespremljene promjene. Želite li nastaviti?")) {
             clearCaseData();
-            navigate("/user/dashboard");
+            navigate("/user/dashboard?tab=cases");
         }
     }
 

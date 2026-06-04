@@ -31,7 +31,7 @@ def get_default_settings(assignment_type: str) -> AssignmentSettings:
     elif assignment_type == "exam":
         return AssignmentSettings(
             enable_hints=False,
-            ignore_hint_cost=False,
+            ignore_hint_penalty=False,
             enable_undo=False,
             enable_LLM_mentor=False,
             show_result_immediately=False,

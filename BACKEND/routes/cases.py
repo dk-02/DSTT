@@ -54,6 +54,7 @@ def clear_case_content(session: Session, case_id: uuid.UUID):
 
 def populate_case_content(session: Session, case_id: uuid.UUID, case_data: CaseCreate, force_new_ids: bool = False):
     """Puni hinteve, medije, DU-ove i ovisnosti za zadani case_id."""
+
     if case_data.category_id:
         session.add(CaseCategory(case_id=case_id, category_id=uuid.UUID(case_data.category_id)))
 
@@ -61,14 +62,26 @@ def populate_case_content(session: Session, case_id: uuid.UUID, case_data: CaseC
         session.add(CaseMediaFile(case_id=case_id, media_id=uuid.UUID(m_id)))
 
     id_map = {}
-
     for du in case_data.diagnostic_units:
         old_id_str = str(du.id)
         new_id = uuid.uuid4() if (force_new_ids or not du.id) else uuid.UUID(du.id)
         id_map[old_id_str] = new_id
 
+    for du in case_data.diagnostic_units:
+        current_new_id = id_map[str(du.id)]
+
+        remapped_consequences = []
+        for cons in du.consequences:
+            new_cons = cons.copy()
+            old_req_id = new_cons.get("required_id")
+
+            if old_req_id and str(old_req_id) in id_map:
+                new_cons["required_id"] = str(id_map[str(old_req_id)])
+
+            remapped_consequences.append(new_cons)
+
         db_du = DiagnosticUnit(
-            id=new_id,
+            id=current_new_id,
             case_id=case_id,
             label=du.label,
             name=du.name,
@@ -77,7 +90,7 @@ def populate_case_content(session: Session, case_id: uuid.UUID, case_data: CaseC
             result_text=du.result_text,
             provides=du.provides,
             resources=du.resources,
-            consequences=du.consequences
+            consequences=remapped_consequences
         )
         session.add(db_du)
 
@@ -93,7 +106,7 @@ def populate_case_content(session: Session, case_id: uuid.UUID, case_data: CaseC
             new_req_id = id_map.get(str(old_req_id))
             if new_req_id:
                 session.add(UnitDependency(
-                    unit_id=uuid.UUID(du.id), 
+                    unit_id=current_new_id, 
                     required_unit_id=new_req_id
                 ))
 
@@ -137,7 +150,7 @@ def create_case(case_data: CaseCreate, current_user: User = Depends(get_current_
         new_case_id = uuid.uuid4()
         db_case = Case(
             id=new_case_id,
-            **case_data.model_dump(exclude={"hints", "diagnostic_units", "media_ids", "category_id", "status"}),
+            **case_data.model_dump(exclude={"hints", "diagnostic_units", "media_ids", "category_id", "status", "change_log"}),
             default_settings=computed_defaults,
             created_by=current_user.id,
             version=1,

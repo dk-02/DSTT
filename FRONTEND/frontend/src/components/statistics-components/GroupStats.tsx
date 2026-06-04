@@ -70,43 +70,54 @@ function GroupStats() {
             </div>
 
             {selectedGroup && (
-                <div className="bg-gray-700 rounded-xl overflow-hidden border border-gray-600">
-                    <table className="w-full text-left text-sm text-gray-300">
-                        <thead className="bg-gray-900 text-gray-400 uppercase">
-                            <tr>
-                                <th className="px-4 py-3">Student</th>
-                                <th className="px-4 py-3">Pokušaji</th>
-                                <th className="px-4 py-3">Točnost</th>
-                                <th className="px-4 py-3">Metodičnost</th>
-                                <th className="px-4 py-3">Samostalnost</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {selectedGroup.student_stats.map((student: StudentStat) => (
-                                <tr key={student.student_id} className="border-b border-gray-600 hover:bg-gray-600">
-                                    <td className="px-4 py-3 font-semibold text-white">{student.first_name} {student.last_name}</td>
-                                    <td className="px-4 py-3">{student.total_attempts}</td>
-                                    <td className="px-4 py-3 text-green-400 font-bold">{student.success_rate_percentage}%</td>
-                                    <td className="px-4 py-3 text-blue-400">{student.avg_methodology}%</td>
-                                    <td className="px-4 py-3 text-purple-400">{student.avg_independence}%</td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                </div>
+                <>
+                    {selectedGroup.student_stats.length !== 0 ? 
+                        <div className="bg-gray-700 rounded-xl overflow-hidden border border-gray-600">
+                            <table className="w-full text-left text-sm text-gray-300">
+                                <thead className="bg-gray-900 text-gray-400 uppercase">
+                                    <tr>
+                                        <th className="px-4 py-3">Student</th>
+                                        <th className="px-4 py-3">Pokušaji</th>
+                                        <th className="px-4 py-3">Točnost</th>
+                                        <th className="px-4 py-3">Metodičnost</th>
+                                        <th className="px-4 py-3">Samostalnost</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {selectedGroup.student_stats.map((student: StudentStat) => (
+                                        <tr key={student.student_id} className="border-b border-gray-600 hover:bg-gray-600">
+                                            <td className="px-4 py-3 font-semibold text-white">{student.first_name} {student.last_name}</td>
+                                            <td className="px-4 py-3">{student.total_attempts}</td>
+                                            <td className="px-4 py-3 text-green-400 font-bold">{student.success_rate_percentage}%</td>
+                                            <td className="px-4 py-3 text-blue-400">{student.avg_methodology}%</td>
+                                            <td className="px-4 py-3 text-purple-400">{student.avg_independence}%</td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table> 
+                        </div>
+                        : 
+                        <span className="text-gray-400">Nema dostupnih podataka.</span>
+                    }
+                </>
             )}
 
-            <div className="bg-red-900/20 border border-red-800 p-5 rounded-xl">
-                <h3 className="text-lg font-bold text-red-400 mb-4">Najčešće pogreške (Sve grupe)</h3>
-                <ul className="space-y-2 text-sm">
-                    {stats.common_mistakes.map((mistake: CommonMistake, i: number) => (
-                        <li key={i} className="flex justify-between items-center bg-gray-800 p-3 rounded">
-                            <span>{mistake.description} <span className="text-gray-500 ml-2">({mistake.mistake_type})</span></span>
-                            <span className="font-bold text-red-400">{mistake.count} puta</span>
-                        </li>
-                    ))}
-                </ul>
-            </div>
+            {stats.common_mistakes.length !== 0 ? 
+                <div className="bg-red-900/20 border border-red-800 p-5 rounded-xl">
+                    <h3 className="text-lg font-bold text-red-400 mb-4">Najčešće pogreške (Sve grupe)</h3>
+                    <ul className="space-y-2 text-sm">
+                        {stats.common_mistakes.map((mistake: CommonMistake, i: number) => (
+                            <li key={i} className="flex justify-between items-center bg-gray-800 p-3 rounded">
+                                <span>{mistake.description} <span className="text-gray-500 ml-2">({mistake.mistake_type})</span></span>
+                                <span className="font-bold text-red-400">{mistake.count} puta</span>
+                            </li>
+                        ))}
+                    </ul>
+                </div>
+                :
+                <></>
+            }
+            
         </div>
     )
 }

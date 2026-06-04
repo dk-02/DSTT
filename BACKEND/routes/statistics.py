@@ -18,7 +18,6 @@ def get_user_roles(session: Session, user_id: uuid.UUID) -> List[str]:
 
 @router.get("/me", response_model=PersonalStatsResponse)
 def get_my_statistics(current_user: User = Depends(get_current_active_user), session: Session = Depends(get_session)):
-    
     # Dohvaćanje svih završenih/terminiranih pokušaja ovog korisnika uz naziv kategorije slučaja
     stmt = (
         select(SolveAttempt, Category.name)
@@ -81,16 +80,20 @@ def get_my_statistics(current_user: User = Depends(get_current_active_user), ses
                 success_rate_percentage=round((data["successful"] / data["total"]) * 100, 2)
             )
         )
+
+    # Filtriranje prema pragu uspješnosti (70%)
+    strong_candidates = [t for t in topic_stats_list if t.success_rate_percentage >= 70.0]
+    weak_candidates = [t for t in topic_stats_list if t.success_rate_percentage < 70.0]
         
-    # Sortiranje tema prema uspješnosti (silazno i uzlazno)
-    # Primarni ključ je uspješnost, sekundarni ključ je broj pokušaja (da relevantnije teme budu više)
-    topic_stats_list.sort(key=lambda x: (x.success_rate_percentage, x.total_attempts), reverse=True)
-    
-    # Top 3 najjača područja
-    strongest_topics = topic_stats_list[:3]
-    
-    # Top 3 najslabija područja (sortiramo uzlazno da nađemo one s najmanjim postotkom)
-    weakest_topics = sorted(topic_stats_list, key=lambda x: (x.success_rate_percentage, x.total_attempts))[:3]
+    # Sortiranje jakih
+    # Ako je postotak isti, viša je ona s više pokušaja
+    strong_candidates.sort(key=lambda x: (x.success_rate_percentage, x.total_attempts), reverse=True)
+    strongest_topics = strong_candidates[:3]
+
+    # Sortiranje slabih
+    # Koristi se -x.total_attempts jer ako student ima 0% iz dvije teme, ona u kojoj je pao 5 puta je "kritičnija" od one u kojoj je pao jednom
+    weak_candidates.sort(key=lambda x: (x.success_rate_percentage, -x.total_attempts))
+    weakest_topics = weak_candidates[:3]
 
     return PersonalStatsResponse(
         total_completed_cases=total_attempts,
@@ -104,7 +107,7 @@ def get_my_statistics(current_user: User = Depends(get_current_active_user), ses
 
 
 @router.get("/group-analytics")
-def get_teacher_statistics(current_user: User = Depends(get_current_active_user), session: Session = Depends(get_session)):
+def get_group_statistics(current_user: User = Depends(get_current_active_user), session: Session = Depends(get_session)):
     roles = get_user_roles(session, current_user.id)
     if "teacher" not in roles:
         raise HTTPException(status_code=403, detail="Nemate ovlasti nastavnika.")
@@ -193,7 +196,7 @@ def get_teacher_statistics(current_user: User = Depends(get_current_active_user)
 
 
 @router.get("/case-analytics")
-def get_expert_statistics(current_user: User = Depends(get_current_active_user), session: Session = Depends(get_session)):
+def get_case_statistics(current_user: User = Depends(get_current_active_user), session: Session = Depends(get_session)):
     roles = get_user_roles(session, current_user.id)
     if "teacher" not in roles and "expert" not in roles:
         raise HTTPException(status_code=403, detail="Nemate ovlasti za pristup ovim podatcima.")
@@ -250,7 +253,7 @@ def get_expert_statistics(current_user: User = Depends(get_current_active_user),
 
 
 @router.get("/system-monitoring")
-def get_admin_statistics(current_user: User = Depends(get_current_active_user), session: Session = Depends(get_session)):
+def get_system_statistics(current_user: User = Depends(get_current_active_user), session: Session = Depends(get_session)):
     roles = get_user_roles(session, current_user.id)
     if "admin" not in roles:
         raise HTTPException(status_code=403, detail="Nemate admin ovlasti.")

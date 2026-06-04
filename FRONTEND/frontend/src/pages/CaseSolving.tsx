@@ -272,8 +272,6 @@ function CaseSolving() {
 
             if (response.ok) {
                 undoLastAction(lastDuMessage.du);
-                const systemMsg: userMsg = { sender: "sustav", text: "Zadnja radnja je uspješno poništena i resursi su vraćeni." };
-                addMessage(systemMsg);
             } else {
                 const errorData = await response.json();
                 alert(errorData.detail || "Greška pri poništavanju.");
@@ -313,9 +311,7 @@ function CaseSolving() {
 
             if (response.ok) {
                 reset(); 
-                
-                navigate("/user/dashboard"); 
-                alert("Rješavanje je otkazano.");
+                navigate("/user/dashboard");
             } else {
                 const errorData = await response.json();
                 console.error("Greška pri otkazivanju:", errorData.detail);
@@ -365,15 +361,15 @@ function CaseSolving() {
                     </div>
                     <div>
                         {feedback && (
-                            <div className={feedback.verdict === "CORRECT" ? "mt-5 p-3 bg-green-200 rounded" : feedback.verdict === "INCORRECT" ? "mt-5 p-3 bg-red-200 rounded" : "mt-5 p-3 bg-orange-200 rounded"}>
-                                <strong>{feedback.verdict === "CORRECT" ? "Correct!" : feedback.verdict === "INCORRECT" ? "Incorrect" : "Partially correct"}</strong>
+                            <div className={feedback.verdict === "correct" ? "mt-5 p-3 bg-green-200 rounded" : feedback.verdict === "incorrect" ? "mt-5 p-3 bg-red-200 rounded" : "mt-5 p-3 bg-orange-200 rounded"}>
+                                <strong>{feedback.verdict === "correct" ? "Točno!" : feedback.verdict === "incorrect" ? "Netočno" : "Parcijalno točno"}</strong>
                                 <p>{feedback.feedback}</p>
                             </div>
                         )}
                     </div>
                 </div>
                 <div className="w-2/3 h-full flex flex-col items-center">
-                    <div className="flex-1 min-h-0 border border-gray-400 overflow-y-auto p-2.5 w-full bg-gray-800 rounded-lg shadow-inner mb-4">
+                    <div className="flex-1 min-h-0 border border-gray-500 overflow-y-auto p-2.5 w-full bg-gray-800 rounded-lg shadow-inner mb-4">
                         {messages.map((m, i) => (
                             <p key={i} className={m.sender === "korisnik" ? "text-orange-400" : m.sender === "sustav" ? "text-gray-100" : "text-green-400"}>
                                 <strong>{m.sender}:</strong> {m.text}
@@ -437,7 +433,7 @@ function CaseSolving() {
                                 <h3 className="text-xl font-bold mb-2">Rješavanje je završeno.</h3>
 
                                 {settings?.show_result_immediately ? (
-                                    <button onClick={() => navigate(`/case/${attemptId}/results`)} className="bg-orange-500 px-4 py-2 rounded-lg mt-3">
+                                    <button onClick={() => navigate(`/case/${attemptId}/results`)} className="cursor-pointer font-semibold bg-gray-500 px-4 py-2 rounded-lg mt-3">
                                         Pogledaj detaljan izvještaj
                                     </button>
                                 ) : (

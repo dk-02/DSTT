@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useAuthStore } from "../../store/useAuthStore";
-import { Activity, BookOpen01, Users01, Zap } from "@untitledui/icons";
+import { Activity, BookOpen01, Building01, Users01 } from "@untitledui/icons";
 
 interface Statistics {
     total_users: number;
@@ -57,7 +57,7 @@ function SystemStats() {
                     </div>
                 </div>
                 <div className="bg-gray-700 p-4 rounded-xl border border-gray-600 flex items-center gap-4">
-                    <div className="bg-orange-900/50 p-3 rounded-lg"><Zap className="text-orange-400 w-6 h-6"/></div>
+                    <div className="bg-orange-900/50 p-3 rounded-lg"><Building01 className="text-orange-400 w-6 h-6"/></div>
                     <div>
                         <p className="text-xs text-gray-400 uppercase font-bold">Institucije</p>
                         <p className="text-2xl font-black text-white">{stats.total_institutions}</p>
@@ -65,7 +65,7 @@ function SystemStats() {
                 </div>
             </div>
 
-            <h3 className="text-lg font-bold text-white mb-4 mt-8 border-b border-gray-600 pb-2">Potrošnja LLM API-ja (OpenRouter)</h3>
+            <h3 className="text-lg font-bold text-white mb-4 mt-8 border-b border-gray-600 pb-2">Upiti prema LLM-u</h3>
             <div className="bg-gray-900 border border-gray-700 p-6 rounded-xl flex justify-around">
                 <div className="text-center">
                     <p className="text-sm text-gray-400 font-medium mb-1">Upiti LLM Mentoru</p>

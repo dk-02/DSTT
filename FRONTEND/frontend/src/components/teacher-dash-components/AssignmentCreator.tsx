@@ -31,12 +31,14 @@ interface Case {
 interface Settings {
     enable_undo: boolean;
     enable_hints: boolean;
-    ignore_hint_cost: boolean;
+    ignore_hint_penalty: boolean;
     enable_LLM_mentor: boolean;
     case_sequence_lock: boolean;
     randomly_choose_cases: boolean;
     show_result_immediately: boolean;
     ignore_terminating_consequences: boolean;
+    allow_diagnosis_retry: boolean;
+    penalize_wrong_diagnosis: boolean;
 }
 
 interface Category { 
@@ -52,14 +54,16 @@ export function AssignmentCreator({ onClose, onSuccess }: AssignmentCreatorProps
     const [type, setType] = useState("practice");
 
     const [settings, setSettings] = useState<Settings>({
-        enable_hints: true,
-        ignore_hint_cost: true,
-        enable_undo: true,
-        enable_LLM_mentor: true,
+        enable_hints: false,
+        ignore_hint_penalty: false,
+        enable_undo: false,
+        enable_LLM_mentor: false,
         ignore_terminating_consequences: false,
         randomly_choose_cases: false,
-        show_result_immediately: true,
-        case_sequence_lock: false
+        show_result_immediately: false,
+        case_sequence_lock: false,
+        allow_diagnosis_retry: false,
+        penalize_wrong_diagnosis: false
     });
 
     const [selectedCases, setSelectedCases] = useState<CasePreview[]>([]);
@@ -185,6 +189,51 @@ export function AssignmentCreator({ onClose, onSuccess }: AssignmentCreatorProps
         }
     };
 
+    const handleTypeChange = (newType: string) => {
+        setType(newType);
+        
+        if (newType === "practice") {
+            setSettings(prev => ({
+                ...prev,
+                enable_hints: true,
+                ignore_hint_penalty: true,
+                enable_undo: true,
+                enable_LLM_mentor: true,
+                ignore_terminating_consequences: false, 
+                show_result_immediately: true,
+                case_sequence_lock: false,
+                allow_diagnosis_retry: true,
+                penalize_wrong_diagnosis: false
+            }));
+        } else if (newType === "practice_exam") {
+            setSettings(prev => ({
+                ...prev,
+                enable_hints: true, 
+                ignore_hint_penalty: false,
+                enable_undo: false,
+                enable_LLM_mentor: false,
+                ignore_terminating_consequences: false,
+                show_result_immediately: true,
+                case_sequence_lock: false,
+                allow_diagnosis_retry: true,
+                penalize_wrong_diagnosis: false
+            }));
+        } else if (newType === "exam") {
+            setSettings(prev => ({
+                ...prev,
+                enable_hints: false,
+                ignore_hint_penalty: false,
+                enable_undo: false,
+                enable_LLM_mentor: false,
+                ignore_terminating_consequences: false,
+                show_result_immediately: false,
+                case_sequence_lock: false,
+                allow_diagnosis_retry: false,
+                penalize_wrong_diagnosis: true
+            }));
+        }
+    };
+
     return (
         <div className="overflow-hidden animate-fadeIn pb-10">
             <div className="flex justify-between items-center p-6 border border-gray-700 rounded-2xl bg-gray-800 shadow-md">
@@ -202,7 +251,7 @@ export function AssignmentCreator({ onClose, onSuccess }: AssignmentCreatorProps
                             </div>
                             <div>
                                 <label className="block text-sm font-medium text-gray-300 mb-1">Tip zadaće</label>
-                                <select value={type} onChange={(e) => setType(e.target.value)} className="w-full px-3 py-2 bg-gray-700 border border-gray-600 text-white rounded-lg focus:ring-2 focus:ring-orange-500 outline-none">
+                                <select value={type} onChange={(e) => handleTypeChange(e.target.value)} className="w-full px-3 py-2 bg-gray-700 border border-gray-600 text-white rounded-lg focus:ring-2 focus:ring-orange-500 outline-none">
                                     <option value="practice">Slobodna vježba</option>
                                     <option value="practice_exam">Simulacija ispita</option>
                                     <option value="exam">Ispit</option>
@@ -223,9 +272,11 @@ export function AssignmentCreator({ onClose, onSuccess }: AssignmentCreatorProps
                                 { key: "enable_LLM_mentor", label: "Omogući AI Mentora" },
                                 { key: "enable_hints", label: "Omogući Hintove" },
                                 { key: "enable_undo", label: "Omogući Undo (Poništavanje)" },
-                                { key: "ignore_hint_cost", label: "Besplatni hintovi (bez bodova)" },
+                                { key: "ignore_hint_penalty", label: "Hintovi bez kazne" },
                                 { key: "ignore_terminating_consequences", label: "Ignoriraj fatalne greške" },
-                                { key: "show_result_immediately", label: "Prikaži rezultat odmah nakon slučaja" }
+                                { key: "show_result_immediately", label: "Prikaži rezultat odmah nakon slučaja" },
+                                { key: "allow_diagnosis_retry", label: "Dopusti ponovno postavljanje dijagnoze" },
+                                { key: "penalize_wrong_diagnosis", label: "Kazna za pogrešnu dijagnozu" }
                             ].map((s) => (
                                 <div key={s.key} className="flex justify-between items-center bg-gray-800/50 p-2.5 rounded-lg">
                                     <span className="text-sm text-gray-300">{s.label}</span>

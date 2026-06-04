@@ -1,9 +1,10 @@
 import os
 import json
+import re
 from typing import Any, Dict
 import requests
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import Session, select
 from routes.auth import get_current_active_user
@@ -21,7 +22,7 @@ def get_session():
 
 
 # HELPER FUNCTIONS
-def check_redundancy(session: Session, attempt_id: uuid.UUID, requested_du: DiagnosticUnit) -> bool:
+def check_is_redundant(session: Session, attempt_id: uuid.UUID, requested_du: DiagnosticUnit) -> bool:
     """ Provjerava je li ispitanik već dobio informacije koje pruža traženi DU. """
 
     if not requested_du.provides:
@@ -95,6 +96,42 @@ def check_logical_indicators(session: Session, attempt_id: uuid.UUID, requested_
         return "fatal_mistake", consequence_to_apply
     else:
         return "consequence_mistake", consequence_to_apply
+
+
+def check_is_unjustified_jump(session: Session, attempt_id: uuid.UUID, requested_du: DiagnosticUnit) -> bool:
+    """ Provjerava je li trenutni zahtjev neopravdani skok na L2/L3 bez ikakvih prethodnih L1 pretraga. """
+
+    # Ako je level 1, nije skok
+    if requested_du.level == 1:
+        return False
+    
+    # Skok je opravdan SAMO ako taj DU nema nikakve required_units (preduvjete)
+    if not requested_du.required_units:
+        return False
+
+    past_logs = session.exec(
+        select(AttemptLog)
+        .where(
+            AttemptLog.attempt_id == attempt_id, 
+            AttemptLog.event_type == "du_request",
+            AttemptLog.status != "undone"
+        )
+    ).all()
+
+    past_du_ids = [log.diagnostic_unit_id for log in past_logs if log.diagnostic_unit_id]
+
+    # Ako nema prošlih upita uopće, a student traži L2/L3 koji IMA preduvjete => neopravdano
+    if not past_du_ids:
+        return True
+
+    # Provjera postoji li barem jedan L1 u povijesti
+    past_dus = session.exec(select(DiagnosticUnit).where(DiagnosticUnit.id.in_(past_du_ids))).all()
+    has_l1_in_past = any(du.level == 1 for du in past_dus)
+
+    if not has_l1_in_past:
+        return True # Skače na L2/L3 a nema ni jedan L1
+
+    return False
 
 
 def generate_evaluation_report(attempt_id: uuid.UUID, session: Session) -> Dict[str, Any]:
@@ -181,14 +218,18 @@ def generate_evaluation_report(attempt_id: uuid.UUID, session: Session) -> Dict[
     redundant_count = sum(1 for log in valid_logs if log.status == "redundant")
     indicator_warnings = sum(1 for log in valid_logs if log.status == "consequence_mistake")
     fatal_mistakes = sum(1 for log in valid_logs if log.status == "fatal_mistake")
+    unjustified_jumps_count = sum(1 for log in valid_logs if log.status == "unjustified_jump")   
 
     wrong_diagnosis_count = sum(1 for sub in submissions if sub.verdict in ["incorrect", "partial"])
 
     methodology_score = 100
     methodology_score -= (redundant_count * 10)          # -10% za svaki redundantni upit
     methodology_score -= (indicator_warnings * 15)       # -15% za ignoriranje preduvjeta
+    methodology_score -= (unjustified_jumps_count * 10)  # -10% za svaki neopravdani skok na višu razinu DU-a
+
     if attempt.settings.get("penalize_wrong_diagnosis") == True:
         methodology_score -= (wrong_diagnosis_count * 15)    # -15% za svaki netočan pokušaj dijagnoze
+        
     if fatal_mistakes > 0:
         methodology_score = 0                            # 0% ako je bilo fatalnih pogreški
         
@@ -216,6 +257,12 @@ def generate_evaluation_report(attempt_id: uuid.UUID, session: Session) -> Dict[
         )
         deadline = session.exec(deadline_stmt).first()
         
+        if deadline.tzinfo is None:
+            deadline = deadline.replace(tzinfo=timezone.utc)
+
+        if attempt.finished_at.tzinfo is None:
+            attempt.finished_at = attempt.finished_at.replace(tzinfo=timezone.utc)
+
         if deadline and attempt.finished_at > deadline:
             is_late = True
             late_by_seconds = int((attempt.finished_at - deadline).total_seconds())
@@ -229,12 +276,28 @@ def generate_evaluation_report(attempt_id: uuid.UUID, session: Session) -> Dict[
 
     action_history = []
 
-    for log in valid_logs:
+    all_logs = session.exec(
+        select(AttemptLog)
+        .where(AttemptLog.attempt_id == attempt_id)
+    ).all()
+
+    desc = ""
+    for log in all_logs:
+        if log.event_type == "du_request":
+            desc = log.event_result_data.get("student_question", "Nepoznat upit za DU")
+        elif log.event_type == "mentor_request":
+            desc = log.event_result_data.get("student_question", "Upit mentoru")
+        elif log.event_type == "hint_request":
+            desc = "Zatražen hint"
+        elif log.event_type == "undo_request":
+            desc = "Poništen zadnji korak (UNDO)"
+        else:
+            desc = "Nepoznata akcija"
+
         action_history.append({
             "type": log.event_type,
             "status": log.status,
-            "description": log.event_result_data.get("student_question", "Korišten hint") 
-                           if log.event_type != "hint_request" else "Zatražen hint",
+            "description": desc,
             "feedback": log.event_result_data.get("llm_response", "")
         })
 
@@ -276,7 +339,8 @@ def generate_evaluation_report(attempt_id: uuid.UUID, session: Session) -> Dict[
                 "redundant_queries_count": redundant_count,
                 "ignored_indicators_count": indicator_warnings,
                 "wrong_diagnosis_attempts": wrong_diagnosis_count,
-                "fatal_mistakes_count": fatal_mistakes
+                "fatal_mistakes_count": fatal_mistakes,
+                "unjustified_jumps_count": unjustified_jumps_count
             },
             "independence": {
                 "score_percentage": independence_score,
@@ -432,7 +496,10 @@ async def start_attempt(data: AttemptStart, current_user: User = Depends(get_cur
             )
             deadline = session.exec(deadline_stmt).first()
 
-            if deadline and datetime.now() >= deadline:
+            if deadline.tzinfo is None:
+                deadline = deadline.replace(tzinfo=timezone.utc)
+
+            if deadline and datetime.now(timezone.utc) >= deadline:
                 raise HTTPException(
                     status_code=403, 
                     detail="Rok za rješavanje ove zadaće je istekao. Ne možete započeti novo rješavanje."
@@ -537,6 +604,7 @@ async def get_DU(attempt_id: uuid.UUID, request: ChatRequest, session: Session =
 
     system_prompt = f"""
     You are the assistant in this diagnostics case. The student writes what he wants to check. You need to check for similarities of student's request with given label and name of a diagnostic unit. Select the ID of the most appropriate (most similar to the request) DU from the list: {du_list}. Answer with the ID only. If nothing matches, answer 'NONE'.
+    If you can, answer in CROATIAN.
     """
 
     combined_content = f"INSTRUCTION: {system_prompt}\n\nUSER QUESTION: {request.message}"
@@ -558,17 +626,32 @@ async def get_DU(attempt_id: uuid.UUID, request: ChatRequest, session: Session =
         })
     )
     
-    du_id = response.json()['choices'][0]['message']['content'].strip()
+    raw_content = response.json()['choices'][0]['message']['content'].strip()
+
+    uuid_pattern = re.compile(r'[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}', re.IGNORECASE)
+    match = uuid_pattern.search(raw_content)
+
+    if match:
+        du_id = match.group(0)
+    else:
+        du_id = "NONE"
 
     # Obrada rezultata i LOGIRANJE
     selected_du = None
     media_list = []
-    result_text = "Unfortunately, i don't understand your request."
+    result_text = "Nažalost, ne razumijem vaš zahtjev."
     log_status = "no_mistake"
     applied_consequence = {}
 
     if du_id != "NONE":
-        selected_du = session.get(DiagnosticUnit, du_id)
+        try:
+            # Još jedna sigurnosna provjera pretvaranjem u UUID objekt
+            valid_uuid = uuid.UUID(du_id)
+            selected_du = session.get(DiagnosticUnit, valid_uuid)
+        except ValueError:
+            selected_du = None
+
+        # selected_du = session.get(DiagnosticUnit, du_id)
         
         if selected_du:
             indicator_status, consequence = check_logical_indicators(session, attempt_id, selected_du)
@@ -609,13 +692,15 @@ async def get_DU(attempt_id: uuid.UUID, request: ChatRequest, session: Session =
 
 
             else:
-                is_redundant = check_redundancy(session, attempt_id, selected_du)
+                is_redundant = check_is_redundant(session, attempt_id, selected_du)
+                is_unjustified = check_is_unjustified_jump(session, attempt_id, selected_du)
 
                 if is_redundant:
                     log_status = "redundant"
+                elif is_unjustified:
+                    log_status = "unjustified_jump"
 
                 result_text = selected_du.result_text
-
                 media_list = [{"file_path": m.file_path, "file_type": m.file_type, "title": m.title} for m in selected_du.media]
 
                 attempt.total_cost_money += selected_du.resources.get("money", 0)
@@ -667,6 +752,7 @@ async def submit_diagnosis(attempt_id: uuid.UUID, data: DiagnosisRequest, sessio
 
     if attempt.is_practice:
         system_prompt = f"""
+        If you can, answer in CROATIAN.
         You are an expert instructor. 
         Correct diagnosis: {case.correct_diagnosis}
         Student's answer: {data.student_diagnosis}
@@ -677,13 +763,14 @@ async def submit_diagnosis(attempt_id: uuid.UUID, data: DiagnosisRequest, sessio
         """
     else:
         system_prompt = f"""
+        If you can, answer in CROATIAN.
         You are an expert instructor.
         Correct diagnosis: {case.correct_diagnosis}
         Student's answer: {data.student_diagnosis}
         
         Compare them. Be strict but fair. If the student correctly identified the issue, respond with 'CORRECT.' and a short feedback paragraph (note that the student's answer MUST contain keywords from the correct diagnosis, it should not be too vague, e.g. student says 'sensor' and the correct diagnosis is 'faulty crankshaft sensor (coil break)' your verdict should not be 'CORRECT'). 
         If they are wrong or missed key parts, respond with 'INCORRECT.'. 
-        If they are partially correct, respond with 'PARTIAL.'.
+        If they are partially correct, respond with 'PARTIAL.' (this means that they mentioned some of the key parts but no ALL of them, so if their phrasing is a little different than the correct diagnosis, you should look for the keywords, if they have all the keywords, you should answer with CORRECT.).
         """
 
     response = requests.post(

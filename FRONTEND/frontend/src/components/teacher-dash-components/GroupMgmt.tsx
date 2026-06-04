@@ -383,7 +383,7 @@ function GroupMgmt() {
                     {teacherGroups.length > 0 ? (
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                             {teacherGroups.map((g) => (
-                                <div key={g.id} className="flex flex-col bg-gray-700 rounded-2xl shadow-lg border border-gray-600 overflow-hidden hover:border-gray-500 hover:shadow-xl transition-all group">
+                                <div key={g.id} className="flex flex-col bg-gray-600 rounded-2xl shadow-lg overflow-hidden transition-all group">
 
                                     <div className="flex justify-between items-start p-4 bg-gray-700/50 border-b border-gray-600">
                                         <span className="bg-gray-800 text-xs font-semibold px-2 py-1 rounded-md text-gray-300 truncate max-w-[65%]">
@@ -407,7 +407,7 @@ function GroupMgmt() {
                                             </div>
                                         </div>
                                         
-                                        <button onClick={() => handleViewGroup(g)} className="w-full mt-6 bg-gray-600 text-white font-bold py-2.5 rounded-xl transition-all shadow-md active:scale-95 cursor-pointer border border-gray-500">
+                                        <button onClick={() => handleViewGroup(g)} className="mt-5 w-full bg-orange-500 text-white font-bold py-2 rounded-lg hover:cursor-pointer transition shadow-md">
                                             Upravljaj grupom
                                         </button>
                                     </div>

@@ -272,14 +272,14 @@ function ExamineeDashboard() {
             <main className="flex-1 px-5 overflow-y-auto">
                 {menuTab === "available_cases" && (
                     <>
-                        <div className="mt-5 flex justify-between items-center bg-gray-800 p-5 rounded-2xl border border-gray-700 shadow-sm">
+                        <div className="my-5 flex justify-between items-center bg-gray-800 p-5 rounded-2xl border border-gray-700 shadow-sm">
                             <div>
                                 <h2 className="text-xl font-bold text-white">Pregled dostupnih slučajeva</h2>
                                 <p className="text-sm text-gray-400 mt-1">Rješavajte za vježbu</p>
                             </div>
                         </div>
                         {cases.length > 0 ? (
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 mt-5">
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                                 {cases.map((c) => (
                                     <div key={c.id} className="flex flex-col bg-gray-700 rounded-2xl shadow-lg border border-gray-600 overflow-hidden hover:border-gray-500 transition-colors group">
                                         <div className="flex justify-between items-start p-4 bg-gray-700/50 border-b border-gray-600">
@@ -385,62 +385,62 @@ function ExamineeDashboard() {
                             )}
                         </div>
                     ) :
-                    studentGroups.length > 0 ? (
                         <>                        
-                            <div className="mt-5 flex justify-between items-center bg-gray-800 p-5 rounded-2xl border border-gray-700 shadow-sm">
+                            <div className="my-5 flex justify-between items-center bg-gray-800 p-5 rounded-2xl border border-gray-700 shadow-sm">
                                 <div>
                                     <h2 className="text-xl font-bold text-white">Pregled grupa</h2>
                                     <p className="text-sm text-gray-400 mt-1">Pregledajte grupe kojih ste član</p>
                                 </div>
                             </div>
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 mt-5">
-                                {studentGroups.map((g) => (
-                                    <div key={g.id} onClick={() => handleViewGroup(g)} className="flex flex-col bg-gray-700 rounded-2xl shadow-lg border border-gray-600 overflow-hidden hover:border-gray-500 hover:cursor-pointer transition-colors group">
-                                        
-                                        <div className="flex justify-between items-start p-4 bg-gray-700/50 border-b border-gray-600">
-                                            <span className="bg-gray-800 text-xs font-semibold px-2 py-1 rounded-md text-gray-300 truncate max-w-[65%]">
-                                                {g.institution_name}
-                                            </span>
-                                            <span className="bg-blue-900/40 text-blue-400 text-xs font-bold px-2 py-1 rounded-md">
-                                                {g.academic_year}
-                                            </span>
-                                        </div>
+                            {studentGroups.length > 0 ? (
+                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                                        {studentGroups.map((g) => (
+                                            <div key={g.id} onClick={() => handleViewGroup(g)} className="flex flex-col bg-gray-700 rounded-2xl shadow-lg border border-gray-600 overflow-hidden hover:border-gray-500 hover:cursor-pointer transition-colors group">
+                                                
+                                                <div className="flex justify-between items-start p-4 bg-gray-700/50 border-b border-gray-600">
+                                                    <span className="bg-gray-800 text-xs font-semibold px-2 py-1 rounded-md text-gray-300 truncate max-w-[65%]">
+                                                        {g.institution_name}
+                                                    </span>
+                                                    <span className="bg-blue-900/40 text-blue-400 text-xs font-bold px-2 py-1 rounded-md">
+                                                        {g.academic_year}
+                                                    </span>
+                                                </div>
 
-                                        <div className="p-5 flex-1 flex flex-col justify-between">
-                                            <div>
-                                                <h3 className="text-lg font-bold text-white mb-3">
-                                                    {g.name}
-                                                </h3>
-                                                <div className="text-sm text-gray-400 space-y-1.5">
-                                                    <p className="flex items-center gap-2">
-                                                        <User01 className="w-4 text-orange-500"/>
-                                                        <span className="text-gray-300 truncate">{g.teacher_name}</span>
-                                                    </p>
-                                                    <p className="flex items-center gap-2">
-                                                        <Users01 className="w-4"/> 
-                                                        <span className="text-gray-300">{g.student_count} {getStudentWord(g.student_count)}</span>
-                                                    </p>
+                                                <div className="p-5 flex-1 flex flex-col justify-between">
+                                                    <div>
+                                                        <h3 className="text-lg font-bold text-white mb-3">
+                                                            {g.name}
+                                                        </h3>
+                                                        <div className="text-sm text-gray-400 space-y-1.5">
+                                                            <p className="flex items-center gap-2">
+                                                                <User01 className="w-4 text-orange-500"/>
+                                                                <span className="text-gray-300 truncate">{g.teacher_name}</span>
+                                                            </p>
+                                                            <p className="flex items-center gap-2">
+                                                                <Users01 className="w-4"/> 
+                                                                <span className="text-gray-300">{g.student_count} {getStudentWord(g.student_count)}</span>
+                                                            </p>
+                                                        </div>
+                                                    </div>
                                                 </div>
                                             </div>
-                                        </div>
+                                        ))}
                                     </div>
-                                ))}
-                            </div>
+                            ) : (
+                                renderEmptyState("Nema grupa", "Trenutno niste učlanjeni ni u jednu grupu.")
+                            )}
                         </>
-                    ) : (
-                        renderEmptyState("Nema grupa", "Trenutno niste učlanjeni ni u jednu grupu.")
-                    )
                 )}
                 
                 {menuTab === "assignments" && (
-                    studentAssignments.length > 0 ? (
-                        <>
-                            <div className="mt-5 flex justify-between items-center bg-gray-800 p-5 rounded-2xl border border-gray-700 shadow-sm">
-                                <div>
-                                    <h2 className="text-xl font-bold text-white">Pregled zadaća</h2>
-                                    <p className="text-sm text-gray-400 mt-1">Pregledajte i riješite dostupne zadaće</p>
-                                </div>
+                    <>
+                        <div className="my-5 flex justify-between items-center bg-gray-800 p-5 rounded-2xl border border-gray-700 shadow-sm">
+                            <div>
+                                <h2 className="text-xl font-bold text-white">Pregled zadaća</h2>
+                                <p className="text-sm text-gray-400 mt-1">Pregledajte i riješite dostupne zadaće</p>
                             </div>
+                        </div>
+                        {studentAssignments.length > 0 ? (
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 mt-5">
                                 {studentAssignments.map((a) => {
                                     const isExam = a.type === "exam";
@@ -485,10 +485,10 @@ function ExamineeDashboard() {
                                     );
                                 })}
                             </div>
-                        </>
-                    ) : (
-                        renderEmptyState("Nema zadaća", "Nemate zadaća koje čekaju na rješavanje.")
-                    )
+                        ) : (
+                            renderEmptyState("Nema zadaća", "Nemate zadaća koje čekaju na rješavanje.")
+                        )}
+                    </>
                 )}
 
                 {menuTab === "solve-history" && <SolveHistory />}

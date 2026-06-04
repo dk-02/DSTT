@@ -134,8 +134,8 @@ function SolveHistory() {
                             {history.map((attempt) => (
                                 <div 
                                     key={attempt.id} 
-                                    onClick={() => setSelectedAttempt(attempt)}
-                                    className="bg-gray-800 rounded-xl p-5 flex items-center justify-between cursor-pointer shadow-sm"
+                                    onClick={attempt.status !== "cancelled" ? () => setSelectedAttempt(attempt) : undefined}
+                                    className={`bg-gray-800 rounded-xl p-5 flex items-center justify-between shadow-sm ${attempt.status !== "cancelled" && "cursor-pointer"}`}
                                 >
                                     <div className="flex flex-col gap-1">
                                         <h3 className="text-lg font-bold text-orange-400">{attempt.case_title}</h3>
@@ -156,7 +156,7 @@ function SolveHistory() {
                                         >
                                             {attempt.status === 'completed' ? 'Završeno' : attempt.status === 'in_progress' ? 'U tijeku' : 'Prekinuto'}
                                         </span>
-                                        <ChevronRight className="text-gray-400" />
+                                        {attempt.status !== "cancelled" && <ChevronRight className="text-gray-400" />}
                                     </div>
                                 </div>
                             ))}

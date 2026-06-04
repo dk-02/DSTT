@@ -136,15 +136,15 @@ export const BasicInfo = () => {
   const difficulties = [
     {
       level: 'novice',
-      name: 'Lagano'
+      name: 'Početna'
     },
     {
       level: 'intermediate',
-      name: 'Srednje'
+      name: 'Srednja'
     },
     {
       level: 'expert',
-      name: 'Teško'
+      name: 'Napredna'
     }
   ];
 
@@ -205,7 +205,7 @@ export const BasicInfo = () => {
         </label>
         <div className="h-6 w-px bg-gray-300" />
 
-        <p>Težina:</p>
+        <p>Razina:</p>
         {difficulties.map((d, idx) => (
           <label key={idx} className="flex items-center gap-2 cursor-pointer">
           <input 

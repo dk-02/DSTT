@@ -57,23 +57,23 @@ function MyStats() {
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
                 <div className="bg-gray-700 p-5 rounded-xl border border-gray-600">
-                    <h3 className="text-lg font-bold text-green-400 mb-4">🏆 Najbolje savladana područja</h3>
+                    <h3 className="text-lg font-bold text-green-400 mb-4">Najbolje savladana područja</h3>
                     {stats.strongest_topics.length > 0 ? stats.strongest_topics.map((t: Topic, i: number) => (
                         <div key={i} className="flex justify-between items-center bg-gray-800 p-3 rounded mb-2">
                             <span className="font-semibold text-gray-200">{t.topic_name}</span>
                             <span className="text-green-400 font-bold">{t.success_rate_percentage}% točnosti</span>
                         </div>
-                    )) : <p className="text-sm text-gray-500">Nema dovoljno podataka.</p>}
+                    )) : <p className="text-sm text-gray-500">Nema podataka.</p>}
                 </div>
 
                 <div className="bg-gray-700 p-5 rounded-xl border border-gray-600">
-                    <h3 className="text-lg font-bold text-red-400 mb-4">📖 Područja za ponavljanje</h3>
+                    <h3 className="text-lg font-bold text-red-400 mb-4">Najslabije savladana područja</h3>
                     {stats.weakest_topics.length > 0 ? stats.weakest_topics.map((t: Topic, i: number) => (
                         <div key={i} className="flex justify-between items-center bg-gray-800 p-3 rounded mb-2">
                             <span className="font-semibold text-gray-200">{t.topic_name}</span>
                             <span className="text-red-400 font-bold">{t.success_rate_percentage}% točnosti</span>
                         </div>
-                    )) : <p className="text-sm text-gray-500">Nema dovoljno podataka.</p>}
+                    )) : <p className="text-sm text-gray-500">Nema podataka.</p>}
                 </div>
             </div>
         </div>

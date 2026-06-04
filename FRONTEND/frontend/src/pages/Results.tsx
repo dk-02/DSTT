@@ -39,6 +39,7 @@ interface EvaluationReport {
             ignored_indicators_count: number;
             wrong_diagnosis_attempts: number;
             fatal_mistakes_count: number;
+            unjustified_jumps_count: number;
         };
         independence: {
             score_percentage: number;
@@ -110,7 +111,7 @@ function Results() {
 
     const getActionColor = (type: string, status: string) => {
         if (status === "fatal_mistake") return "bg-red-500";
-        if (status === "redundant" || status === "consequence_mistake") return "bg-yellow-600";
+        if (status === "redundant" || status === "consequence_mistake" || status === "unjustified_jump") return "bg-yellow-600";
         if (type === "hint_request") return "bg-orange-500";
         if (type === "mentor_request") return "bg-blue-500";
         if (type === "diagnosis_submission") return status === "correct" ? "bg-green-500" : "bg-red-500";
@@ -182,6 +183,10 @@ function Results() {
                             <li className="flex justify-between text-red-600">
                                 <span>Kritične (fatalne) pogreške:</span>
                                 <span className="font-bold">{methodology.fatal_mistakes_count}</span>
+                            </li>
+                            <li className="flex justify-between">
+                                <span>Neopravdani skokovi (preskakanje razina):</span>
+                                <span className="font-bold text-gray-800">{methodology.unjustified_jumps_count}</span>
                             </li>
                         </ul>
                     </div>

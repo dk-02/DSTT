@@ -96,7 +96,7 @@ export const DiagnosticUnits = () => {
         const hours = Math.floor(idealTime / 3600);
         const minutes = Math.floor((idealTime % 3600) / 60);
 
-        return `Preporuka: ${idealMoney}€ i ${hours}h ${minutes}m (zbroj svih dostupnih akcija)`;
+        return `Zbroj troškova svih dostupnih akcija: ${idealMoney}€ i ${hours}h ${minutes}m`;
     };
 
 

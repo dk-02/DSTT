@@ -1,9 +1,9 @@
 import { useState } from "react";
 import { useRole } from "../hooks/useRole";
-import ExamineeStats from "../components/statistics-components/MyStats";
-import TeacherStats from "../components/statistics-components/GroupStats";
-import ExpertStats from "../components/statistics-components/CaseStats";
-import AdminStats from "../components/statistics-components/SystemStats";
+import CaseStats from "../components/statistics-components/CaseStats";
+import GroupStats from "../components/statistics-components/GroupStats";
+import MyStats from "../components/statistics-components/MyStats";
+import SystemStats from "../components/statistics-components/SystemStats";
 
 function Statistics() {
     const { isTeacher, isExpert, isAdmin } = useRole();
@@ -21,12 +21,12 @@ function Statistics() {
         <>
             <div className="mt-5 flex justify-between items-center bg-gray-800 p-5 rounded-2xl border border-gray-700 shadow-sm">
                 <div>
-                    <h2 className="text-xl font-bold text-white">Pregled statistike rješavanja</h2>
-                    <p className="text-sm text-gray-400 mt-1">Pregledajte statistiku</p>
+                    <h2 className="text-xl font-bold text-white">Pregled statistike</h2>
+                    <p className="text-sm text-gray-400 mt-1">Pregledajte statistiku sustava</p>
                 </div>
             </div>
 
-            <div className="flex space-x-2 border-b border-gray-600 mt-5">
+            <div className="flex space-x-2 mt-5">
                 {tabs.filter(t => t.show).map((tab) => (
                     <button
                         key={tab.name}
@@ -42,11 +42,12 @@ function Statistics() {
                 ))}
             </div>
 
-            <div className="bg-gray-800 p-6 rounded-2xl border border-gray-600 shadow-md min-h-125">
-                {activeTab === "my-stats" && <ExamineeStats />}
-                {activeTab === "group-stats" && <TeacherStats />}
-                {activeTab === "case-stats" && <ExpertStats />}
-                {activeTab === "system-stats" && <AdminStats />}
+            <div className="bg-gray-800 p-6 rounded-xl rounded-tl-none shadow-md min-h-125">
+                {activeTab === "my-stats" && <MyStats />}
+                {activeTab === "group-stats" && <GroupStats />}
+                {activeTab === "case-stats" && <CaseStats />}
+                {activeTab === "system-stats" && <SystemStats />}
+                {activeTab === "" && <span className="text-gray-400">Odaberite statistiku koju želite vidjeti.</span>}
             </div>
         </>
     )

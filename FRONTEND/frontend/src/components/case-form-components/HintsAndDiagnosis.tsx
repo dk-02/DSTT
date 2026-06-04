@@ -23,7 +23,7 @@ export const HintsAndDiagnosis = () => {
           <h3 className="text-lg font-bold flex items-center gap-2">
             <Lightbulb03 className="w-5 h-5 text-orange-500" /> Savjeti (Hints)
           </h3>
-          <button onClick={addHint} className="text-md hover:cursor-pointer text-orange-500 hover:underline">+ Dodaj savjet</button>
+          <button onClick={addHint} className="text-md hover:cursor-pointer text-orange-400">+ Dodaj savjet</button>
         </div>
         {caseData.hints.map((hint, i) => (
           <div key={i} className="flex gap-4 p-4 rounded-lg border items-center border-gray-400">
