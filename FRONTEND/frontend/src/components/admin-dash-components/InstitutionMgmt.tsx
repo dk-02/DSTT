@@ -165,7 +165,7 @@ export const InstitutionMgmt = () => {
     });
 
     return (
-        <div className="w-4/5 h-full p-10 flex flex-col gap-6 animate-fadeIn">
+        <div className="w-4/5 h-full py-5 px-10 flex flex-col gap-6 animate-fadeIn">
             <header className="flex justify-between items-center">
                 <div>
                     <h1 className="text-3xl font-semibold text-white">Upravljanje institucijama</h1>

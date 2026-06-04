@@ -42,9 +42,6 @@ function Profile() {
 
 
     const handleLogout = () => {
-        if (!isExaminee) {
-            if(!window.confirm("Odjavom se poništavaju svi nespremljeni podatci (npr. u kreatoru slučaja). Želite li nastaviti?")) return;
-        }
         useCaseStore.getState().clearCaseData();
         logout();
         navigate("/user/login");

@@ -4,6 +4,8 @@ import { useCaseSolvingStore } from "../../store/useCaseSolveStore";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { Calendar, GraduationHat02, User01, Users01 } from "@untitledui/icons";
 import { Modal } from "../UI/Modal";
+import SolveHistory from "../SolveHistory";
+import Statistics from "../../pages/Statistics";
 
 interface Case {
     id: string;
@@ -76,7 +78,8 @@ function ExamineeDashboard() {
         { name: "available_cases", label: "Dostupni slučajevi" },
         { name: "groups", label: "Moje grupe" },
         { name: "assignments", label: "Moje zadaće" },
-        // { name: "statistics", label: "Statistika" }
+        { name: "solve-history", label: "Povijest rješavanja" },
+        { name: "statistics", label: "Statistika" }
     ]
 
     const [searchParams, setSearchParams] = useSearchParams();
@@ -266,53 +269,61 @@ function ExamineeDashboard() {
                     ))}
                 </nav>
             </aside>
-            <main className="flex-1 overflow-y-auto p-8 lg:p-12">
+            <main className="flex-1 px-5 overflow-y-auto">
                 {menuTab === "available_cases" && (
-                    cases.length > 0 ? (
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                            {cases.map((c) => (
-                                <div key={c.id} className="flex flex-col bg-gray-700 rounded-2xl shadow-lg border border-gray-600 overflow-hidden hover:border-gray-500 transition-colors group">
-                                    <div className="flex justify-between items-start p-4 bg-gray-700/50 border-b border-gray-600">
-                                        <span className="bg-gray-800 text-xs font-semibold px-2 py-1 rounded-md text-gray-300">
-                                            {c.topic_name}
-                                        </span>
-                                        <span className="bg-orange-900/40 text-orange-400 text-xs font-bold px-2 py-1 rounded-md">
-                                            Težina: {c.level === "novice" ? "lagano" : c.level === "intermediate" ? "srednje" : "teško"} 
-                                        </span>
-                                    </div>
-
-                                    <div className="p-5 flex-1 flex flex-col justify-between">
-                                        <div>
-                                            <h3 className="text-lg font-bold text-white mb-1 transition-colors">
-                                                {c.title}
-                                            </h3>
-                                            <p className="text-sm text-gray-400 mb-6">
-                                                Verzija: {c.version}
-                                            </p>
-                                        </div>
-                                        
-                                        <button 
-                                            onClick={() => {
-                                                setCaseToStartId(c.id);
-                                                setSelectedPracticeMode("practice");
-                                                setStartCaseModalOpen(true);
-                                            }} 
-                                            className="w-full bg-orange-500 text-white font-bold py-2.5 rounded-xl transition-all shadow-md active:scale-95 cursor-pointer"
-                                        >
-                                            {c.status === "in_progress" ? "Nastavi s rješavanjem" : "Pokreni vježbu"}
-                                        </button>
-                                    </div>
-                                </div>
-                            ))}
+                    <>
+                        <div className="mt-5 flex justify-between items-center bg-gray-800 p-5 rounded-2xl border border-gray-700 shadow-sm">
+                            <div>
+                                <h2 className="text-xl font-bold text-white">Pregled dostupnih slučajeva</h2>
+                                <p className="text-sm text-gray-400 mt-1">Rješavajte za vježbu</p>
+                            </div>
                         </div>
-                    ) : (
-                        renderEmptyState("Nema dostupnih slučajeva", "Trenutno nema objavljenih slučajeva za vježbu.")
-                    )
+                        {cases.length > 0 ? (
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 mt-5">
+                                {cases.map((c) => (
+                                    <div key={c.id} className="flex flex-col bg-gray-700 rounded-2xl shadow-lg border border-gray-600 overflow-hidden hover:border-gray-500 transition-colors group">
+                                        <div className="flex justify-between items-start p-4 bg-gray-700/50 border-b border-gray-600">
+                                            <span className="bg-gray-800 text-xs font-semibold px-2 py-1 rounded-md text-gray-300">
+                                                {c.topic_name}
+                                            </span>
+                                            <span className="bg-orange-900/40 text-orange-400 text-xs font-bold px-2 py-1 rounded-md">
+                                                Razina: {c.level === "novice" ? "početna" : c.level === "intermediate" ? "srednja" : "napredna"} 
+                                            </span>
+                                        </div>
+
+                                        <div className="p-5 flex-1 flex flex-col justify-between">
+                                            <div>
+                                                <h3 className="text-lg font-bold text-white mb-1 transition-colors">
+                                                    {c.title}
+                                                </h3>
+                                                <p className="text-sm text-gray-400 mb-6">
+                                                    Verzija: {c.version}
+                                                </p>
+                                            </div>
+                                            
+                                            <button 
+                                                onClick={() => {
+                                                    setCaseToStartId(c.id);
+                                                    setSelectedPracticeMode("practice");
+                                                    setStartCaseModalOpen(true);
+                                                }} 
+                                                className="w-full bg-orange-500 text-white font-bold py-2.5 rounded-xl transition-all shadow-md active:scale-95 cursor-pointer"
+                                            >
+                                                {c.status === "in_progress" ? "Nastavi s rješavanjem" : "Pokreni vježbu"}
+                                            </button>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        ) : (
+                            renderEmptyState("Nema dostupnih slučajeva", "Trenutno nema objavljenih slučajeva za vježbu.")
+                        )}
+                    </>
                 )}
 
                 {menuTab === "groups" && (
                     selectedGroup ? (
-                        <div className="flex flex-col animate-fadeIn">
+                        <div className="flex flex-col animate-fadeIn mt-5">
                             <button 
                                 onClick={() => setSelectedGroup(null)}
                                 className="mb-6 flex items-center gap-2 text-gray-400 hover:text-white transition-colors w-fit font-medium cursor-pointer"
@@ -375,39 +386,47 @@ function ExamineeDashboard() {
                         </div>
                     ) :
                     studentGroups.length > 0 ? (
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                            {studentGroups.map((g) => (
-                                <div key={g.id} onClick={() => handleViewGroup(g)} className="flex flex-col bg-gray-700 rounded-2xl shadow-lg border border-gray-600 overflow-hidden hover:border-gray-500 hover:cursor-pointer transition-colors group">
-                                    
-                                    <div className="flex justify-between items-start p-4 bg-gray-700/50 border-b border-gray-600">
-                                        <span className="bg-gray-800 text-xs font-semibold px-2 py-1 rounded-md text-gray-300 truncate max-w-[65%]">
-                                            {g.institution_name}
-                                        </span>
-                                        <span className="bg-blue-900/40 text-blue-400 text-xs font-bold px-2 py-1 rounded-md">
-                                            {g.academic_year}
-                                        </span>
-                                    </div>
+                        <>                        
+                            <div className="mt-5 flex justify-between items-center bg-gray-800 p-5 rounded-2xl border border-gray-700 shadow-sm">
+                                <div>
+                                    <h2 className="text-xl font-bold text-white">Pregled grupa</h2>
+                                    <p className="text-sm text-gray-400 mt-1">Pregledajte grupe kojih ste član</p>
+                                </div>
+                            </div>
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 mt-5">
+                                {studentGroups.map((g) => (
+                                    <div key={g.id} onClick={() => handleViewGroup(g)} className="flex flex-col bg-gray-700 rounded-2xl shadow-lg border border-gray-600 overflow-hidden hover:border-gray-500 hover:cursor-pointer transition-colors group">
+                                        
+                                        <div className="flex justify-between items-start p-4 bg-gray-700/50 border-b border-gray-600">
+                                            <span className="bg-gray-800 text-xs font-semibold px-2 py-1 rounded-md text-gray-300 truncate max-w-[65%]">
+                                                {g.institution_name}
+                                            </span>
+                                            <span className="bg-blue-900/40 text-blue-400 text-xs font-bold px-2 py-1 rounded-md">
+                                                {g.academic_year}
+                                            </span>
+                                        </div>
 
-                                    <div className="p-5 flex-1 flex flex-col justify-between">
-                                        <div>
-                                            <h3 className="text-lg font-bold text-white mb-3">
-                                                {g.name}
-                                            </h3>
-                                            <div className="text-sm text-gray-400 space-y-1.5">
-                                                <p className="flex items-center gap-2">
-                                                    <User01 className="w-4 text-orange-500"/>
-                                                    <span className="text-gray-300 truncate">{g.teacher_name}</span>
-                                                </p>
-                                                <p className="flex items-center gap-2">
-                                                    <Users01 className="w-4"/> 
-                                                    <span className="text-gray-300">{g.student_count} {getStudentWord(g.student_count)}</span>
-                                                </p>
+                                        <div className="p-5 flex-1 flex flex-col justify-between">
+                                            <div>
+                                                <h3 className="text-lg font-bold text-white mb-3">
+                                                    {g.name}
+                                                </h3>
+                                                <div className="text-sm text-gray-400 space-y-1.5">
+                                                    <p className="flex items-center gap-2">
+                                                        <User01 className="w-4 text-orange-500"/>
+                                                        <span className="text-gray-300 truncate">{g.teacher_name}</span>
+                                                    </p>
+                                                    <p className="flex items-center gap-2">
+                                                        <Users01 className="w-4"/> 
+                                                        <span className="text-gray-300">{g.student_count} {getStudentWord(g.student_count)}</span>
+                                                    </p>
+                                                </div>
                                             </div>
                                         </div>
                                     </div>
-                                </div>
-                            ))}
-                        </div>
+                                ))}
+                            </div>
+                        </>
                     ) : (
                         renderEmptyState("Nema grupa", "Trenutno niste učlanjeni ni u jednu grupu.")
                     )
@@ -415,54 +434,65 @@ function ExamineeDashboard() {
                 
                 {menuTab === "assignments" && (
                     studentAssignments.length > 0 ? (
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                            {studentAssignments.map((a) => {
-                                const isExam = a.type === "exam";
-                                const badgeColor = isExam ? "bg-red-900/40 text-red-400" : "bg-purple-900/40 text-purple-400";
-                                const typeLabel = a.type === "practice" ? "Vježba" : a.type === "practice_exam" ? "Probni ispit" : "Ispit";
-                                
-                                const deadline = a.available_until;
+                        <>
+                            <div className="mt-5 flex justify-between items-center bg-gray-800 p-5 rounded-2xl border border-gray-700 shadow-sm">
+                                <div>
+                                    <h2 className="text-xl font-bold text-white">Pregled zadaća</h2>
+                                    <p className="text-sm text-gray-400 mt-1">Pregledajte i riješite dostupne zadaće</p>
+                                </div>
+                            </div>
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 mt-5">
+                                {studentAssignments.map((a) => {
+                                    const isExam = a.type === "exam";
+                                    const badgeColor = isExam ? "bg-red-900/40 text-red-400" : "bg-purple-900/40 text-purple-400";
+                                    const typeLabel = a.type === "practice" ? "Vježba" : a.type === "practice_exam" ? "Probni ispit" : "Ispit";
+                                    
+                                    const deadline = a.available_until;
 
-                                return (
-                                    <div key={a.id} className="flex flex-col bg-gray-700 rounded-2xl shadow-lg border border-gray-600 overflow-hidden hover:border-gray-500 transition-colors group">
-                                        
-                                        <div className="flex justify-between items-start p-4 bg-gray-700/50 border-b border-gray-600">
-                                            <span className="bg-gray-800 text-xs font-semibold px-2 py-1 rounded-md text-gray-300 truncate max-w-[60%]">
-                                                {a.group_name}
-                                            </span>
-                                            <span className={`${badgeColor} text-xs font-bold px-2 py-1 rounded-md`}>
-                                                {typeLabel}
-                                            </span>
-                                        </div>
-
-                                        <div className="p-5 flex-1 flex flex-col justify-between">
-                                            <div>
-                                                <h3 className="text-lg font-bold text-white mb-2">
-                                                    {a.title}
-                                                </h3>
-                                                <p className="text-sm text-gray-400 mb-4 line-clamp-2">
-                                                    {a.instructions || "Nema dodatnih uputa."}
-                                                </p>
-                                                
-                                                {deadline && (
-                                                    <div className="text-xs font-medium inline-block px-2 py-1 rounded bg-gray-800/50 text-gray-300">
-                                                        Rok: {new Date(deadline).toLocaleString('hr-HR', { day: 'numeric', month: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
-                                                    </div>
-                                                )}
-                                            </div>
+                                    return (
+                                        <div key={a.id} className="flex flex-col bg-gray-700 rounded-2xl shadow-lg border border-gray-600 overflow-hidden hover:border-gray-500 transition-colors group">
                                             
-                                            <button onClick={() => handleViewAssignment(a.id)} className="w-full mt-5 bg-gray-600 hover:bg-gray-500 text-white font-bold py-2.5 rounded-lg transition-all shadow-md active:scale-95 cursor-pointer border border-gray-500">
-                                                Detalji zadaće
-                                            </button>
+                                            <div className="flex justify-between items-start p-4 bg-gray-700/50 border-b border-gray-600">
+                                                <span className="bg-gray-800 text-xs font-semibold px-2 py-1 rounded-md text-gray-300 truncate max-w-[60%]">
+                                                    {a.group_name}
+                                                </span>
+                                                <span className={`${badgeColor} text-xs font-bold px-2 py-1 rounded-md`}>
+                                                    {typeLabel}
+                                                </span>
+                                            </div>
+
+                                            <div className="p-5 flex-1 flex flex-col justify-between">
+                                                <div>
+                                                    <h3 className="text-lg font-bold text-white mb-2">
+                                                        {a.title}
+                                                    </h3>
+                                                    <p className="text-sm text-gray-400 mb-4 line-clamp-2">
+                                                        {a.instructions || "Nema dodatnih uputa."}
+                                                    </p>
+                                                    
+                                                    {deadline && (
+                                                        <div className="text-xs font-medium inline-block px-2 py-1 rounded bg-gray-800/50 text-gray-300">
+                                                            Rok: {new Date(deadline).toLocaleString('hr-HR', { day: 'numeric', month: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                                
+                                                <button onClick={() => handleViewAssignment(a.id)} className="w-full mt-5 bg-gray-600 hover:bg-gray-500 text-white font-bold py-2.5 rounded-lg transition-all shadow-md active:scale-95 cursor-pointer border border-gray-500">
+                                                    Detalji zadaće
+                                                </button>
+                                            </div>
                                         </div>
-                                    </div>
-                                );
-                            })}
-                        </div>
+                                    );
+                                })}
+                            </div>
+                        </>
                     ) : (
                         renderEmptyState("Nema zadaća", "Nemate zadaća koje čekaju na rješavanje.")
                     )
                 )}
+
+                {menuTab === "solve-history" && <SolveHistory />}
+                {menuTab === "statistics" && <Statistics />}
             </main>
             
             <Modal isOpen={startCaseModalOpen} onClose={() => setStartCaseModalOpen(false)} title="Odabir načina rješavanja vježbe">
@@ -570,7 +600,7 @@ function ExamineeDashboard() {
                                             <div className="flex gap-3 text-sm text-gray-400">
                                                 <span>Tema: {c.topic_name || "Općenito"}</span>
                                                 <span>•</span>
-                                                <span>Težina: {c.level === "novice" ? "lagano" : c.level === "intermediate" ? "srednje" : "teško"}</span>
+                                                <span>Razina: {c.level === "novice" ? "početna" : c.level === "intermediate" ? "srednja" : "napredna"}</span>
                                             </div>
                                         </div>
                                         

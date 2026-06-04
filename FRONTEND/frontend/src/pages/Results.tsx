@@ -135,7 +135,7 @@ function Results() {
                 onClick={() => navigate("/user/dashboard")} 
                 className="absolute top-5 left-5 scale-130 hover:cursor-pointer text-gray-50" 
             />
-            <div className="max-w-5xl mx-auto">                
+            <div className="max-w-5xl mx-auto flex flex-col">                
                 <div className="flex items-center mb-8">
                     <div>
                         <h1 className="text-3xl font-bold text-gray-100">Analitički izvještaj</h1>
@@ -315,6 +315,15 @@ function Results() {
                         </div>
                     </div>
                 </div>
+                
+                <div className="border border-b border-gray-600"/>
+
+                <button
+                    onClick={() => navigate("/user/dashboard?tab=solve-history")}
+                    className="bg-orange-500 px-4 py-2 font-bold rounded hover:cursor-pointer w-fit self-center mt-5"
+                >
+                    Završi pregled
+                </button>
             </div>
         </div>
     );

@@ -3,6 +3,7 @@ import SolveHistory from "../SolveHistory";
 import CaseMgmt from "./CaseMgmt";
 import GroupMgmt from "./GroupMgmt";
 import AssignmentMgmt from "./AssignmentMgmt";
+import Statistics from "../../pages/Statistics";
 
 
 function TeacherDashboard() {
@@ -11,7 +12,7 @@ function TeacherDashboard() {
         { name: "groups", label: "Grupe" },
         { name: "assignments", label: "Zadaće" },
         { name: "solve-history", label: "Povijest rješavanja" },
-        // { name: "statistics", label: "Statistika" }
+        { name: "statistics", label: "Statistika" }
     ]
 
     const [searchParams, setSearchParams] = useSearchParams();
@@ -41,14 +42,12 @@ function TeacherDashboard() {
                     ))}
                 </nav>
             </aside>
-            <main className="flex-1 px-5 overflow-y-scroll">
+            <main className="flex-1 px-5 overflow-y-auto">
                 {menuTab === "cases" && <CaseMgmt />}
-
                 {menuTab === "groups" && <GroupMgmt />}
-
                 {menuTab === "assignments" && <AssignmentMgmt />}
-
                 {menuTab === "solve-history" && <SolveHistory />}
+                {menuTab === "statistics" && <Statistics />}
             </main>
         </div>
     );

@@ -12,13 +12,16 @@ function Dashboard() {
         <div className="w-screen h-screen bg-gray-700 flex flex-col text-gray-100">
             <Header />
             <main className="flex-1 overflow-y-auto">
-                {isTeacher && <TeacherDashboard/>}
-                {isExpert && <ExpertDashboard />}
-                {isExaminee && <ExamineeDashboard/>}
-                {isAdmin && !isExpert && !isTeacher && <AdminCases />}
+                {
+                    isTeacher ? <TeacherDashboard/> 
+                    : isExpert ? <ExpertDashboard /> 
+                    : isAdmin ? <AdminCases /> 
+                    : isExaminee ? <ExamineeDashboard/> 
+                    : <></>
+                }
             </main>
         </div>
     );
 }
 
-export default Dashboard
+export default Dashboard;

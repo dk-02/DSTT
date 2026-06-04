@@ -1,12 +1,13 @@
 import { useSearchParams } from "react-router-dom";
 import CaseMgmt from "../teacher-dash-components/CaseMgmt";
 import SolveHistory from "../SolveHistory";
+import Statistics from "../../pages/Statistics";
 
 function ExpertDashboard() {
     const menuTabs = [
         { name: "cases", label: "Slučajevi" },
         { name: "solve-history", label: "Povijest rješavanja" },
-        // { name: "statistics", label: "Statistika" }
+        { name: "statistics", label: "Statistika" }
     ];
 
     const [searchParams, setSearchParams] = useSearchParams();
@@ -40,6 +41,7 @@ function ExpertDashboard() {
             <main className="flex-1 px-5 overflow-y-scroll">
                 {menuTab === "cases" && <CaseMgmt />}
                 {menuTab === "solve-history" && <SolveHistory />}
+                {menuTab === "statistics" && <Statistics />}
             </main>
         </div>
     );

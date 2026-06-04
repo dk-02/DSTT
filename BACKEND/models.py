@@ -567,3 +567,71 @@ class UpdateNotification(SQLModel, table=True):
 
 class DecisionRequest(BaseModel):
     decision: Literal["accepted", "declined", "read"]
+
+
+# ----------- STATISTIKA --------------
+
+# --- STUDENT (EXAMINEE) ---
+class TopicStat(BaseModel):
+    topic_name: str
+    total_attempts: int
+    success_rate_percentage: float
+
+class PersonalStatsResponse(BaseModel):
+    total_completed_cases: int
+    success_rate_percentage: float
+    avg_methodology_percentage: float
+    avg_independence_percentage: float
+    strongest_topics: List[TopicStat]
+    weakest_topics: List[TopicStat]
+
+
+# --- TEACHER ---
+class StudentStat(BaseModel):
+    student_id: str
+    first_name: str
+    last_name: str
+    total_attempts: int
+    success_rate_percentage: float
+    avg_methodology: float
+    avg_independence: float
+
+class GroupStat(BaseModel):
+    group_id: str
+    group_name: str
+    student_stats: List[StudentStat]
+
+class CommonMistake(BaseModel):
+    du_id: str
+    description: str
+    mistake_type: str # 'consequence_mistake' ili 'fatal_mistake'
+    count: int
+
+class TeacherStatisticsResponse(BaseModel):
+    groups: List[GroupStat]
+    common_mistakes: List[CommonMistake]
+
+
+# --- EXPERT ---
+class CaseStat(BaseModel):
+    case_id: str
+    title: str
+    total_attempts: int
+    success_rate_percentage: float
+    avg_time_spent_seconds: int
+    avg_money_spent: float
+    hint_usage_rate_percentage: float
+
+class ExpertStatisticsResponse(BaseModel):
+    cases: List[CaseStat]
+
+
+# --- ADMIN ---
+class AdminStatisticsResponse(BaseModel):
+    total_users: int
+    total_institutions: int
+    total_cases: int
+    public_cases_count: int
+    total_solve_attempts: int
+    total_llm_mentor_queries: int
+    total_diagnosis_submissions: int
