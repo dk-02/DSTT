@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useAuthStore } from "../../store/useAuthStore";
 import { Modal } from "../UI/Modal";
-import { Calendar, GraduationHat02, User01, Users01 } from "@untitledui/icons";
+import { Calendar, Edit01, GraduationHat02, Trash01, User01, Users01 } from "@untitledui/icons";
 import { useSearchParams } from "react-router-dom";
 import { type User, useTeacherStore } from "../../store/useTeacherDashStore";
 
@@ -14,6 +14,14 @@ function GroupMgmt() {
         name: "",
         academic_year: ""
     });
+
+    const [editGroupModalOpen, setEditGroupModalOpen] = useState<boolean>(false);
+    const [editGroupFormData, setEditGroupFormData] = useState({
+        name: "",
+        academic_year: ""
+    });
+
+    const [deleteGroupModalOpen, setDeleteGroupModalOpen] = useState<boolean>(false);
 
     // USERS/STUDENTS
     const [students, setStudents] = useState<User[]>([]);
@@ -29,7 +37,7 @@ function GroupMgmt() {
     const token = useAuthStore((state) => state.token);
 
     const { 
-        teacherGroups, 
+        teacherGroups, setTeacherGroups,
         selectedGroup, setSelectedGroup, 
         groupAssignments, 
         groupMembers, setGroupMembers,
@@ -60,6 +68,11 @@ function GroupMgmt() {
         }));
     };
 
+    const handleEditChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+        const { name, value } = e.target;
+        setEditGroupFormData((prev) => ({ ...prev, [name]: value }));
+    };
+
     const handleCreateGroup = async () => {
         try {
             const res = await fetch(`${backendURL}/groups`, {
@@ -79,13 +92,85 @@ function GroupMgmt() {
                 const errorData = await res.json();
                 alert(errorData.detail);
                 throw new Error(errorData.detail || "Greška pri kreiranju grupe.");
-            }            
+            }
+            
+            const data = await res.json();
+            setTeacherGroups([...teacherGroups, data]);
+
+            setCreateGroupModalOpen(false);
     
         } catch (error) {
             console.error("Greška:", error);
         }
     };
             
+
+    const handleEditGroup = async () => {
+        if (!selectedGroup) return;
+
+        try {
+            const res = await fetch(`${backendURL}/groups/${selectedGroup.id}`, {
+                method: "PATCH",
+                headers: { 
+                    "Authorization": `Bearer ${token}`,
+                    "Content-Type": "application/json" 
+                },
+                body: JSON.stringify({
+                    name: editGroupFormData.name,
+                    teacher_id: user?.id,
+                    academic_year: editGroupFormData.academic_year
+                })
+            });
+
+            if (!res.ok) {
+                const errorData = await res.json();
+                alert(errorData.detail);
+                throw new Error(errorData.detail || "Greška pri uređivanju grupe.");
+            }
+            
+            const data = await res.json();
+            const updatedGroup = { 
+                ...selectedGroup, 
+                name: data.name, 
+                academic_year: data.academic_year 
+            };
+
+            setSelectedGroup(updatedGroup);            
+            setTeacherGroups(teacherGroups.map(g => g.id === selectedGroup.id ? updatedGroup : g));
+            setEditGroupModalOpen(false);
+    
+        } catch (error) {
+            console.error("Greška:", error);
+        }
+    };
+
+
+    const handleDeleteGroup = async () => {
+        if (!selectedGroup) return;
+
+        try {
+            const res = await fetch(`${backendURL}/groups/${selectedGroup.id}`, {
+                method: "DELETE",
+                headers: { 
+                    "Authorization": `Bearer ${token}` 
+                }
+            });
+
+            if (!res.ok) {
+                const errorData = await res.json();
+                alert(errorData.detail);
+                throw new Error(errorData.detail || "Greška pri brisanju grupe.");
+            }
+            
+            setTeacherGroups(teacherGroups.filter(g => g.id !== selectedGroup.id));
+            setSelectedGroup(null);
+            setDeleteGroupModalOpen(false);
+    
+        } catch (error) {
+            console.error("Greška:", error);
+        }
+    };
+
             
     // DODAVANJE U GRUPU
     const handleGetAvailableStudents = async () => {
@@ -254,12 +339,30 @@ function GroupMgmt() {
                             <span>&larr;</span> Natrag na popis grupa
                         </button>
                         
-                        <div className="bg-gray-800 p-6 rounded-2xl border border-gray-700 shadow-md mb-8">
-                            <h2 className="text-2xl font-bold text-white mb-3">{selectedGroup.name}</h2>
-                            <div className="flex flex-wrap gap-x-6 gap-y-2 text-sm text-gray-300">
-                                <span className="flex items-center gap-2"><GraduationHat02 className="w-5"/> {selectedGroup.institution_name}</span>
-                                
-                                <span className="flex items-center gap-2"><Calendar className="w-4" /> {selectedGroup.academic_year}</span>
+                        <div className="flex justify-between items-center bg-gray-800 p-6 rounded-2xl border border-gray-700 shadow-md mb-8">
+                            <div>
+                                <h2 className="text-2xl font-bold text-white mb-3">{selectedGroup.name}</h2>
+                                <div className="flex flex-wrap gap-x-6 gap-y-2 text-sm text-gray-300">
+                                    <span className="flex items-center gap-2"><GraduationHat02 className="w-5"/> {selectedGroup.institution_name}</span>                                
+                                    <span className="flex items-center gap-2"><Calendar className="w-4" /> {selectedGroup.academic_year}</span>
+                                </div>
+                            </div>
+                            <div className="flex gap-2">
+                                <button 
+                                    onClick={() => {
+                                        setEditGroupFormData({ name: selectedGroup.name, academic_year: selectedGroup.academic_year });
+                                        setEditGroupModalOpen(true);
+                                    }}
+                                    className="bg-gray-600 text-white px-5 py-2.5 rounded-lg font-bold transition-colors shadow-md cursor-pointer flex items-center justify-center gap-2"
+                                >
+                                    <Edit01 className="w-6" />
+                                </button>
+                                <button 
+                                    onClick={() => setDeleteGroupModalOpen(true)}
+                                    className="bg-red-600 text-white px-5 py-2.5 rounded-lg font-bold transition-colors shadow-md cursor-pointer flex items-center justify-center gap-2"
+                                >
+                                    <Trash01 className="w-6" />
+                                </button>
                             </div>
                         </div>
 
@@ -386,7 +489,7 @@ function GroupMgmt() {
                                 <div key={g.id} className="flex flex-col bg-gray-600 rounded-2xl shadow-lg overflow-hidden transition-all group">
 
                                     <div className="flex justify-between items-start p-4 bg-gray-700/50 border-b border-gray-600">
-                                        <span className="bg-gray-800 text-xs font-semibold px-2 py-1 rounded-md text-gray-300 truncate max-w-[65%]">
+                                        <span className="bg-gray-800/40 text-xs font-semibold px-2 py-1 rounded-md text-gray-300 truncate max-w-[65%]">
                                             {g.institution_name || "Nepoznata ustanova"}
                                         </span>
                                         <span className="bg-blue-900/40 text-blue-400 text-xs font-bold px-2 py-1 rounded-md">
@@ -690,6 +793,81 @@ function GroupMgmt() {
                     </div>
                 </div>
             )}
+
+            <Modal isOpen={editGroupModalOpen} onClose={() => setEditGroupModalOpen(false)} title="Uredi grupu">
+                <div className="flex flex-col w-full gap-5">
+                    <div>
+                        <label className="block text-sm font-medium text-gray-500 mb-1.5">Naziv grupe</label>
+                        <input 
+                            type="text" 
+                            placeholder="npr. Anatomija 1" 
+                            name="name"
+                            value={editGroupFormData.name} 
+                            onChange={handleEditChange} 
+                            className="w-full p-2.5 bg-gray-200 border border-gray-400 text-gray-600 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none transition-all placeholder-gray-500"
+                        />
+                    </div>
+                    
+                    <div>
+                        <label className="block text-sm font-medium text-gray-500 mb-1.5">Akademska godina</label>
+                        <select 
+                            name="academic_year"
+                            value={editGroupFormData.academic_year} 
+                            onChange={handleEditChange}
+                            className="w-full p-2.5 bg-gray-200 border border-gray-400 text-gray-600 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none transition-all cursor-pointer"
+                        >
+                            <option value="" disabled>Odaberite akademsku godinu...</option>
+                            <option value="2025/2026">2025/2026</option>
+                            <option value="2026/2027">2026/2027</option>
+                            <option value="2027/2028">2027/2028</option>
+                        </select>
+                    </div>
+
+                    <div className="flex gap-3 justify-end mt-2">
+                        <button 
+                            onClick={() => setEditGroupModalOpen(false)} 
+                            className="px-4 py-2 rounded-lg font-bold bg-gray-600 text-white hover:bg-gray-500 transition-colors cursor-pointer"
+                        >
+                            Odustani
+                        </button>
+                        <button 
+                            onClick={handleEditGroup} 
+                            disabled={!editGroupFormData.name || !editGroupFormData.academic_year}
+                            className="cursor-pointer bg-orange-500 text-white font-bold px-6 py-2 rounded-lg transition-colors disabled:bg-gray-400/50 disabled:text-gray-500/70 disabled:cursor-not-allowed shadow-md"
+                        >
+                            Spremi promjene
+                        </button>
+                    </div>
+                </div>
+            </Modal>
+
+            <Modal isOpen={deleteGroupModalOpen} onClose={() => setDeleteGroupModalOpen(false)} title="Trajno brisanje grupe">
+                <div className="flex flex-col w-full gap-5">
+                    <div className="p-4 rounded-xl text-center">
+                        <p className="text-gray-700">
+                            Jeste li sigurni da želite trajno obrisati grupu <strong className="text-gray-700">{selectedGroup?.name}</strong>? 
+                        </p>
+                        <p className="text-red-400 text-sm mt-2 font-bold">
+                            Ova akcija će ukloniti sve studente iz grupe i poništiti dodijeljene zadaće. Akcija je nepovratna!
+                        </p>
+                    </div>
+
+                    <div className="flex gap-3 justify-center mt-2">
+                        <button 
+                            onClick={() => setDeleteGroupModalOpen(false)} 
+                            className="px-6 py-2 rounded-lg font-bold bg-gray-600 text-white cursor-pointer"
+                        >
+                            Odustani
+                        </button>
+                        <button 
+                            onClick={handleDeleteGroup} 
+                            className="cursor-pointer bg-red-500 text-white font-bold px-6 py-2 rounded-lg shadow-md"
+                        >
+                            Trajno obriši
+                        </button>
+                    </div>
+                </div>
+            </Modal>
         </>
     );
     

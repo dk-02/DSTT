@@ -247,7 +247,14 @@ function Profile() {
             
             <Modal
                 isOpen={changePasswordModalOpen}
-                onClose={() => setChangePasswordModalOpen(false)}
+                onClose={() => {
+                    setFormData({
+                        oldPassword: "",
+                        newPassword: "",
+                        confirmNewPassword: ""
+                    });
+                    setChangePasswordModalOpen(false);
+                }}
                 title="Promjena lozinke"
             >
                 <div className="w-full flex flex-col items-center gap-3">
@@ -303,7 +310,7 @@ function Profile() {
                         </div>
                     )}
 
-                    <button disabled={!isPasswordValid} onClick={handleChangePassword} className="disabled:bg-gray-500 disabled:cursor-not-allowed cursor-pointer border bg-red-600 font-semibold px-3 py-2 rounded-md">Potvrdi</button>
+                    <button disabled={!isPasswordValid || formData.confirmNewPassword.length === 0 || (formData.confirmNewPassword !== formData.newPassword) } onClick={handleChangePassword} className="disabled:bg-gray-500 disabled:cursor-not-allowed cursor-pointer border bg-orange-500 font-semibold px-3 py-2 rounded-md">Potvrdi</button>
                 </div>
             </Modal>
 

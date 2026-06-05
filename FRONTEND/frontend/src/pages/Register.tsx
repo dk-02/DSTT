@@ -240,8 +240,8 @@ export const Register = ({ isAdminMode = false, onSuccess } : RegisterProps) => 
                 </div>
 
                 {formData.password.length > 0 && (
-                    <div className="bg-gray-800/40 p-3 rounded-lg border border-gray-600/40 space-y-1.5 text-xs animate-fadeIn">
-                        <p className="font-semibold text-gray-400 mb-2">Sigurnost lozinke:</p>
+                    <div className={`${isAdminMode ? "bg-gray-200/50" : "bg-gray-800/40"} p-3 rounded-lg border border-gray-600/40 space-y-1.5 text-xs animate-fadeIn`}>
+                        <p className={`font-semibold ${isAdminMode ? "text-gray-600" : "text-gray-400"}  mb-2`}>Sigurnost lozinke:</p>
                         
                         {[
                             { checked: passwordChecks.hasMinLength, label: "Minimalno 8 znakova" },
@@ -254,7 +254,7 @@ export const Register = ({ isAdminMode = false, onSuccess } : RegisterProps) => 
                                 <span className={`font-bold ${rule.checked ? "text-green-400" : "text-red-400"}`}>
                                     {rule.checked ? <Check className="w-5" /> : <XClose className="w-5" />}
                                 </span>
-                                <span className={rule.checked ? "text-gray-300" : "text-gray-400"}>
+                                <span className={rule.checked ? (isAdminMode ? "text-gray-400" : "text-gray-300") : (isAdminMode ? "text-gray-600" : "text-gray-400")}>
                                     {rule.label}
                                 </span>
                             </div>

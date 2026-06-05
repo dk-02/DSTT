@@ -281,24 +281,21 @@ function ExamineeDashboard() {
                         {cases.length > 0 ? (
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                                 {cases.map((c) => (
-                                    <div key={c.id} className="flex flex-col bg-gray-700 rounded-2xl shadow-lg border border-gray-600 overflow-hidden hover:border-gray-500 transition-colors group">
+                                    <div key={c.id} className="flex flex-col bg-gray-600 rounded-2xl shadow-lg overflow-hidden group">
                                         <div className="flex justify-between items-start p-4 bg-gray-700/50 border-b border-gray-600">
-                                            <span className="bg-gray-800 text-xs font-semibold px-2 py-1 rounded-md text-gray-300">
-                                                {c.topic_name}
-                                            </span>
                                             <span className="bg-orange-900/40 text-orange-400 text-xs font-bold px-2 py-1 rounded-md">
                                                 Razina: {c.level === "novice" ? "početna" : c.level === "intermediate" ? "srednja" : "napredna"} 
                                             </span>
                                         </div>
 
                                         <div className="p-5 flex-1 flex flex-col justify-between">
-                                            <div>
-                                                <h3 className="text-lg font-bold text-white mb-1 transition-colors">
-                                                    {c.title}
-                                                </h3>
-                                                <p className="text-sm text-gray-400 mb-6">
-                                                    Verzija: {c.version}
+                                            <div className="mb-6">
+                                                <p className="bg-gray-800/50 text-xs font-semibold px-2 py-1 rounded text-gray-300 w-fit mb-3">
+                                                    {c.topic_name}
                                                 </p>
+                                                <h3 className="text-lg font-bold text-gray-100 transition-colors">
+                                                    {c.title}
+                                                </h3>                                                
                                             </div>
                                             
                                             <button 
@@ -395,7 +392,7 @@ function ExamineeDashboard() {
                             {studentGroups.length > 0 ? (
                                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                                         {studentGroups.map((g) => (
-                                            <div key={g.id} onClick={() => handleViewGroup(g)} className="flex flex-col bg-gray-700 rounded-2xl shadow-lg border border-gray-600 overflow-hidden hover:border-gray-500 hover:cursor-pointer transition-colors group">
+                                            <div key={g.id} className="flex flex-col bg-gray-600 rounded-2xl shadow-lg overflow-hidden transition-colors group">
                                                 
                                                 <div className="flex justify-between items-start p-4 bg-gray-700/50 border-b border-gray-600">
                                                     <span className="bg-gray-800 text-xs font-semibold px-2 py-1 rounded-md text-gray-300 truncate max-w-[65%]">
@@ -422,7 +419,13 @@ function ExamineeDashboard() {
                                                             </p>
                                                         </div>
                                                     </div>
+
+                                                    <button onClick={() => handleViewGroup(g)} className="mt-5 w-full bg-orange-500 text-white font-bold py-2 rounded-lg hover:cursor-pointer transition shadow-md">
+                                                        Detalji grupe
+                                                    </button>
+
                                                 </div>
+
                                             </div>
                                         ))}
                                     </div>
@@ -450,7 +453,7 @@ function ExamineeDashboard() {
                                     const deadline = a.available_until;
 
                                     return (
-                                        <div key={a.id} className="flex flex-col bg-gray-700 rounded-2xl shadow-lg border border-gray-600 overflow-hidden hover:border-gray-500 transition-colors group">
+                                        <div key={a.id} className="flex flex-col bg-gray-600 rounded-2xl shadow-lg border border-gray-700 overflow-hidden group">
                                             
                                             <div className="flex justify-between items-start p-4 bg-gray-700/50 border-b border-gray-600">
                                                 <span className="bg-gray-800 text-xs font-semibold px-2 py-1 rounded-md text-gray-300 truncate max-w-[60%]">
@@ -477,7 +480,7 @@ function ExamineeDashboard() {
                                                     )}
                                                 </div>
                                                 
-                                                <button onClick={() => handleViewAssignment(a.id)} className="w-full mt-5 bg-gray-600 hover:bg-gray-500 text-white font-bold py-2.5 rounded-lg transition-all shadow-md active:scale-95 cursor-pointer border border-gray-500">
+                                                <button onClick={() => handleViewAssignment(a.id)} className="w-full mt-5 bg-orange-500  text-white font-bold py-2.5 rounded-lg transition-all shadow-md cursor-pointer">
                                                     Detalji zadaće
                                                 </button>
                                             </div>

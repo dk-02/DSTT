@@ -254,7 +254,7 @@ export const UserMgmt = () => {
         if (!userToChangePassword || !newPassword) return;
 
         try {
-            const res = await apiRequest(`/auth/password-change-admin`, {
+            const res = await apiRequest(`/auth/change-password-admin`, {
                 method: "POST",
                 body: JSON.stringify({ user_id: userToChangePassword.id, new_password: newPassword })
             });

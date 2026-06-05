@@ -158,19 +158,33 @@ function CaseSolving() {
 
 
     const handleSend = async () => {
-        const userMessage: userMsg = { sender: "korisnik", text: input };
-        addMessage(userMessage);
+        try {
+            const userMessage: userMsg = { sender: "korisnik", text: input };
+            addMessage(userMessage);
 
-        const response = await fetch(`${backendURL}/attempts/${attemptId}/getDU`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ message: input, case_id: caseId })
-        });
-        
-        const data = await response.json();
-        const aiMsg: userMsg = { sender: "sustav", text: data.result, du: data.du_id };
-        addMessage(aiMsg);
-        setInput("");
+            const response = await fetch(`${backendURL}/attempts/${attemptId}/getDU`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ message: input, case_id: caseId })
+            });
+            
+            if (!response.ok) {
+                throw new Error(`HTTP greška! Status: ${response.status}`);
+            }
+
+            const data = await response.json();
+            const aiMsg: userMsg = { 
+                sender: "sustav", 
+                text: data.result, 
+                du: data.du_id,
+                media: data.media
+            };
+            addMessage(aiMsg);
+            setInput("");
+
+        } catch (error) {
+            console.error("Greška pri dohvatu DU-a: ", error);
+        }
     };
 
     const handleVerifyDiagnosis = async () => {
@@ -283,21 +297,29 @@ function CaseSolving() {
 
     const handleAskMentor = async () => {
         if (!input) return;
-        
-        const userMsg: userMsg = { sender: "korisnik", text: `[Pitanje za mentora]: ${input}` };
-        addMessage(userMsg);
-        setInput("");
 
-        const response = await fetch(`${backendURL}/attempts/${attemptId}/ask-llm-mentor`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
-            body: JSON.stringify({ message: input })
-        });
-        
-        const data = await response.json();
+        try {
+            const userMsg: userMsg = { sender: "korisnik", text: `[Pitanje za mentora]: ${input}` };
+            addMessage(userMsg);
+            setInput("");
+    
+            const response = await fetch(`${backendURL}/attempts/${attemptId}/ask-llm-mentor`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
+                body: JSON.stringify({ message: input })
+            });
 
-        const aiMsg: userMsg = { sender: "llm-mentor", text: data.result };
-        addMessage(aiMsg);
+            if (!response.ok) {
+                throw new Error(`HTTP greška! Status: ${response.status}`);
+            }
+
+            const data = await response.json();    
+            const aiMsg: userMsg = { sender: "llm-mentor", text: data.result };
+            addMessage(aiMsg);                     
+
+        } catch (error) {
+            console.error("Greška pri upitu LLM mentoru: ", error);
+        }        
     };
 
     const handleQuit = async () => {
@@ -311,7 +333,7 @@ function CaseSolving() {
 
             if (response.ok) {
                 reset(); 
-                navigate("/user/dashboard");
+                navigate("/user/dashboard?tab=solve-history");
             } else {
                 const errorData = await response.json();
                 console.error("Greška pri otkazivanju:", errorData.detail);
@@ -326,26 +348,34 @@ function CaseSolving() {
         return <div className="text-white">Učitavanje slučaja...</div>;
     }
 
+    const handleNavigateBack = () => {
+        if (window.history.length <= 1) {
+            navigate("/user/dashboard");
+        } else {
+            navigate(-1);
+        }
+    };
+
     return (
         <div className="flex flex-col w-screen h-screen overflow-hidden bg-gray-700">
             <div className="p-5 relative flex justify-center items-center h-fit w-full shrink-0">
-                <ArrowNarrowLeft onClick={() => navigate("/user/dashboard")} className="absolute left-5 top-1/2 -translate-y-1/2 scale-130 text-gray-50 hover:cursor-pointer" />
-                <h1 className="text-orange-400 font-bold text-2xl">{caseInfo?.title}</h1>
+                <ArrowNarrowLeft onClick={handleNavigateBack} className="absolute left-5 top-1/2 -translate-y-1/2 scale-130 text-gray-50 hover:cursor-pointer" />
+                <h1 className="text-white font-bold text-2xl">{caseInfo?.title}</h1>
                 <div className="absolute right-5 top-1/2 -translate-y-1/2 text-white font-mono bg-gray-800 px-4 py-2 rounded-lg border border-gray-600 flex gap-3">
                     <Clock /> {elapsedTime}
                 </div>
             </div>
             <div className="p-5 flex gap-5 flex-1 overflow-hidden min-h-0">
-                <div className="w-1/3 flex flex-col gap-5 items-center overflow-y-auto pr-2">
+                <div className="w-1/3 flex flex-col gap-3 items-center overflow-y-auto pr-2">
+                    <h3 className="self-start font-bold text-orange-400 text-lg">Početne informacije</h3>
                     <p className="text-white">{caseInfo?.initial_info}</p>
-                    <div>
+                    <div className="w-full">
+                        {(caseInfo?.media && caseInfo.media.length > 0) ? <h3 className="self-start font-semibold text-orange-400">Datoteke</h3> : null}
+                        
                         {caseInfo?.media.map((m, idx) => (
-                            <div key={idx}>
-                                {m.file_type.startsWith("image") && (
-                                    <img src={getFileUrl(m.file_path)} alt="Nalaz" className="w-full h-auto" />
-                                )}
+                            <div key={idx} className="flex flex-col gap-2 overflow-y-auto py-2">
                                 <button onClick={() => handleViewFile(m)}
-                                    className="bg-gray-800 text-gray-50 px-3 py-2 rounded"        
+                                    className="cursor-pointer bg-gray-800 text-gray-50 px-3 py-2 rounded"        
                                 >Pogledaj datoteku ({m.title})</button>
                             </div>
                         ))}
@@ -371,9 +401,27 @@ function CaseSolving() {
                 <div className="w-2/3 h-full flex flex-col items-center">
                     <div className="flex-1 min-h-0 border border-gray-500 overflow-y-auto p-2.5 w-full bg-gray-800 rounded-lg shadow-inner mb-4">
                         {messages.map((m, i) => (
-                            <p key={i} className={m.sender === "korisnik" ? "text-orange-400" : m.sender === "sustav" ? "text-gray-100" : "text-green-400"}>
-                                <strong>{m.sender}:</strong> {m.text}
-                            </p>
+                            <div key={i} className="flex flex-col">
+                                <p  className={m.sender === "korisnik" ? "text-orange-400" : m.sender === "sustav" ? "text-gray-100" : "text-green-400"}>
+                                    <strong>{m.sender}:</strong> {m.text}
+                                </p>
+
+                                {m.media && m.media.length > 0 && (
+                                    <div className="flex flex-wrap gap-2 mt-2 ml-4">
+                                        {m.media.map((mediaFile, idx) => (
+                                            <button 
+                                                key={idx}
+                                                onClick={() => handleViewFile(mediaFile)}
+                                                className="bg-gray-700 hover:bg-gray-600 border border-gray-500 text-gray-200 text-xs px-3 py-1.5 rounded-lg cursor-pointer transition-colors"
+                                            >
+                                                Prikaži: {mediaFile.title || "Datoteka"}
+                                            </button>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+
+                            
                         ))}
                     </div>
 
@@ -463,66 +511,71 @@ function CaseSolving() {
                 title={viewFile?.title || 'Preview'}
             >
                 {viewFile && (
-                <div className="w-full h-full flex items-center justify-center">
-                    {viewFile.file_type === 'text/plain' || viewFile.file_type === 'application/json' ? (
-                    <div className="w-full max-h-[70vh] bg-white border border-gray-100 rounded-xl overflow-hidden flex flex-col shadow-sm">
-                        <div className="bg-gray-50 px-4 py-2 border-b border-gray-100">
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400 font-mono">
-                            Text/JSON Document Preview
-                        </span>
-                        </div>
-                        <pre className="p-6 overflow-auto text-sm text-gray-700 font-mono leading-relaxed whitespace-pre-wrap bg-white">
-                        {textContent}
-                        </pre>
-                    </div>
-                    ) : viewFile.file_type === 'audio' ? (
-                    <div className="w-full max-w-md bg-white p-8 rounded-2xl border border-gray-100 shadow-sm flex flex-col items-center">
-                        <div className="w-20 h-20 bg-orange-50 rounded-full flex items-center justify-center mb-6">
-                            <Recording01 className="w-10 h-10 text-orange-600" />
-                        </div>
-                        
-                        <div className="text-center mb-8">
-                            <h4 className="text-gray-900 font-semibold mb-1 truncate max-w-xs">
-                                {viewFile.title}
-                            </h4>
-                        </div>
+                    <div className="w-full h-full flex items-center justify-center">
+                        {viewFile.file_type === 'text/plain' || viewFile.file_type === 'application/json' ? (
+                            <div className="w-full max-h-[70vh] bg-white border border-gray-100 rounded-xl overflow-hidden flex flex-col shadow-sm">
+                                <div className="bg-gray-50 px-4 py-2 border-b border-gray-100">
+                                    <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400 font-mono">
+                                        Text/JSON Document Preview
+                                    </span>
+                                </div>
+                                <pre className="p-6 overflow-auto text-sm text-gray-700 font-mono leading-relaxed whitespace-pre-wrap bg-white">
+                                    {textContent}
+                                </pre>
+                            </div>
+                        ) : 
+                        viewFile.file_type.startsWith("image") ?
+                        (
+                            <img src={getFileUrl(viewFile.file_path)} alt="Nalaz" className="w-full h-auto" />
+                        ) :
+                        viewFile.file_type === 'audio' ? (
+                        <div className="w-full max-w-md bg-white p-8 rounded-2xl border border-gray-100 shadow-sm flex flex-col items-center">
+                            <div className="w-20 h-20 bg-orange-50 rounded-full flex items-center justify-center mb-6">
+                                <Recording01 className="w-10 h-10 text-orange-600" />
+                            </div>
+                            
+                            <div className="text-center mb-8">
+                                <h4 className="text-gray-900 font-semibold mb-1 truncate max-w-xs">
+                                    {viewFile.title}
+                                </h4>
+                            </div>
 
-                        <audio 
-                        controls 
-                        className="w-full h-10 custom-audio-player" 
-                        autoPlay={false}
-                        >
-                        <source src={getFileUrl(viewFile.file_path)} type={viewFile.file_type} />
-                        Vaš preglednik ne podržava audio element.
-                        </audio>
-                        
-                        <p className="mt-6 text-[11px] text-gray-400 italic text-center">
-                        Pritisnite play za preslušavanje snimke slučaja
-                        </p>
+                            <audio 
+                                controls 
+                                className="w-full h-10 custom-audio-player" 
+                                autoPlay={false}
+                            >
+                                <source src={getFileUrl(viewFile.file_path)} type={viewFile.file_type} />
+                                Vaš preglednik ne podržava audio element.
+                            </audio>
+                            
+                            <p className="mt-6 text-[11px] text-gray-400 italic text-center">
+                                Pritisnite play za preslušavanje snimke slučaja
+                            </p>
+                        </div>
+                        ) : viewFile.file_type === 'video' ? (
+                            <video controls className="max-w-full max-h-full rounded-lg">
+                                <source src={getFileUrl(viewFile.file_path)} type={viewFile.file_type} />
+                            </video>
+                        ) : viewFile.file_type === 'application/pdf' ? (
+                            <iframe 
+                                src={getFileUrl(viewFile.file_path)} 
+                                className="w-full h-[75vh] rounded-lg border border-gray-200 shadow-sm"
+                            />
+                        ) : (
+                            <div className="text-center p-12 bg-white rounded-2xl border border-dashed border-gray-200">
+                                <File06 className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+                                <p className="text-gray-500 font-medium">Preview nije dostupan za ovaj format.</p>
+                                <a 
+                                href={getFileUrl(viewFile.file_path)} 
+                                download={viewFile.title}
+                                className="mt-4 px-4 py-2 bg-orange-50 text-orange-600 rounded-lg font-semibold hover:bg-orange-100 transition-colors inline-block"
+                                >
+                                Preuzmi datoteku
+                                </a>
+                            </div>
+                        )}
                     </div>
-                    ) : viewFile.file_type === 'video' ? (
-                    <video controls className="max-w-full max-h-full rounded-lg">
-                        <source src={getFileUrl(viewFile.file_path)} type={viewFile.file_type} />
-                    </video>
-                    ) : viewFile.file_type === 'application/pdf' ? (
-                    <iframe 
-                        src={getFileUrl(viewFile.file_path)} 
-                        className="w-full h-[75vh] rounded-lg border border-gray-200 shadow-sm"
-                    />
-                    ) : (
-                    <div className="text-center p-12 bg-white rounded-2xl border border-dashed border-gray-200">
-                        <File06 className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-                        <p className="text-gray-500 font-medium">Preview nije dostupan za ovaj format.</p>
-                        <a 
-                        href={getFileUrl(viewFile.file_path)} 
-                        download={viewFile.title}
-                        className="mt-4 px-4 py-2 bg-orange-50 text-orange-600 rounded-lg font-semibold hover:bg-orange-100 transition-colors inline-block"
-                        >
-                        Preuzmi datoteku
-                        </a>
-                    </div>
-                    )}
-                </div>
                 )}
             </Modal>
 

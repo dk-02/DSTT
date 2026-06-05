@@ -3,6 +3,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { ArrowNarrowLeft } from "@untitledui/icons";
 import { useAuthStore } from "../store/useAuthStore";
 import { useRole } from "../hooks/useRole";
+import { jwtDecode } from "jwt-decode";
 
 const backendURL = import.meta.env.VITE_APP_BACKEND;
 
@@ -51,15 +52,29 @@ interface EvaluationReport {
     };
 }
 
+interface MyTokenPayload {
+    sub: string;
+    email: string;
+    roles: string[];
+    exp: number;
+}
+
 function Results() {
     const [report, setReport] = useState<EvaluationReport | null>(null);
     const [loading, setLoading] = useState(true);
     const [teacherComment, setTeacherComment] = useState<string | null>(null);
-    
+    const [attemptUserId, setAttemptUserId] = useState<string | null>(null);
+
     const { id: attemptId } = useParams();
     const navigate = useNavigate();
     const token = useAuthStore((state) => state.token);
     const { isTeacher } = useRole();
+
+    let currentUserId = null;
+    if (token) {
+        const decoded: MyTokenPayload = jwtDecode(token);
+        currentUserId = decoded?.sub;
+    }
     
     useEffect(() => {
         const fetchReport = async () => {
@@ -72,6 +87,7 @@ function Results() {
                     const data = await response.json();
                     setReport(data.evaluation_report);
                     setTeacherComment(data.teacher_comment);
+                    setAttemptUserId(data.user_id);
                 } else {
                     console.error("Greška pri dohvaćanju izvještaja.");
                 }
@@ -155,7 +171,7 @@ function Results() {
     return (
         <div className="min-h-screen text-gray-100 p-8 bg-gray-700 font-sans relative">
             <ArrowNarrowLeft 
-                onClick={isTeacher ? () => navigate("/user/dashboard?tab=statistics") : () => navigate("/user/dashboard?tab=solve-history")} 
+                onClick={(isTeacher && attemptUserId !== currentUserId) ? () => navigate("/user/dashboard?tab=statistics") : () => navigate("/user/dashboard?tab=solve-history")} 
                 className="absolute top-5 left-5 scale-130 hover:cursor-pointer text-gray-50" 
             />
             <div className="max-w-5xl mx-auto flex flex-col">                
@@ -167,7 +183,7 @@ function Results() {
                     </div>
                 </div>
 
-                {(isTeacher || teacherComment) && (
+                {((isTeacher && attemptUserId !== currentUserId) || teacherComment) && (
                     <div className="bg-gray-800 rounded-2xl p-6 mb-6">
                         <h2 className="text-lg font-bold text-orange-500 uppercase tracking-wider mb-2">Povratna informacija nastavnika</h2>
                         
@@ -250,7 +266,7 @@ function Results() {
                             ${efficiency.efficiency_category === 'bolje_od_kriterija' ? 'bg-green-100 text-green-800 border-green-300' :
                               efficiency.efficiency_category === 'losije_od_kriterija' ? 'bg-red-100 text-red-800 border-red-300' :
                               'bg-blue-100 text-blue-800 border-blue-300'}`}>
-                            {efficiency.efficiency_category.replace(/_/g, ' ')}
+                            {efficiency.efficiency_category === "losije_od_kriterija" ? "lošije od kriterija" : efficiency.efficiency_category.replace(/_/g, ' ')}
                         </div>}
                         
                         
@@ -275,15 +291,15 @@ function Results() {
                             </div>
                         </div>
 
-                        {efficiency.budget_money_limit && (
+                        {/* {efficiency.budget_money_limit && (
                             <p className={`text-sm font-medium mt-2 text-center ${efficiency.budget_exceeded ? 'text-red-500' : 'text-gray-500'}`}>
-                                Budžet: ${efficiency.budget_money_limit} {efficiency.budget_exceeded ? "(Prekoračeno!)" : "(U granicama)"}
+                                Budžet: ${efficiency.budget_money_limit} 
                             </p>
-                        )}
+                        )} */}
 
                         {(efficiency.budget_money_limit !== null || efficiency.budget_time_limit !== null) && (
                             <div className="bg-gray-700 p-3 rounded-lg text-sm text-gray-300 mb-2">
-                                <p className="font-bold mb-1 text-gray-100">Dopušteni budžet slučaja:</p>
+                                <p className="font-bold mb-1 text-gray-100">Dopušteni budžet slučaja {efficiency.budget_exceeded ? <span className="text-red-400">(Prekoračeno)</span>  : <span className="text-blue-400">(U granicama)</span>}</p>
                                 <ul className="list-disc list-inside ml-4">
                                     {efficiency.budget_money_limit !== null && <li>Novac: €{efficiency.budget_money_limit}</li>}
                                     {efficiency.budget_time_limit !== null && 
@@ -346,18 +362,25 @@ function Results() {
                                     <div className="bg-gray-900/50 rounded-lg p-4 border border-gray-700">
                                         <div className="flex justify-between items-start mb-2">
                                             <h3 className="font-bold text-gray-200">
-                                                {action.type === "du_request" ? "Zatražena dijagnostička jedinica" : 
-                                                action.type === "hint_request" ? "Korišten Hint" :
-                                                action.type === "mentor_request" ? "Pitanje mentoru" : 
-                                                "Pokušaj dijagnoze"}
+                                                {
+                                                    action.type === "du_request" ? "Zatražena dijagnostička jedinica" 
+                                                    : action.type === "hint_request" ? "Korišten hint" 
+                                                    : action.type === "mentor_request" ? "Pitanje mentoru" 
+                                                    : action.type === "diagnosis_submission" ? "Pokušaj dijagnoze"
+                                                    : action.type === "undo_request" ? "Zatražen UNDO" 
+                                                    : "Nepoznata akcija"
+                                                }
                                             </h3>
 
                                             {action.status === "redundant" && <span className="px-2 py-1 bg-yellow-900/50 text-yellow-500 text-xs rounded border border-yellow-800">Redundantno</span>}
                                             {action.status === "consequence_mistake" && <span className="px-2 py-1 bg-yellow-900/50 text-yellow-500 text-xs rounded border border-yellow-800">Upozorenje</span>}
                                             {action.status === "fatal_mistake" && <span className="px-2 py-1 bg-red-900/50 text-red-500 text-xs rounded border border-red-800">Fatalna pogreška</span>}
                                         </div>
-                                        
-                                        <p className="text-sm text-gray-400 italic mb-2">"{action.description}"</p>
+                                        {action.type === "du_request" || action.type == "mentor_request" ?
+                                            <p className="text-sm text-gray-400 italic mb-2">"{action.description}"</p>
+                                            :
+                                            <p className="text-sm text-gray-400 italic mb-2">{action.description}</p>
+                                        }
                                         
                                         {action.feedback && (
                                             <div className="mt-2 text-sm text-gray-300 bg-gray-800 p-3 rounded border border-gray-700">
@@ -374,7 +397,7 @@ function Results() {
                 <div className="border border-b border-gray-600"/>
 
                 <button
-                    onClick={isTeacher ? () => navigate("/user/dashboard?tab=statistics") : () => navigate("/user/dashboard?tab=solve-history")}
+                    onClick={(isTeacher && attemptUserId !== currentUserId) ? () => navigate("/user/dashboard?tab=statistics") : () => navigate("/user/dashboard?tab=solve-history")}
                     className="bg-orange-500 px-4 py-2 font-bold rounded hover:cursor-pointer w-fit self-center mt-5"
                 >
                     Završi pregled

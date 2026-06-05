@@ -117,69 +117,22 @@ def get_my_archived_assignments(session: Session = Depends(get_session), current
     return response
 
 
-# @router.post("/preview-random-cases", response_model=List[AssignmentCasePreview])
-# def preview_random_cases(settings: RandomCasePickerSettings, assignment_type: str, session: Session = Depends(get_session), current_user: User = Depends(get_current_active_user)):
-#     visibility_filter = or_(
-#         Case.is_public == True,
-#         (Case.is_public == False) & (Case.created_by == current_user.id)
-#     )
-
-#     case_query = (
-#         select(Case, Category.name.label("topic_name"))
-#         .join(CaseCategory, Case.id == CaseCategory.case_id)
-#         .join(Category, CaseCategory.category_id == Category.id)
-#         .where(visibility_filter)
-#     )
-
-#     if assignment_type in ["practice", "practice_exam"]:
-#         case_query = case_query.where(Case.type == "practice")
-#     elif assignment_type == "exam":
-#         case_query = case_query.where(Case.type == "exam")
-
-#     if settings.topic:
-#         case_query = case_query.where(CaseCategory.category_id == uuid.UUID(settings.topic))
-    
-#     if settings.case_level:
-#         case_query = case_query.where(Case.level == settings.case_level)
-
-#     case_query = case_query.order_by(func.random()).limit(settings.no_of_cases)    
-#     selected_cases = session.exec(case_query).all()
-
-#     if len(selected_cases) < settings.no_of_cases:
-#         raise HTTPException(
-#             status_code=400, 
-#             detail=f"Nema dovoljno slučajeva koji zadovoljavaju tražene kriterije (traženo: {settings.no_of_cases}, pronađeno: {len(selected_cases)})."
-#         )
-
-#     return [
-#         AssignmentCasePreview(
-#             id=row.Case.id, 
-#             title=row.Case.title, 
-#             level=row.Case.level, 
-#             topic_name=row.topic_name,
-#             correct_diagnosis=row.Case.correct_diagnosis
-#         ) for row in selected_cases
-#     ]
-
 
 @router.post("/", status_code=201)
 def create_assignment(data: AssignmentCreate, session: Session = Depends(get_session), current_user: User = Depends(get_current_teacher)):
     final_settings = data.settings
     if not final_settings:
         final_settings = get_default_settings(data.type)
-
-    if final_settings.randomly_choose_cases == True and not data.selected_case_ids:
-        raise HTTPException(status_code=400, detail="Potrebno je prvo pokrenuti odabir slučajeva.")
-    
-    new_assignment = Assignment(
-        title=data.title,
-        instructions=data.instructions,
-        type=data.type,
-        settings=final_settings.model_dump(),
-        teacher_id=current_user.id
-    )    
     
     try:
+        new_assignment = Assignment(
+            title=data.title,
+            instructions=data.instructions,
+            type=data.type,
+            settings=final_settings.model_dump(),
+            teacher_id=current_user.id
+        ) 
+
         session.add(new_assignment)
         session.flush()
 
@@ -209,17 +162,8 @@ def update_assignment(assignment_id: uuid.UUID, data: AssignmentUpdate, session:
     
     update_data = data.model_dump(exclude_unset=True)
     
-    if "settings" in update_data:
-        existing_settings = assignment.settings or {}
-        new_settings = update_data["settings"]
-        
-        if "randomly_choose_cases" in existing_settings:
-            new_settings["randomly_choose_cases"] = existing_settings["randomly_choose_cases"]
-
-        if "random_case_picker_settings" in existing_settings:
-            new_settings["random_case_picker_settings"] = existing_settings["random_case_picker_settings"]
-            
-        assignment.settings = new_settings
+    if "settings" in update_data:            
+        assignment.settings = update_data["settings"]
 
     if "case_sequence" in update_data:
         new_order = update_data["case_sequence"]

@@ -32,7 +32,7 @@ def check_is_redundant(session: Session, attempt_id: uuid.UUID, requested_du: Di
         select(AttemptLog).where(
             AttemptLog.attempt_id == attempt_id,
             AttemptLog.event_type == "du_request",
-            AttemptLog.status != "undone"
+            AttemptLog.status.notin_(["undone", "consequence_mistake", "fatal_mistake"])
         )
     ).all()
 
@@ -67,7 +67,7 @@ def check_logical_indicators(session: Session, attempt_id: uuid.UUID, requested_
         select(AttemptLog).where(
             AttemptLog.attempt_id == attempt_id,
             AttemptLog.event_type == "du_request",
-            AttemptLog.status != "undone"
+            AttemptLog.status.notin_(["undone", "consequence_mistake", "fatal_mistake"])
         )
     ).all()
     past_du_ids = {log.diagnostic_unit_id for log in past_logs if log.diagnostic_unit_id}
@@ -81,6 +81,7 @@ def check_logical_indicators(session: Session, attempt_id: uuid.UUID, requested_
     consequence_to_apply = None
     for cons in requested_du.consequences:
         req_id_str = cons.get("required_id")
+
         if req_id_str and uuid.UUID(req_id_str) in missing_units:
             consequence_to_apply = cons
             # TERMINATE ima prioritet
@@ -114,7 +115,7 @@ def check_is_unjustified_jump(session: Session, attempt_id: uuid.UUID, requested
         .where(
             AttemptLog.attempt_id == attempt_id, 
             AttemptLog.event_type == "du_request",
-            AttemptLog.status != "undone"
+            AttemptLog.status.notin_(["undone", "consequence_mistake", "fatal_mistake"])
         )
     ).all()
 
@@ -290,7 +291,7 @@ def generate_evaluation_report(attempt_id: uuid.UUID, session: Session) -> Dict[
         elif log.event_type == "hint_request":
             desc = "Zatražen hint"
         elif log.event_type == "undo_request":
-            desc = "Poništen zadnji korak (UNDO)"
+            desc = "Poništen zadnji dohvat DU (UNDO)"
         else:
             desc = "Nepoznata akcija"
 
@@ -380,11 +381,30 @@ def get_my_solve_history(current_user: User = Depends(get_current_active_user), 
             else:
                 attempt_type = "Zadaća"
         else:
-            # Ako nema zadaće, gledamo postavke (simulacija ima isključene hintove i upaljenu penalizaciju)
             if attempt.settings.get("penalize_wrong_diagnosis") and not attempt.settings.get("enable_hints"):
                 attempt_type = "Simulacija ispita"
             else:
                 attempt_type = "Slobodna vježba"
+
+
+        show_report = True
+        if attempt.settings and attempt.settings.get("show_result_immediately") is False:
+            if attempt.assignment_id:
+                deadline_stmt = (
+                    select(GroupAssignment.available_until)
+                    .join(GroupMember, GroupMember.group_id == GroupAssignment.group_id)
+                    .where(GroupMember.student_id == current_user.id)
+                    .where(GroupAssignment.assignment_id == attempt.assignment_id)
+                )
+                deadline = session.exec(deadline_stmt).first()
+
+                if deadline:
+                    now_aware = datetime.now(timezone.utc)
+                    if deadline.tzinfo is None:
+                        deadline = deadline.replace(tzinfo=timezone.utc)
+                    
+                    if now_aware < deadline:
+                        show_report = False
 
         history.append({
             "id": str(attempt.id),
@@ -395,8 +415,8 @@ def get_my_solve_history(current_user: User = Depends(get_current_active_user), 
             "is_practice": attempt.is_practice,
             "started_at": attempt.started_at.isoformat(),
             "finished_at": attempt.finished_at.isoformat() if attempt.finished_at else None,
-            "evaluation_report": attempt.evaluation_report,
-            "teacher_comment": attempt.teacher_comment if attempt.teacher_comment else None
+            "evaluation_report": attempt.evaluation_report if show_report else None,
+            "teacher_comment": attempt.teacher_comment if show_report else None
         })
         
     return history
@@ -656,26 +676,15 @@ async def get_DU(attempt_id: uuid.UUID, request: ChatRequest, session: Session =
         if selected_du:
             indicator_status, consequence = check_logical_indicators(session, attempt_id, selected_du)
 
-            if indicator_status == "fatal_mistake":
-                attempt.status = "terminated"
-                attempt.finished_at = datetime.now()
-                log_status = "fatal_mistake"
+            if indicator_status in ["fatal_mistake", "consequence_mistake"]:
+                log_status = indicator_status
                 applied_consequence = consequence
-                result_text = consequence.get("value", "Fatalna pogreška! Rješavanje slučaja je prekinuto.")
-
-                generate_evaluation_report(attempt_id, session)
-
-            elif indicator_status == "consequence_mistake":
-                log_status = "consequence_mistake"
-                applied_consequence = consequence
-                result_text = consequence.get("value", "Nedostaje logički preduvjet.")
 
                 if consequence:
                     attempt.penalty_cost_money += consequence.get("penalty_money", 0.0)
 
                     unit = consequence.get("penalty_time_unit", "")
                     penalty_cost_time_raw = consequence.get("penalty_time", 0)
-
                     penalty_cost_time_seconds = 0
 
                     if penalty_cost_time_raw is not None and unit:
@@ -690,6 +699,17 @@ async def get_DU(attempt_id: uuid.UUID, request: ChatRequest, session: Session =
 
                     attempt.penalty_cost_time += penalty_cost_time_seconds
 
+                if indicator_status == "fatal_mistake":
+                    if not attempt.settings.get("ignore_terminating_consequences"):
+                        attempt.status = "terminated"
+                        attempt.finished_at = datetime.now()
+                        result_text = consequence.get("value", "Fatalna pogreška! Rješavanje slučaja je prekinuto.")
+                    
+                    else:
+                        result_text = consequence.get("value", "Fatalna pogreška! Rješavanje slučaja nije prekinuto zbog postavki.")
+                
+                else:
+                    result_text = consequence.get("value", "Nedostaje logički preduvjet")
 
             else:
                 is_redundant = check_is_redundant(session, attempt_id, selected_du)
@@ -730,6 +750,9 @@ async def get_DU(attempt_id: uuid.UUID, request: ChatRequest, session: Session =
     session.add(new_log)
     session.add(attempt)
     session.commit()
+
+    if attempt.status == "terminated":
+        generate_evaluation_report(attempt_id, session)
 
     return {
         "du_id": selected_du.id if selected_du else None, 
@@ -971,17 +994,36 @@ async def undo_last_action(attempt_id: uuid.UUID, session: Session = Depends(get
         raise HTTPException(status_code=404, detail="Nema radnji koje se mogu poništiti.")
 
     if last_log.diagnostic_unit_id:
-        du = session.get(DiagnosticUnit, last_log.diagnostic_unit_id)
-        if du:
-            attempt.total_cost_money -= du.resources.get("money", 0)
-            
-            unit = du.resources.get("time_unit")
-            time = du.resources.get("time", 0)
-            if unit == "days": time *= 86400
-            elif unit == "hours": time *= 3600
-            elif unit == "minutes": time *= 60
-            
-            attempt.total_cost_time -= time
+        if last_log.status not in ["consequence_mistake", "fatal_mistake"]:
+            du = session.get(DiagnosticUnit, last_log.diagnostic_unit_id)
+            if du:
+                attempt.total_cost_money -= du.resources.get("money", 0)
+                
+                unit = du.resources.get("time_unit")
+                time = du.resources.get("time", 0)
+
+                if unit == "days": time *= 86400
+                elif unit == "hours": time *= 3600
+                elif unit == "minutes": time *= 60
+                
+                attempt.total_cost_time -= time
+
+    attempt.penalty_cost_money -= last_log.consequence.get("penalty_money")
+
+    p_unit = du.resources.get("time_unit")
+    p_time = du.resources.get("time", 0)
+
+    if p_unit == "days": p_time *= 86400
+    elif p_unit == "hours": p_time *= 3600
+    elif p_unit == "minutes": p_time *= 60
+    
+    attempt.penalty_cost_time -= p_time
+
+    attempt.penalty_cost_money = max(0.0, attempt.penalty_cost_money)
+    attempt.penalty_cost_time = max(0, attempt.penalty_cost_time)
+
+    attempt.total_cost_money = max(0.0, attempt.total_cost_money)
+    attempt.total_cost_time = max(0, attempt.total_cost_time)
 
     undo_log = AttemptLog(
         attempt_id=attempt_id,

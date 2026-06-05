@@ -8,7 +8,7 @@ function Header() {
     const navigate = useNavigate();
 
     const user = useAuthStore((state) => state.user);
-    const { isAdmin, isTeacher, isExpert } = useRole();
+    const { isAdmin, isTeacher } = useRole();
 
     const isHome = location.pathname === "/";
     const isDashboard = location.pathname === "/user/dashboard";
@@ -50,7 +50,7 @@ function Header() {
                             <button onClick={() => navigate("/user/dashboard")} className="h-full cursor-pointer border border-gray-600 font-semibold px-3 rounded">Dashboard</button>
                         }
                          
-                        {(isTeacher || isExpert) && <NotificationDropdown />}
+                        {isTeacher && <NotificationDropdown />}
                         
                         <div onClick={() => navigate("/user/profile")} className="hover:bg-gray-700 hover:cursor-pointer flex items-center justify-center w-12.5 h-12.5 bg-gray-900 font-bold rounded-full">
                             <span className="select-none">{user.first_name.at(0)?.toUpperCase()}{user.last_name.at(0)?.toUpperCase()}</span>

@@ -35,6 +35,11 @@ interface Settings {
     randomly_choose_cases: boolean;
     show_result_immediately: boolean;
     ignore_terminating_consequences: boolean;
+    random_case_picker_settings?: {
+        no_of_cases: number;
+        case_level: string | null;
+        category_id: string | null;
+    } | null;
 }
 
 export interface AssignmentDetails {

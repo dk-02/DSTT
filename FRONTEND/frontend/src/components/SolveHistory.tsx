@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useAuthStore } from "../store/useAuthStore";
 import { ChevronRight } from "@untitledui/icons";
 import { useNavigate } from "react-router-dom";
+import { useRole } from "../hooks/useRole";
 
 interface EvaluationReport {
     attempt_status: string;
@@ -70,6 +71,7 @@ function SolveHistory() {
     const [selectedAttempt, setSelectedAttempt] = useState<AttemptHistory | null>(null);
 
     const token = useAuthStore((state) => state.token);
+    const { isTeacher } = useRole();
 
     const navigate = useNavigate();
 
@@ -153,22 +155,24 @@ function SolveHistory() {
                                                 {attempt.assignment_title ? attempt.assignment_title : attempt.attempt_type}
                                             </span>
                                             
-                                            {attempt.teacher_comment ? 
-                                                <>
-                                                    <span className="w-1 h-1 bg-gray-500 rounded-full"></span>
-                                                    <span className="text-green-400">
-                                                        Pregledano
-                                                    </span>
-                                                </>
-                                                :
-                                                attempt.status !== "cancelled" &&
+                                            {!isTeacher && <>
+                                                {attempt.teacher_comment ? 
                                                     <>
                                                         <span className="w-1 h-1 bg-gray-500 rounded-full"></span>
-                                                        <span className="text-gray-300">
-                                                            Nije pregledano
+                                                        <span className="text-green-400">
+                                                            Pregledano
                                                         </span>
                                                     </>
-                                            }
+                                                    :
+                                                    attempt.status !== "cancelled" &&
+                                                        <>
+                                                            <span className="w-1 h-1 bg-gray-500 rounded-full"></span>
+                                                            <span className="text-gray-300">
+                                                                Nije pregledano
+                                                            </span>
+                                                        </>
+                                                }
+                                            </>}
                                         </div>
                                     </div>
                                     
@@ -223,7 +227,7 @@ function SolveHistory() {
                             </div>
                             <div>
                                 <p className="text-sm text-gray-500 uppercase tracking-wider mb-1">Vrijeme rješavanja</p>
-                                <p className="text-gray-200 font-medium">{formatTime(selectedAttempt.evaluation_report.time_spent)}</p>
+                                <p className="text-gray-200 font-medium">{selectedAttempt.status === 'in_progress' || selectedAttempt.status === 'not_started' ? "Nema podataka" : formatTime(selectedAttempt.evaluation_report.time_spent)}</p>
                             </div>
                             <div>
                                 <p className="text-sm text-gray-500 uppercase tracking-wider mb-1">Status</p>
@@ -268,7 +272,9 @@ function SolveHistory() {
                             </div>
                         ) : (
                             <div className="bg-gray-900/50 rounded-xl p-6 border border-gray-700 mb-6 text-gray-400 italic text-center">
-                                Cijeli analitički izvještaj bit će dostupan nakon završetka rješavanja.
+                                {selectedAttempt.status === "in_progress" 
+                                    ? "Cijeli analitički izvještaj bit će dostupan nakon završetka rješavanja." 
+                                    : "Detaljni rezultati bit će vidljivi nakon isteka roka za predaju zadaće."}
                             </div>
                         )}
 

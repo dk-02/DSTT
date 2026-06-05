@@ -307,64 +307,65 @@ def change_password_admin(data: PasswordChangeAdmin, current_user: User = Depend
     if not user:
         raise HTTPException(status_code=404, detail="Korisnik nije pronađen.")
     
-    validate_password_strength(data.new_password)
+    # validate_password_strength(data.new_password)
 
     user.password_hash = hash_password(data.new_password)
+
     session.add(user)
     session.commit()
 
     return {"message": f"Lozinka korisnika {user.email} uspješno promijenjena."}
 
 
-@router.post("/forgot-password")
-async def forgot_password(email_data: Dict[str, str], session: Session = Depends(get_session)):
-    email = email_data.get("email")
-    user = session.exec(select(User).where(User.email == email)).first()
+# @router.post("/forgot-password")
+# async def forgot_password(email_data: Dict[str, str], session: Session = Depends(get_session)):
+#     email = email_data.get("email")
+#     user = session.exec(select(User).where(User.email == email)).first()
     
-    if not user:
-        return {"message": "Ako račun postoji, upute su poslane na mail."}
+#     if not user:
+#         return {"message": "Ako račun postoji, upute su poslane na mail."}
 
-    reset_token = create_reset_token(
-        data={"sub": str(user.id), "type": "password_reset"}, 
-        expires_delta=15
-    )
+#     reset_token = create_reset_token(
+#         data={"sub": str(user.id), "type": "password_reset"}, 
+#         expires_delta=15
+#     )
 
-    reset_link = f"http://localhost:5173/reset-password?token={reset_token}"
+#     reset_link = f"http://localhost:5173/reset-password?token={reset_token}"
 
-    try:
-        resend.api_key = os.getenv("RESEND_API_KEY")
-        resend.Emails.send({
-            "from": "onboarding@resend.dev",
-            "to": [user.email],
-            "subject": "Resetiranje lozinke - DSTT",
-            "html": f"<p>Kliknite na link za promjenu lozinke: <a href='{reset_link}'>Resetiraj lozinku</a></p>"
-        })
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Greška pri slanju maila {e}")
+#     try:
+#         resend.api_key = os.getenv("RESEND_API_KEY")
+#         resend.Emails.send({
+#             "from": "onboarding@resend.dev",
+#             "to": [user.email],
+#             "subject": "Resetiranje lozinke - DSTT",
+#             "html": f"<p>Kliknite na link za promjenu lozinke: <a href='{reset_link}'>Resetiraj lozinku</a></p>"
+#         })
+#     except Exception as e:
+#         raise HTTPException(status_code=500, detail=f"Greška pri slanju maila {e}")
 
-    return {"message": "Upute su poslane na mail."}
+#     return {"message": "Upute su poslane na mail."}
 
 
-@router.post("/reset-password-confirm")
-def reset_password_confirm(data: Dict[str, str], session: Session = Depends(get_session)):
-    token = data.get("token")
-    new_password = data.get("new_password")
+# @router.post("/reset-password-confirm")
+# def reset_password_confirm(data: Dict[str, str], session: Session = Depends(get_session)):
+#     token = data.get("token")
+#     new_password = data.get("new_password")
 
-    try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        if payload.get("type") != "password_reset":
-            raise HTTPException(status_code=400, detail="Neispravan tip tokena")
+#     try:
+#         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+#         if payload.get("type") != "password_reset":
+#             raise HTTPException(status_code=400, detail="Neispravan tip tokena")
         
-        user_id = payload.get("sub")
-        user = session.get(User, uuid.UUID(user_id))
+#         user_id = payload.get("sub")
+#         user = session.get(User, uuid.UUID(user_id))
         
-        if not user:
-            raise HTTPException(status_code=404, detail="Korisnik nije pronađen")
+#         if not user:
+#             raise HTTPException(status_code=404, detail="Korisnik nije pronađen")
 
-        user.password_hash = hash_password(new_password)
-        session.add(user)
-        session.commit()
+#         user.password_hash = hash_password(new_password)
+#         session.add(user)
+#         session.commit()
         
-        return {"message": "Lozinka uspješno promijenjena."}
-    except Exception:
-        raise HTTPException(status_code=400, detail="Link je istekao ili je nevaljan.")
+#         return {"message": "Lozinka uspješno promijenjena."}
+#     except Exception:
+#         raise HTTPException(status_code=400, detail="Link je istekao ili je nevaljan.")

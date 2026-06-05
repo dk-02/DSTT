@@ -15,6 +15,7 @@ interface Case {
     status?: string;
     type?: string;
     correct_diagnosis?: string; 
+    attempt_status: string;
 }
 
 type filterTypes = "all" | "mine" | "public" | "drafts" | "archived";
@@ -295,16 +296,21 @@ function CaseMgmt() {
                                 <p className="text-sm text-gray-300 mt-1">{c.topic_name} • v{c.version}</p>
                             </div>
 
-                            {filter === "archived" ? <button onClick={() => handleUnarchiveCase(c.id)} className="mt-5 w-full bg-orange-500 text-white font-bold py-2 rounded-xl hover:bg-orange-600 hover:cursor-pointer transition shadow-md">
+                            {filter === "archived" ? <button onClick={() => handleUnarchiveCase(c.id)} className="mt-5 w-full bg-orange-500 text-white font-bold py-2 rounded-xl hover:cursor-pointer transition shadow-md">
                                 Vrati slučaj
                             </button> 
                             : 
-                            <button onClick={() => {
-                                setCaseToStartId(c.id);
-                                setSelectedPracticeMode("practice");
-                                setStartCaseModalOpen(true);
-                            }} className="mt-5 w-full bg-orange-500 text-white font-bold py-2 rounded-lg hover:cursor-pointer transition shadow-md">
-                                Isprobaj
+                            <button onClick={c.attempt_status === "in_progress" ? 
+                                () => {
+                                    handleStartCase(c.id, null, null, selectedPracticeMode);                                    
+                                } : 
+                                () => {
+                                    setCaseToStartId(c.id);
+                                    setSelectedPracticeMode("practice");
+                                    setStartCaseModalOpen(true);
+                                }} 
+                            className="mt-5 w-full bg-orange-500 text-white font-bold py-2 rounded-lg hover:cursor-pointer transition shadow-md">
+                                {c.attempt_status !== "in_progress" ? "Isprobaj" : "Nastavi s rješavanjem"}
                             </button>}
                             
                         </div>

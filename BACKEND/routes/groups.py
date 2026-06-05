@@ -3,7 +3,7 @@ from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlmodel import Session, select, delete
 from typing import List
-from models import AddStudentToGroup, Assignment, Group, GroupAssignment, GroupCreate, GroupResponse, GroupUpdate, GroupMember, RemoveStudentFromGroup, Role, StudentAdminInfo, StudentBasicInfo, User, UserRole
+from models import AddStudentToGroup, Assignment, Group, GroupAssignment, GroupCreate, GroupResponse, GroupUpdate, GroupMember, Institution, RemoveStudentFromGroup, Role, StudentAdminInfo, StudentBasicInfo, User, UserRole
 from sqlalchemy.exc import IntegrityError
 from routes.auth import get_current_active_user
 from database import engine
@@ -210,7 +210,7 @@ def create_group(data: GroupCreate, session: Session = Depends(get_session), cur
     if not is_teacher and not is_admin:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Nemate ovlasti za ovu akciju (potrebna je uloga nastavnika ili administratora)."
+            detail="Nemate ovlasti za ovu akciju."
         )
 
     if is_admin and data.teacher_id:
@@ -220,10 +220,12 @@ def create_group(data: GroupCreate, session: Session = Depends(get_session), cur
         
         assigned_teacher_id = target_teacher.id
         assigned_inst_id = target_teacher.institution_id
+        teacher_name = f"{target_teacher.first_name} {target_teacher.last_name}"
 
     elif is_teacher:
         assigned_teacher_id = current_user.id
-        assigned_inst_id = current_user.institution_id     
+        assigned_inst_id = current_user.institution_id
+        teacher_name = f"{current_user.first_name} {current_user.last_name}"   
 
     else:
         raise HTTPException(status_code=403, detail="Greška pri kreiranju grupe: nije dozvoljeno kreiranje grupe kojom upravlja administrator.")       
@@ -242,7 +244,17 @@ def create_group(data: GroupCreate, session: Session = Depends(get_session), cur
         session.commit()
         session.refresh(new_group)
 
-        return new_group
+        institution = session.get(Institution, assigned_inst_id)
+        inst_name = institution.name if institution else "Nepoznata institucija"
+
+        return {
+            "id": str(new_group.id),
+            "name": new_group.name,
+            "academic_year": new_group.academic_year,
+            "teacher_name": teacher_name,
+            "institution_name": inst_name,
+            "student_count": 0
+        }
     
     except IntegrityError:
         session.rollback()
@@ -297,6 +309,7 @@ def update_group(group_id: uuid.UUID, data: GroupUpdate, session: Session = Depe
         session.add(group)
         session.commit()
         session.refresh(group)
+
         return group
 
     except Exception as e:
@@ -316,8 +329,8 @@ def delete_group(group_id: uuid.UUID, session: Session = Depends(get_session), c
 
     if not is_teacher and not is_admin:
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Nemate ovlasti za ovu akciju (potrebna je uloga nastavnika ili administratora)."
+            status_code=403,
+            detail="Nemate ovlasti za ovu akciju."
         )
 
     if not is_admin and group.teacher_id != current_user.id:
@@ -327,6 +340,8 @@ def delete_group(group_id: uuid.UUID, session: Session = Depends(get_session), c
         )
 
     try:
+        session.exec(delete(GroupMember).where(GroupMember.group_id == group_id))
+        session.exec(delete(GroupAssignment).where(GroupAssignment.group_id == group_id))
         session.delete(group)
         session.commit()
         return {"message": "Grupa je uspješno obrisana"}

@@ -75,7 +75,7 @@ class Category(SQLModel, table=True):
     __tablename__= "categories"
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
-    name: str = Field(index=True)
+    name: str = Field(index=True, unique=True)
     
     parent_id: Optional[uuid.UUID] = Field(default=None, foreign_key="categories.id")
     

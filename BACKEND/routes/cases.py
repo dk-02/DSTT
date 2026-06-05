@@ -170,16 +170,6 @@ def create_case(case_data: CaseCreate, current_user: User = Depends(get_current_
 
 
 
-# --- SVI DOSTUPNI CASEOVI - loše rješenje ---
-@router.get("/", response_model=List[Case])
-def get_all_cases(session: Session = Depends(get_session)):
-    statement = select(Case)
-    cases = session.exec(statement).all()
-
-    case_list = [{"id": c.id, "title": c.title, "version": c.version} for c in cases]
-
-    return case_list
-
 
 # CASEOVI NEKOG NASTAVNIKA
 @router.get("/authored")
@@ -199,11 +189,22 @@ def get_authored_cases(session: Session = Depends(get_session), current_user: Us
         .group_by("group_id")
     ).subquery()
 
+    latest_free_attempts_sq = (
+        select(SolveAttempt.case_id, SolveAttempt.status)
+        .where(
+            (SolveAttempt.user_id == current_user.id) &
+            (SolveAttempt.assignment_id.is_(None))
+        )
+        .distinct(SolveAttempt.case_id)
+        .order_by(SolveAttempt.case_id, SolveAttempt.started_at.desc())
+    ).subquery()
+
     statement = (
-        select(Case, Category.name.label("topic_name"))
+        select(Case, Category.name.label("topic_name"), latest_free_attempts_sq.c.status.label("attempt_status"))
         .outerjoin(CaseCategory, Case.id == CaseCategory.case_id)
         .outerjoin(Category, CaseCategory.category_id == Category.id)
         .join(latest_versions_subquery, (func.coalesce(Case.original_case_id, Case.id) == latest_versions_subquery.c.group_id))
+        .outerjoin(latest_free_attempts_sq, latest_free_attempts_sq.c.case_id == Case.id)
         .where(Case.created_by == current_user.id)
         .where(Case.status != "archived")
         .where(Case.version == latest_versions_subquery.c.max_version)
@@ -219,8 +220,9 @@ def get_authored_cases(session: Session = Depends(get_session), current_user: Us
             "version": row.Case.version,
             "level": row.Case.level,
             "topic_name": row.topic_name or "Bez teme",
-            "status": row.Case.status,  # draft, published
-            "type": row.Case.type       # practice ili exam
+            "status": row.Case.status,   # draft, published
+            "type": row.Case.type,       # practice ili exam
+            "attempt_status": row.attempt_status
         } for row in results
     ]
 
@@ -271,7 +273,6 @@ def get_available_cases(session: Session = Depends(get_session), current_user: U
             func.coalesce(Case.original_case_id, Case.id).label("group_id"),
             func.max(Case.version).label("max_version")
         )
-        .where(Case.status == "published")
         .group_by("group_id")
     ).subquery()
 
@@ -320,7 +321,7 @@ def get_available_cases(session: Session = Depends(get_session), current_user: U
 
 # ---- KOD KREIRANJA ZADAĆE - preview za nastavnike pri biranju slučajeva ----
 @router.get("/picker", response_model=List[AssignmentCasePreview])
-def get_cases_for_picker(session: Session = Depends(get_session), current_user: User = Depends(get_current_active_user)):
+def get_cases_for_picker(assignment_type: str = None, session: Session = Depends(get_session), current_user: User = Depends(get_current_active_user)):
     visibility_filter = or_(
         Case.is_public == True,
         (Case.is_public == False) & (Case.created_by == current_user.id)
@@ -331,7 +332,6 @@ def get_cases_for_picker(session: Session = Depends(get_session), current_user: 
             func.coalesce(Case.original_case_id, Case.id).label("group_id"),
             func.max(Case.version).label("max_version")
         )
-        .where(Case.status == "published")
         .group_by("group_id")
     ).subquery()
 
@@ -343,8 +343,8 @@ def get_cases_for_picker(session: Session = Depends(get_session), current_user: 
 
     statement = (
         select(Case, Category.name.label("topic_name"))
-        .join(CaseCategory, Case.id == CaseCategory.case_id)
-        .join(Category, CaseCategory.category_id == Category.id)
+        .outerjoin(CaseCategory, Case.id == CaseCategory.case_id)
+        .outerjoin(Category, CaseCategory.category_id == Category.id)
         .join(
             latest_versions_subquery,
             (func.coalesce(Case.original_case_id, Case.id) == latest_versions_subquery.c.group_id)
@@ -353,15 +353,18 @@ def get_cases_for_picker(session: Session = Depends(get_session), current_user: 
         .where(Case.status == "published")
         .where(
             or_(
-                # Uvjet A: To je najnovija verzija u svom nizu
                 Case.version == latest_versions_subquery.c.max_version,
-                # Uvjet B: Nastavnik je koristi u nekoj svojoj zadaći
                 Case.id.in_(used_cases_subquery)
             )
         )
-        .order_by(Case.title, Case.version.desc())
     )
 
+    if assignment_type in ["practice", "practice_exam"]:
+        statement = statement.where(Case.type == "practice")
+    elif assignment_type == "exam":
+        statement = statement.where(Case.type == "exam")
+
+    statement = statement.order_by(Case.title, Case.version.desc())
     results = session.exec(statement).all()
 
     return [
@@ -369,7 +372,7 @@ def get_cases_for_picker(session: Session = Depends(get_session), current_user: 
             id=row.Case.id,
             title=f"{row.Case.title} (v{row.Case.version})",
             level=row.Case.level,
-            topic_name=row.topic_name
+            topic_name=row.topic_name or "Bez teme"
         ) for row in results
     ]
 

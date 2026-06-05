@@ -17,17 +17,6 @@ interface CasePreview {
     correct_diagnosis?: string;
 }
 
-interface Case {
-    id: string;
-    title: string;
-    version: number;
-    level: number;
-    topic_name: string;
-    status: string;
-    type: string;
-    attempt_status: string;
-}
-
 interface Settings {
     enable_undo: boolean;
     enable_hints: boolean;
@@ -54,15 +43,15 @@ export function AssignmentCreator({ onClose, onSuccess }: AssignmentCreatorProps
     const [type, setType] = useState("practice");
 
     const [settings, setSettings] = useState<Settings>({
-        enable_hints: false,
-        ignore_hint_penalty: false,
-        enable_undo: false,
-        enable_LLM_mentor: false,
+        enable_hints: true,
+        ignore_hint_penalty: true,
+        enable_undo: true,
+        enable_LLM_mentor: true,
         ignore_terminating_consequences: false,
         randomly_choose_cases: false,
-        show_result_immediately: false,
+        show_result_immediately: true,
         case_sequence_lock: false,
-        allow_diagnosis_retry: false,
+        allow_diagnosis_retry: true,
         penalize_wrong_diagnosis: false
     });
 
@@ -74,28 +63,33 @@ export function AssignmentCreator({ onClose, onSuccess }: AssignmentCreatorProps
 
     const [randomCount, setRandomCount] = useState(1);
     const [randomLevel, setRandomLevel] = useState("");
+    const [randomTopic, setRandomTopic] = useState("");
 
     const [categories, setCategories] = useState<Category[]>([]);
-    const [randomTopic, setRandomTopic] = useState("");
 
     
     useEffect(() => {
         const fetchAvailableCases = async () => {
             try {
-                const res1 = await fetch(`${backendURL}/cases/authored`, { headers: { "Authorization": `Bearer ${token}` } });
-                const res2 = await fetch(`${backendURL}/cases/available`, { headers: { "Authorization": `Bearer ${token}` } });
-                
-                if (res1.ok && res2.ok) {
-                    const myCases = await res1.json();
-                    const publicCases = await res2.json();
-                    const combined = [...myCases, ...publicCases.filter((pc: Case) => !myCases.some((mc: Case) => mc.id === pc.id))];
-                    setAvailableCases(combined.filter(c => c.status === "published"));
+                const res = await fetch(`${backendURL}/cases/picker?assignment_type=${type}`, 
+                    { headers: { "Authorization": `Bearer ${token}` } }
+                );
+
+                if (res.ok) {
+                    const cases = await res.json();
+                    setAvailableCases(cases);
                 }
+                
             } catch (error) {
                 console.error("Greška pri dohvaćanju slučajeva", error);
             }
         };
 
+        fetchAvailableCases();
+    }, [token, type]);
+
+
+    useEffect(() => {
         const fetchCategories = async () => {
             try {
                 const res = await fetch(`${backendURL}/categories`, { 
@@ -109,9 +103,9 @@ export function AssignmentCreator({ onClose, onSuccess }: AssignmentCreatorProps
             }
         };
 
-        fetchAvailableCases();
         fetchCategories();
     }, [token]);
+
 
     const handleToggleSetting = (key: keyof Settings) => {
         setSettings(prev => ({ ...prev, [key]: !prev[key] }));
@@ -146,8 +140,15 @@ export function AssignmentCreator({ onClose, onSuccess }: AssignmentCreatorProps
     };
 
     const handleCreateAssignment = async () => {
-        if (!title.trim() || selectedCases.length === 0) {
-            alert("Unesite naslov i odaberite barem jedan slučaj.");
+        if (!title.trim()) {
+            alert("Unesite naslov.");
+            return;
+        }
+
+        const isRandomMode = !showManualPicker;
+
+        if (isRandomMode && randomCount < 1) {
+            alert("Unesite ispravan broj slučajeva za nasumični odabir (minimalno 1).");
             return;
         }
 
@@ -157,12 +158,14 @@ export function AssignmentCreator({ onClose, onSuccess }: AssignmentCreatorProps
             type,
             settings: {
                 ...settings,
-                random_case_picker_settings: settings.randomly_choose_cases ? {
-                    no_of_cases: selectedCases.length,
-                    case_level: randomLevel || null
+                randomly_choose_cases: isRandomMode,
+                random_case_picker_settings: isRandomMode ? {
+                    no_of_cases: randomCount,
+                    case_level: randomLevel || null,
+                    category_id: randomTopic || null
                 } : null
             },
-            selected_case_ids: selectedCases.map((c, index) => ({
+            selected_case_ids: isRandomMode ? [] : selectedCases.map((c, index) => ({
                 case_id: c.id,
                 sequence_no: index + 1
             }))
@@ -190,6 +193,13 @@ export function AssignmentCreator({ onClose, onSuccess }: AssignmentCreatorProps
     };
 
     const handleTypeChange = (newType: string) => {
+        if (selectedCases.length > 0) {
+            const confirmChange = window.confirm("Promjenom tipa zadaće poništit će se Vaš trenutni odabir slučajeva. Želite li nastaviti?");
+            if (!confirmChange) return;
+            
+            setSelectedCases([]);
+        }
+
         setType(newType);
         
         if (newType === "practice") {
@@ -304,7 +314,9 @@ export function AssignmentCreator({ onClose, onSuccess }: AssignmentCreatorProps
                                         <span className="text-xs font-bold text-gray-400">#{index + 1}</span>
                                         <div>
                                             <p className="text-sm font-bold text-white">{c.title}</p>
-                                            <p className="text-[10px] text-gray-400 uppercase tracking-wider">{c.level === "novice" ? "lagano" : c.level === "intermediate" ? "srednje" : "teško"}</p>
+                                            <p className="text-[10px] text-gray-400 uppercase tracking-wider">
+                                                {c.level === "novice" ? "lagano" : c.level === "intermediate" ? "srednje" : "teško"} | {c.topic_name}
+                                            </p>
                                         </div>
                                     </div>
                                     <div className="flex gap-1">
@@ -318,8 +330,8 @@ export function AssignmentCreator({ onClose, onSuccess }: AssignmentCreatorProps
 
                         <div className="mt-auto border-t border-gray-600 pt-4">
                             <div className="flex gap-2 mb-4">
-                                <button onClick={() => setShowManualPicker(false)} className={`flex-1 py-2 rounded-lg text-sm font-bold transition-colors cursor-pointer ${!showManualPicker ? "bg-gray-600 text-white" : "bg-gray-800 text-gray-400 hover:bg-gray-700"}`}>Nasumičan odabir</button>
-                                <button onClick={() => setShowManualPicker(true)} className={`flex-1 py-2 rounded-lg text-sm font-bold transition-colors cursor-pointer ${showManualPicker ? "bg-gray-600 text-white" : "bg-gray-800 text-gray-400 hover:bg-gray-700"}`}>Ručni odabir</button>
+                                <button onClick={() => setShowManualPicker(false)} className={`flex-1 py-2 rounded-lg text-sm font-bold transition-colors cursor-pointer ${!showManualPicker ? "bg-gray-600 text-white" : "bg-gray-800 text-gray-400"}`}>Nasumičan odabir</button>
+                                <button onClick={() => setShowManualPicker(true)} className={`flex-1 py-2 rounded-lg text-sm font-bold transition-colors cursor-pointer ${showManualPicker ? "bg-gray-600 text-white" : "bg-gray-800 text-gray-400"}`}>Ručni odabir</button>
                             </div>
 
                             {!showManualPicker ? (
@@ -363,17 +375,23 @@ export function AssignmentCreator({ onClose, onSuccess }: AssignmentCreatorProps
                                         />
                                     </div>
                                     <div className="bg-gray-800 p-4 rounded-xl border border-gray-700 h-44 overflow-y-auto space-y-2">
-                                        {filteredCases.map(c => {
-                                            const isSelected = selectedCases.some(sc => sc.id === c.id);
-                                            return (
-                                                <div key={c.id} className="flex justify-between items-center p-2 rounded hover:bg-gray-700 border border-transparent hover:border-gray-600">
-                                                    <div className="truncate pr-2 text-sm text-gray-200">{c.title} <span className="text-[11px] text-gray-500">(RAZINA: {c.level === "novice" ? "početna" : c.level === "intermediate" ? "srednja" : "napredna"} | TEMA: {c.topic_name})</span></div>
-                                                    <button onClick={() => handleAddManualCase(c)} disabled={isSelected} className="text-xs px-2 py-1 bg-gray-600 text-white rounded cursor-pointer disabled:opacity-30 disabled:cursor-default shrink-0">
-                                                        {isSelected ? "Dodano" : "+ Dodaj"}
-                                                    </button>
-                                                </div>
-                                            )
-                                        })}
+                                        {filteredCases.length === 0 ? <span className="text-gray-400 italic text-sm">Nema dostupnih slučajeva za odabrani tip vježbe.</span> : 
+                                        <>
+                                            {filteredCases.map(c => {
+                                                const isSelected = selectedCases.some(sc => sc.id === c.id);
+                                                return (
+                                                    <div key={c.id} className="flex justify-between items-center p-2 rounded hover:bg-gray-700 border border-transparent hover:border-gray-600">
+                                                        <div className="truncate pr-2 text-sm text-gray-200">{c.title} <span className="text-[11px] text-gray-500">(RAZINA: {c.level === "novice" ? "početna" : c.level === "intermediate" ? "srednja" : "napredna"} | TEMA: {c.topic_name})</span></div>
+                                                        <button onClick={() => handleAddManualCase(c)} disabled={isSelected} className="text-xs px-2 py-1 bg-gray-600 text-white rounded cursor-pointer disabled:opacity-30 disabled:cursor-default shrink-0">
+                                                            {isSelected ? "Dodano" : "+ Dodaj"}
+                                                        </button>
+                                                    </div>
+                                                )
+                                            })}
+                                        </>
+                                        }
+
+                                        
                                     </div>
                                 </>
                             )}

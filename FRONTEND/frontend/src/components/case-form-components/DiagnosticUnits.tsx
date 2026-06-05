@@ -140,7 +140,7 @@ export const DiagnosticUnits = () => {
                     onChange={(e) => setCaseData({...caseData, budget: {...caseData.budget, time_unit: e.target.value}})}
                 >
                 {timeUnits.map((tu) => (
-                    <option value={tu.value}>{tu.name}</option>
+                    <option key={tu.name} value={tu.value}>{tu.name}</option>
                 ))}
                 </select>
             </div>
@@ -279,7 +279,7 @@ export const DiagnosticUnits = () => {
                                 onChange={(e) => updateDU(du.id, { resources: { ...du.resources, time_unit: e.target.value } })}
                             >
                             {timeUnits.map((tu) => (
-                                <option value={tu.value}>{tu.name}</option>
+                                <option key={tu.name} value={tu.value}>{tu.name}</option>
                             ))}
                             </select>
                         </div>
@@ -377,7 +377,14 @@ export const DiagnosticUnits = () => {
                                                         value={consequence?.type || 'warning'}
                                                         onChange={(e) => {
                                                             const newCons = [...du.consequences.filter(c => c.required_id !== reqId)];
-                                                            newCons.push({ required_id: reqId, type: e.target.value as consequenceType, value: consequence?.value || '' });
+                                                            newCons.push({ 
+                                                                required_id: reqId, 
+                                                                type: e.target.value as consequenceType, 
+                                                                value: consequence?.value || '',
+                                                                penalty_money: consequence?.penalty_money || 0,
+                                                                penalty_time: consequence?.penalty_time || 0,
+                                                                penalty_time_unit: consequence?.penalty_time_unit || ''
+                                                            });
                                                             updateDU(du.id, { consequences: newCons });
                                                         }}
                                                     >
@@ -393,7 +400,14 @@ export const DiagnosticUnits = () => {
                                                         value={consequence?.value || ''}
                                                         onChange={(e) => {
                                                             const newCons = [...du.consequences.filter(c => c.required_id !== reqId)];
-                                                            newCons.push({ required_id: reqId, type: consequence?.type || 'warning', value: e.target.value });
+                                                            newCons.push({ 
+                                                                required_id: reqId, 
+                                                                type: consequence?.type || 'warning', 
+                                                                value: e.target.value,
+                                                                penalty_money: consequence?.penalty_money || 0,
+                                                                penalty_time: consequence?.penalty_time || 0,
+                                                                penalty_time_unit: consequence?.penalty_time_unit || ''
+                                                            });
                                                             updateDU(du.id, { consequences: newCons });
                                                         }}
                                                     />
@@ -464,7 +478,7 @@ export const DiagnosticUnits = () => {
                                                         >
                                                             <option value="">Odaberi jedinicu...</option>
                                                             {timeUnits.map((tu) => (
-                                                                <option value={tu.value}>{tu.name}</option>
+                                                                <option key={tu.name} value={tu.value}>{tu.name}</option>
                                                             ))}
                                                         </select>
                                                     </div>

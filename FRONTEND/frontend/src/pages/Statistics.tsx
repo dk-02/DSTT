@@ -29,13 +29,13 @@ function Statistics() {
                 <div className="flex bg-gray-900 p-1 rounded-lg border border-gray-600">
                     <button 
                         onClick={() => setIsPractice(true)} 
-                        className={`px-5 py-2 rounded-md text-sm font-bold transition-colors ${isPractice ? 'bg-orange-500 text-white shadow' : 'text-gray-400 hover:text-white hover:bg-gray-700'}`}
+                        className={`cursor-pointer px-5 py-2 rounded-md text-sm font-bold transition-colors ${isPractice ? 'bg-orange-500 text-white shadow' : 'text-gray-400 hover:text-white hover:bg-gray-700'}`}
                     >
                         Vježbe
                     </button>
                     <button 
                         onClick={() => setIsPractice(false)} 
-                        className={`px-5 py-2 rounded-md text-sm font-bold transition-colors ${!isPractice ? 'bg-orange-500 text-white shadow' : 'text-gray-400 hover:text-white hover:bg-gray-700'}`}
+                        className={`cursor-pointer px-5 py-2 rounded-md text-sm font-bold transition-colors ${!isPractice ? 'bg-orange-500 text-white shadow' : 'text-gray-400 hover:text-white hover:bg-gray-700'}`}
                     >
                         Ispiti
                     </button>

@@ -39,6 +39,13 @@ export const BasicInfo = () => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name: newName, parent_id: parentId })
       });
+
+      if (!response.ok) {
+        const err = await response.json();
+        alert(err.detail)
+        return;
+      }
+
       const newCat = await response.json();
 
       setCategories([...categories, newCat]);
@@ -114,8 +121,8 @@ export const BasicInfo = () => {
                     value={newName}
                     onChange={(e) => setNewName(e.target.value)}
                 />
-                <button onClick={() => handleAddNew(parentId)} className="p-2 text-green-400"><Check className="w-5 h-5"/></button>
-                <button onClick={() => setIsAdding(null)} className="p-2 text-red-400"><X className="w-5 h-5"/></button>
+                <button onClick={() => handleAddNew(parentId)} className="cursor-pointer p-2 text-green-400"><Check className="w-5 h-5"/></button>
+                <button onClick={() => setIsAdding(null)} className="cursor-pointer p-2 text-red-400"><X className="w-5 h-5"/></button>
             </div>
         )}
       </div>

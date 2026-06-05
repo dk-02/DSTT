@@ -47,6 +47,17 @@ interface Settings {
     randomly_choose_cases: boolean;
     show_result_immediately: boolean;
     ignore_terminating_consequences: boolean;
+    random_case_picker_settings?: {
+        no_of_cases: number;
+        case_level: string | null;
+        category_id: string | null;
+    } | null;
+}
+
+interface Category {
+    id: string;
+    name: string;
+    parent_id: string;
 }
 
 const backendURL = import.meta.env.VITE_APP_BACKEND;
@@ -56,7 +67,7 @@ function AssignmentMgmt() {
     const [archivedTeacherAssignments, setArchivedTeacherAssignments] = useState<Assignment[]>([]);
     const [assignmentCreatorOpen, setAssignmentCreatorOpen] = useState<boolean>(false);
     const [assignmentSettingsModalOpen, setAssignmentSettingsModalOpen] = useState<boolean>(false);
-    const [localSettings, setLocalSettings] = useState<Settings | null>(null);
+    
     const [editingAssignmentModalOpen, setEditingAssignmentModalOpen] = useState<boolean>(false);
     const [localCases, setLocalCases] = useState<AssignmentCaseDetail[]>([]);
     const [editAssignmentFormData, setEditAssignmentFormData] = useState<EditAssignmentFormData>({
@@ -80,6 +91,13 @@ function AssignmentMgmt() {
     const [addingCasesToAssignment, setAddingCasesToAssignment] = useState<boolean>(false);
     const [casesToAddIds, setCasesToAddIds] = useState<string[]>([]);
     const [previewCases, setPreviewCases] = useState<Case[]>([]);
+
+    const [categories, setCategories] = useState<Category[]>();
+
+    const [localSettings, setLocalSettings] = useState<Settings | null>(null);
+    const [randomCount, setRandomCount] = useState(1);
+    const [randomLevel, setRandomLevel] = useState("");
+    const [randomTopic, setRandomTopic] = useState("");
     
     const token = useAuthStore((state) => state.token);
     const { 
@@ -99,6 +117,17 @@ function AssignmentMgmt() {
     useEffect(() => {
         if (assignmentSettingsModalOpen && selectedAssignmentFullDetails?.settings) {
             setLocalSettings(JSON.parse(JSON.stringify(selectedAssignmentFullDetails.settings)));
+
+            const pickerSettings = selectedAssignmentFullDetails.settings.random_case_picker_settings;
+            if (pickerSettings) {
+                setRandomCount(pickerSettings.no_of_cases || 1);
+                setRandomLevel(pickerSettings.case_level || "");
+                setRandomTopic(pickerSettings.category_id || "");
+            } else {
+                setRandomCount(1);
+                setRandomLevel("");
+                setRandomTopic("");
+            }
         }
     }, [assignmentSettingsModalOpen, selectedAssignmentFullDetails]);
     
@@ -138,11 +167,21 @@ function AssignmentMgmt() {
 
             if (res.ok) {
                 const data = await res.json();
-                setSelectedAssignmentFullDetails(data);
-                
+                setSelectedAssignmentFullDetails(data);                
             } else {
                 alert("Greška pri dohvaćanju detalja zadaće.");
             }
+
+            const categoryRes = await fetch(`${backendURL}/categories`, { 
+                headers: { "Authorization": `Bearer ${token}` } 
+            });
+
+            if (categoryRes.ok) {
+                setCategories(await categoryRes.json());
+            } else {
+                alert("Greška pri dohvaćanju tema.");
+            }        
+            
         } catch (error) {
             console.error("Greška", error);
             alert("Došlo je do pogreške na mreži.");
@@ -164,11 +203,25 @@ function AssignmentMgmt() {
     const handleResetSettings = () => {
         if (selectedAssignmentFullDetails?.settings) {
             setLocalSettings(JSON.parse(JSON.stringify(selectedAssignmentFullDetails.settings)));
+
+            const pickerSettings = selectedAssignmentFullDetails.settings.random_case_picker_settings;
+            setRandomCount(pickerSettings?.no_of_cases || 1);
+            setRandomLevel(pickerSettings?.case_level || "");
+            setRandomTopic(pickerSettings?.category_id || "");
         }
     };
 
     const handleSaveSettings = async () => {
         if (!localSettings) return;
+
+        const updatedSettings = {
+            ...localSettings,
+            random_case_picker_settings: localSettings.randomly_choose_cases ? {
+                no_of_cases: randomCount,
+                case_level: randomLevel || null,
+                category_id: randomTopic || null
+            } : null
+        };
 
         try {
             const res = await fetch(`${backendURL}/assignments/${selectedAssignmentFullDetails?.id}`, {
@@ -177,7 +230,7 @@ function AssignmentMgmt() {
                     "Authorization": `Bearer ${token}`,
                     "Content-Type": "application/json"
                 },
-                body: JSON.stringify({ settings: localSettings }) 
+                body: JSON.stringify({ settings: updatedSettings }) 
             });
 
             if (res.ok) {
@@ -186,6 +239,7 @@ function AssignmentMgmt() {
                         ...selectedAssignmentFullDetails,
                         settings: localSettings
                     });
+                    await handleViewAssignment(selectedAssignmentFullDetails.id);
                 }
                 setAssignmentSettingsModalOpen(false);
             } else {
@@ -655,136 +709,174 @@ function AssignmentMgmt() {
                             renderEmptyState("Nema grupa", "Ova zadaća trenutno nije dodijeljena nijednoj grupi.")
                         )}
 
-                        <h3 className="text-xl font-bold text-gray-200 my-4">Slučajevi u zadaći</h3>
-
-                        {selectedAssignmentFullDetails.assigned_groups.length === 0 && !removingCasesFromAssignment && !addingCasesToAssignment &&
-                            <div className="flex gap-2 mb-5">
-                                <button 
-                                    onClick={() => {setAddingCasesToAssignment(true); handleGetAvailableCases();}} 
-                                    className="bg-green-600 text-white px-5 py-2.5 rounded-lg font-bold transition-colors shadow-md cursor-pointer flex items-center justify-center gap-2"
-                                >
-                                    Dodaj
-                                </button>
-
-                                <button 
-                                    onClick={() => setRemovingCaseFromAssignment(true)} 
-                                    className="bg-gray-500 text-white px-5 py-2.5 rounded-lg font-bold transition-colors shadow-md cursor-pointer flex items-center justify-center gap-2"
-                                >
-                                    Ukloni
-                                </button>
-                            </div>
-                        }
-
-                        {removingCasesFromAssignment && 
-                            <div>
-                                <p>Odaberite slučajeve koje želite ukloniti.</p>
-                                <div className="flex gap-2 my-5">
-                                    <button 
-                                        onClick={() => setRemovingCaseFromAssignment(false)} 
-                                        className="bg-gray-500 text-white px-5 py-2.5 rounded-lg font-bold transition-colors shadow-md cursor-pointer flex items-center justify-center gap-2"
-                                    >
-                                        Odustani
-                                    </button>
-                                    <button 
-                                        onClick={handleRemoveCasesFromAssignment} 
-                                        className="bg-red-600 text-white px-5 py-2.5 rounded-lg font-bold transition-colors shadow-md cursor-pointer flex items-center justify-center gap-2"
-                                    >
-                                        Potvrdi
-                                    </button>
-                                </div>
-                            </div>
-                        }
-
-                        {addingCasesToAssignment && 
-                            <>
-                                <p>Odaberite slučajeve koje želite dodati.</p>
-                                {previewCases.length > 0 ? <div className="my-5 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                                    {previewCases.map((c) => (
-                                        <div 
-                                            key={c.id} 
-                                            onClick={() => toggleCaseToAdd(c.id)} 
-                                            className={`${casesToAddIds.includes(c.id) && "bg-green-700/30 border-green-800"} hover:cursor-pointer relative flex flex-col bg-gray-700 rounded-2xl shadow-lg border border-gray-600 overflow-hidden hover:border-gray-500 transition-colors group`}>
-
-                                            <div className="p-5 flex-1 flex flex-col">
-                                                <h4 className="text-lg font-bold text-white mb-1 pr-8 leading-tight">{c.title}</h4>
-                                                <p className="text-sm text-gray-400">TEMA: {c.topic_name}</p>
-                                                <p className="text-sm text-gray-200 mb-5">DIJAGNOZA: {c.correct_diagnosis}</p>
-                                                
-                                                <div className="mt-auto flex flex-wrap gap-2">
-                                                    <span className="bg-orange-900/40 text-orange-400 text-xs font-bold px-2 py-1 rounded-md border border-orange-800/50">
-                                                        Razina: {c.level === "novice" ? "početna" : c.level === "intermediate" ? "srednja" : "napredna"}
-                                                    </span>
-                                                    
-                                                    {c.status && (
-                                                        <span className="bg-orange-900/40 text-orange-400 text-xs font-bold px-2 py-1 rounded-md border border-orange-800/50 uppercase tracking-wider">
-                                                            {c.status}
-                                                        </span>
-                                                    )}
-                                                </div>
-                                            </div>
-                                        </div>
-                                    ))}
-                            
-                                </div> : renderEmptyState("Nema slučajeva", "Trenutno nema slučajeva koje je moguće dodati u ovu zadaću.")}
-                                
-                                <div>
-                                    <div className="flex gap-2 mb-5">
-                                        <button 
-                                            onClick={() => setAddingCasesToAssignment(false)} 
-                                            className="bg-gray-500 text-white px-5 py-2.5 rounded-lg font-bold transition-colors shadow-md cursor-pointer flex items-center justify-center gap-2"
-                                        >
-                                            Odustani
-                                        </button>
-                                        <button 
-                                            onClick={handleAddCasesToAssignment} 
-                                            className="bg-red-600 text-white px-5 py-2.5 rounded-lg font-bold transition-colors shadow-md cursor-pointer flex items-center justify-center gap-2"
-                                        >
-                                            Potvrdi
-                                        </button>
-                                    </div>
-                                </div>
-                            </>
-                        }
-
-                        {selectedAssignmentFullDetails.cases.length > 0 ? (
-                            <div className="mb-5 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                                {selectedAssignmentFullDetails.cases.map((c) => (
-                                    <div 
-                                        key={c.id} 
-                                        onClick={removingCasesFromAssignment ? () => toggleCaseToRemove(c.id) : undefined} 
-                                        className={`${removingCasesFromAssignment && "hover:cursor-pointer"} ${(removingCasesFromAssignment && casesToRemoveIds.includes(c.id)) && "bg-red-700/30 border-red-800"} relative flex flex-col bg-gray-700 rounded-2xl shadow-lg border border-gray-600 overflow-hidden hover:border-gray-500 transition-colors group`}>
-                                        
-                                        <div className="absolute top-4 right-4">
-                                            <span className="bg-gray-800 text-gray-400 text-xs font-bold px-2 py-1 rounded-md border border-gray-600 shadow-sm">
-                                                {c.sequence_no}
+                        {selectedAssignmentFullDetails.settings?.randomly_choose_cases ? (
+                            <div className="bg-gray-700/30 p-6 rounded-2xl border border-dashed border-gray-500/50 my-6">
+                                <h3 className="text-lg font-bold text-orange-400 mb-2">Nasumični odabir slučajeva je uključen</h3>
+                                <p className="text-sm text-gray-300 mb-4">
+                                    Slučajevi se automatski i jedinstveno generiraju za svakog studenta pri njegovom prvom pokretanju ove zadaće prema sljedećim pravilima:
+                                </p>
+                                <ul className="space-y-3 text-sm text-gray-200 bg-gray-800 p-4 rounded-xl border border-gray-600">
+                                    <li className="flex items-center">
+                                        <p className="text-gray-400">Broj slučajeva po studentu: 
+                                            <span className="text-gray-50 font-bold"> {selectedAssignmentFullDetails.settings.random_case_picker_settings?.no_of_cases || "Nije definirano"}
                                             </span>
-                                        </div>
-
-                                        <div className="p-5 flex-1 flex flex-col">
-                                            <h4 className="text-lg font-bold text-white mb-1 pr-8 leading-tight">{c.title}</h4>
-                                            <p className="text-sm text-gray-400 mb-5">{c.topic_name || "Općenito"}</p>
-                                            
-                                            <div className="mt-auto flex flex-wrap gap-2">
-                                                <span className="bg-orange-900/40 text-orange-400 text-xs font-bold px-2 py-1 rounded-md border border-orange-800/50">
-                                                    Razina: {c.level === "novice" ? "početna" : c.level === "intermediate" ? "srednja" : "napredna"}
-                                                </span>
-                                                
-                                                <span className="bg-gray-800 text-gray-400 text-xs font-bold px-2 py-1 rounded-md border border-gray-600">
-                                                    v{c.version}
-                                                </span>
-                                                
-                                                {c.status && (
-                                                    <span className="bg-orange-900/40 text-orange-400 text-xs font-bold px-2 py-1 rounded-md border border-orange-800/50 uppercase tracking-wider">
-                                                        {c.status}
-                                                    </span>
-                                                )}
-                                            </div>
-                                        </div>
-                                    </div>
-                                ))}
+                                        </p> 
+                                        
+                                    </li>
+                                    <li className="flex items-center">
+                                        <p className="text-gray-400">Razina: 
+                                            <span className="text-gray-50 font-bold"> {selectedAssignmentFullDetails.settings.random_case_picker_settings?.case_level === 'novice' ? 'Početna' : 
+                                                selectedAssignmentFullDetails.settings.random_case_picker_settings?.case_level === 'intermediate' ? 'Srednja' : 
+                                                selectedAssignmentFullDetails.settings.random_case_picker_settings?.case_level === 'expert' ? 'Napredna' : 
+                                                'Bilo koja razina'}
+                                            </span>
+                                        </p> 
+                                    </li>
+                                    <li className="flex items-center">
+                                        <p className="text-gray-400">Tema: 
+                                            <span className="text-gray-50 font-bold"> {selectedAssignmentFullDetails.settings.random_case_picker_settings?.category_id 
+                                                    ? categories?.find(c => c.id === selectedAssignmentFullDetails.settings.random_case_picker_settings?.category_id)?.name || "Nepoznata tema"
+                                                    : "Sve teme"
+                                                }
+                                            </span>
+                                        </p> 
+                                    </li>
+                                </ul>
                             </div>
                         ) : (
-                            renderEmptyState("Nema slučajeva", "Ovoj zadaći trenutno nije dodijeljen nijedan slučaj.")
+                            <>
+                                <h3 className="text-xl font-bold text-gray-200 my-4">Slučajevi u zadaći</h3>
+
+                                {selectedAssignmentFullDetails.assigned_groups.length === 0 && !removingCasesFromAssignment && !addingCasesToAssignment &&
+                                    <div className="flex gap-2 mb-5">
+                                        <button 
+                                            onClick={() => {setAddingCasesToAssignment(true); handleGetAvailableCases();}} 
+                                            className="bg-green-600 text-white px-5 py-2.5 rounded-lg font-bold transition-colors shadow-md cursor-pointer flex items-center justify-center gap-2"
+                                        >
+                                            Dodaj
+                                        </button>
+
+                                        <button 
+                                            onClick={() => setRemovingCaseFromAssignment(true)} 
+                                            className="bg-gray-500 text-white px-5 py-2.5 rounded-lg font-bold transition-colors shadow-md cursor-pointer flex items-center justify-center gap-2"
+                                        >
+                                            Ukloni
+                                        </button>
+                                    </div>
+                                }
+
+                                {removingCasesFromAssignment && 
+                                    <div>
+                                        <p>Odaberite slučajeve koje želite ukloniti.</p>
+                                        <div className="flex gap-2 my-5">
+                                            <button 
+                                                onClick={() => setRemovingCaseFromAssignment(false)} 
+                                                className="bg-gray-500 text-white px-5 py-2.5 rounded-lg font-bold transition-colors shadow-md cursor-pointer flex items-center justify-center gap-2"
+                                            >
+                                                Odustani
+                                            </button>
+                                            <button 
+                                                onClick={handleRemoveCasesFromAssignment} 
+                                                className="bg-red-600 text-white px-5 py-2.5 rounded-lg font-bold transition-colors shadow-md cursor-pointer flex items-center justify-center gap-2"
+                                            >
+                                                Potvrdi
+                                            </button>
+                                        </div>
+                                    </div>
+                                }
+
+                                {addingCasesToAssignment && 
+                                    <>
+                                        <p>Odaberite slučajeve koje želite dodati.</p>
+                                        {previewCases.length > 0 ? <div className="my-5 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                                            {previewCases.map((c) => (
+                                                <div 
+                                                    key={c.id} 
+                                                    onClick={() => toggleCaseToAdd(c.id)} 
+                                                    className={`${casesToAddIds.includes(c.id) && "bg-green-700/30 border-green-800"} hover:cursor-pointer relative flex flex-col bg-gray-700 rounded-2xl shadow-lg border border-gray-600 overflow-hidden hover:border-gray-500 transition-colors group`}>
+
+                                                    <div className="p-5 flex-1 flex flex-col">
+                                                        <h4 className="text-lg font-bold text-white mb-1 pr-8 leading-tight">{c.title}</h4>
+                                                        <p className="text-sm text-gray-400">TEMA: {c.topic_name}</p>
+                                                        <p className="text-sm text-gray-200 mb-5">DIJAGNOZA: {c.correct_diagnosis}</p>
+                                                        
+                                                        <div className="mt-auto flex flex-wrap gap-2">
+                                                            <span className="bg-orange-900/40 text-orange-400 text-xs font-bold px-2 py-1 rounded-md border border-orange-800/50">
+                                                                Razina: {c.level === "novice" ? "početna" : c.level === "intermediate" ? "srednja" : "napredna"}
+                                                            </span>
+                                                            
+                                                            {c.status && (
+                                                                <span className="bg-orange-900/40 text-orange-400 text-xs font-bold px-2 py-1 rounded-md border border-orange-800/50 uppercase tracking-wider">
+                                                                    {c.status}
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                    
+                                        </div> : renderEmptyState("Nema slučajeva", "Trenutno nema slučajeva koje je moguće dodati u ovu zadaću.")}
+                                        
+                                        <div>
+                                            <div className="flex gap-2 mb-5">
+                                                <button 
+                                                    onClick={() => setAddingCasesToAssignment(false)} 
+                                                    className="bg-gray-500 text-white px-5 py-2.5 rounded-lg font-bold transition-colors shadow-md cursor-pointer flex items-center justify-center gap-2"
+                                                >
+                                                    Odustani
+                                                </button>
+                                                <button 
+                                                    onClick={handleAddCasesToAssignment} 
+                                                    className="bg-red-600 text-white px-5 py-2.5 rounded-lg font-bold transition-colors shadow-md cursor-pointer flex items-center justify-center gap-2"
+                                                >
+                                                    Potvrdi
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </>
+                                }
+
+                                {selectedAssignmentFullDetails.cases.length > 0 ? (
+                                    <div className="mb-5 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                                        {selectedAssignmentFullDetails.cases.map((c) => (
+                                            <div 
+                                                key={c.id} 
+                                                onClick={removingCasesFromAssignment ? () => toggleCaseToRemove(c.id) : undefined} 
+                                                className={`${removingCasesFromAssignment && "hover:cursor-pointer"} ${(removingCasesFromAssignment && casesToRemoveIds.includes(c.id)) && "bg-red-700/30 border-red-800"} relative flex flex-col bg-gray-700 rounded-2xl shadow-lg border border-gray-600 overflow-hidden hover:border-gray-500 transition-colors group`}>
+                                                
+                                                <div className="absolute top-4 right-4">
+                                                    <span className="bg-gray-800 text-gray-400 text-xs font-bold px-2 py-1 rounded-md border border-gray-600 shadow-sm">
+                                                        {c.sequence_no}
+                                                    </span>
+                                                </div>
+
+                                                <div className="p-5 flex-1 flex flex-col">
+                                                    <h4 className="text-lg font-bold text-white mb-1 pr-8 leading-tight">{c.title}</h4>
+                                                    <p className="text-sm text-gray-400 mb-5">{c.topic_name || "Općenito"}</p>
+                                                    
+                                                    <div className="mt-auto flex flex-wrap gap-2">
+                                                        <span className="bg-orange-900/40 text-orange-400 text-xs font-bold px-2 py-1 rounded-md border border-orange-800/50">
+                                                            Razina: {c.level === "novice" ? "početna" : c.level === "intermediate" ? "srednja" : "napredna"}
+                                                        </span>
+                                                        
+                                                        <span className="bg-gray-800 text-gray-400 text-xs font-bold px-2 py-1 rounded-md border border-gray-600">
+                                                            v{c.version}
+                                                        </span>
+                                                        
+                                                        {c.status && (
+                                                            <span className="bg-orange-900/40 text-orange-400 text-xs font-bold px-2 py-1 rounded-md border border-orange-800/50 uppercase tracking-wider">
+                                                                {c.status}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                ) : (
+                                    renderEmptyState("Nema slučajeva", "Ovoj zadaći trenutno nije dodijeljen nijedan slučaj.")
+                                )}
+                            </>
                         )}
                     </div> 
                     : 
@@ -850,14 +942,14 @@ function AssignmentMgmt() {
                                                         setAssignmentToArchiveId(a.id);
                                                         setAssignmentArchiveModalOpen(true);
                                                     }}
-                                                />                                                
-                                                
+                                                />
+
                                                 <div className="mt-4 flex-1">
                                                     <h3 className="text-lg font-bold text-white leading-tight">{a.title}</h3>
                                                     <p className="text-sm text-gray-300 mt-1">{typeLabel}</p>
                                                 </div>
 
-                                                <button onClick={() => handleViewAssignment(a.id)} className="mt-5 w-full bg-orange-500 text-white font-bold py-2 rounded-lg hover:cursor-pointer transition shadow-md">
+                                                <button onClick={() => handleViewAssignment(a.id)} className="mt-5 w-full bg-orange-500 text-white font-bold py-2 rounded-lg hover:cursor-pointer shadow-md">
                                                     Detalji zadaće
                                                 </button>                                                
                                             </div>
@@ -900,8 +992,8 @@ function AssignmentMgmt() {
                                 { key: "ignore_hint_penalty", label: "Hintovi bez kazni", desc: "Korištenje hintova ne utječe na ocjenu za samostalnost." },
                                 { key: "ignore_terminating_consequences", label: "Ignoriraj fatalne greške", desc: "Spriječi pad na slučaju zbog jedne velike greške." },
                                 { key: "show_result_immediately", label: "Prikaži rezultat odmah", desc: "Student vidi ishod čim završi slučaj." },
-                                { key: "allow_diagnosis_retry", label: "Studentima je dozvoljeno ponoviti pokušaj dijagnoze proizvoljan broj puta." },
-                                { key: "penalize_wrong_diagnosis", label: "Pogrešne dijagnoze se kažnjavaju." }
+                                { key: "allow_diagnosis_retry", label: "Dozvoljeni ponovni pokušaji dijagnoze", desc: "Studentima je dozvoljeno ponoviti pokušaj dijagnoze proizvoljan broj puta" },
+                                { key: "penalize_wrong_diagnosis", label: "Kazna za pogrešne pokušaje dijagnoze", desc: "Pogrešne dijagnoze se kažnjavaju" }
                             ].map((setting) => (
                                 <div key={setting.key} className="flex items-center justify-between">
                                     <div className="pr-4">
@@ -916,6 +1008,34 @@ function AssignmentMgmt() {
                                     </div>
                                 </div>
                             ))}
+                        </div>
+
+                        <div className="bg-gray-200 p-4 rounded-xl border border-gray-400 w-2/3">
+                            <div className="flex gap-3 items-end">
+                                <div className="flex-1">
+                                    <label className="block text-xs text-gray-600 mb-1">Broj slučajeva</label>
+                                    <input type="number" min="1" max="20" placeholder="npr. 1" value={randomCount === 0 ? "" : randomCount} onChange={(e) => setRandomCount(e.target.value === '' ? 0 : Number(e.target.value))} className="w-full px-3 py-1.5 bg-gray-100 border border-gray-400 text-gray-700 rounded text-sm outline-none" />
+                                </div>
+                                <div className="flex-1">
+                                    <label className="block text-xs text-gray-600 mb-1">Razina</label>
+                                    <select value={randomLevel} onChange={(e) => setRandomLevel(e.target.value)} className="w-full px-3 py-1.5 bg-gray-100 border border-gray-400 text-gray-700 rounded text-sm outline-none">
+                                        <option value="">Bilo koja</option>
+                                        <option value="novice">Početna</option>
+                                        <option value="intermediate">Srednja</option>
+                                        <option value="expert">Napredna</option>
+                                    </select>
+                                </div>
+
+                                <div className="flex-1">
+                                    <label className="block text-xs text-gray-600 mb-1">Tema</label>
+                                    <select value={randomTopic} onChange={(e) => setRandomTopic(e.target.value)} className="w-full px-3 py-1.5 bg-gray-100 border border-gray-400 text-gray-700 rounded text-sm outline-none cursor-pointer">
+                                        <option value="">Sve teme</option>
+                                        {categories?.map(cat => (
+                                            <option key={cat.id} value={cat.id}>{cat.name}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                            </div>
                         </div>
 
                         <div className="flex justify-between items-center mt-4 pt-4 border-t border-gray-300 w-2/3">
@@ -940,7 +1060,6 @@ function AssignmentMgmt() {
                                 </button>
                             </div>
                         </div>
-
                     </div>
                 ) : (
                     <div className="p-10 text-center text-gray-400">Učitavanje postavki...</div>
@@ -1035,7 +1154,7 @@ function AssignmentMgmt() {
                 title="Dodjela zadaće grupama"
             >
                 <div className="flex flex-col max-h-[70vh] w-full">
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 overflow-y-auto pr-2 pb-4">
+                    {teacherGroups.filter(g => !selectedAssignmentFullDetails?.assigned_groups.some(ag => ag.group_id === g.id)).length > 0 ? (<div className="grid grid-cols-1 lg:grid-cols-2 gap-4 overflow-y-auto pr-2 pb-4">
                         {teacherGroups.map((g) => {
                             const selectedGroup = groupsToAssign.find(item => item.group_id === g.id);
                             const isSelected = !!selectedGroup;
@@ -1092,6 +1211,13 @@ function AssignmentMgmt() {
                             );
                         })}
                     </div>
+                    ) : 
+                    (
+                        <div className="flex flex-col items-center justify-center py-10 text-gray-500">
+                            <p className="font-bold text-lg mb-1">Nema dostupnih grupa</p>
+                            <p className="text-sm">Ova zadaća je već dodijeljena svim vašim grupama.</p>
+                        </div>
+                    )}
 
                     <div className="pt-4 border-t border-gray-700 flex justify-end gap-3 shrink-0 mt-2">
                         <button 
