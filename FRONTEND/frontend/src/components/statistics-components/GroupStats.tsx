@@ -39,9 +39,13 @@ interface StudentAttempt {
     teacher_comment: string | null;
 }
 
+interface GroupStatsProps {
+    isPractice: boolean;
+}
+
 const backendURL = import.meta.env.VITE_APP_BACKEND;
 
-function GroupStats() {
+function GroupStats({ isPractice }: GroupStatsProps) {
     const [stats, setStats] = useState<Statistics>();
     const [loading, setLoading] = useState<boolean>(true);
     const [selectedGroupId, setSelectedGroupId] = useState<string>("");
@@ -55,7 +59,7 @@ function GroupStats() {
     const token = useAuthStore((state) => state.token);
 
     useEffect(() => {
-        fetch(`${backendURL}/statistics/group-analytics`, {
+        fetch(`${backendURL}/statistics/group-analytics?is_practice=${isPractice}`, {
             headers: { "Authorization": `Bearer ${token}` }
         })
         .then(res => res.json())
@@ -65,7 +69,7 @@ function GroupStats() {
             setLoading(false); 
         })
         .catch(err => { console.error(err); setLoading(false); });
-    }, [token]);
+    }, [token, isPractice]);
 
 
     const handleOpenDetails = async (studentId: string, firstName: string, lastName: string) => {

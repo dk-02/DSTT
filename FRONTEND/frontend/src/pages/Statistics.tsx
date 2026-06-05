@@ -6,10 +6,11 @@ import MyStats from "../components/statistics-components/MyStats";
 import SystemStats from "../components/statistics-components/SystemStats";
 
 function Statistics() {
-    const { isTeacher, isExpert, isAdmin } = useRole();
-
     const [activeTab, setActiveTab] = useState<string>("");
-
+    const [isPractice, setIsPractice] = useState<boolean>(true);
+    
+    const { isTeacher, isExpert, isAdmin } = useRole();
+    
     const tabs = [
         { name: "my-stats", label: "Moj napredak", show: true },
         { name: "group-stats", label: "Moje grupe", show: isTeacher },
@@ -23,6 +24,21 @@ function Statistics() {
                 <div>
                     <h2 className="text-xl font-bold text-white">Pregled statistike</h2>
                     <p className="text-sm text-gray-400 mt-1">Pregledajte statistiku sustava</p>
+                </div>
+
+                <div className="flex bg-gray-900 p-1 rounded-lg border border-gray-600">
+                    <button 
+                        onClick={() => setIsPractice(true)} 
+                        className={`px-5 py-2 rounded-md text-sm font-bold transition-colors ${isPractice ? 'bg-orange-500 text-white shadow' : 'text-gray-400 hover:text-white hover:bg-gray-700'}`}
+                    >
+                        Vježbe
+                    </button>
+                    <button 
+                        onClick={() => setIsPractice(false)} 
+                        className={`px-5 py-2 rounded-md text-sm font-bold transition-colors ${!isPractice ? 'bg-orange-500 text-white shadow' : 'text-gray-400 hover:text-white hover:bg-gray-700'}`}
+                    >
+                        Ispiti
+                    </button>
                 </div>
             </div>
 
@@ -43,9 +59,9 @@ function Statistics() {
             </div>
 
             <div className="bg-gray-800 p-6 rounded-xl rounded-tl-none shadow-md min-h-125">
-                {activeTab === "my-stats" && <MyStats />}
-                {activeTab === "group-stats" && <GroupStats />}
-                {activeTab === "case-stats" && <CaseStats />}
+                {activeTab === "my-stats" && <MyStats isPractice={isPractice} />}
+                {activeTab === "group-stats" && <GroupStats isPractice={isPractice} />}
+                {activeTab === "case-stats" && <CaseStats isPractice={isPractice} />}
                 {activeTab === "system-stats" && <SystemStats />}
                 {activeTab === "" && <span className="text-gray-400">Odaberite statistiku koju želite vidjeti.</span>}
             </div>

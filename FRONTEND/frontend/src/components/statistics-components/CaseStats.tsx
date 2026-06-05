@@ -15,21 +15,25 @@ interface Statistics {
     cases: Case[];
 }
 
+interface CaseStatsProps {
+    isPractice: boolean;
+}
+
 const backendURL = import.meta.env.VITE_APP_BACKEND;
 
-function CaseStats() {
+function CaseStats({ isPractice }: CaseStatsProps) {
     const token = useAuthStore((state) => state.token);
     const [stats, setStats] = useState<Statistics>();
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        fetch(`${backendURL}/statistics/case-analytics`, {
+        fetch(`${backendURL}/statistics/case-analytics?is_practice=${isPractice}`, {
             headers: { "Authorization": `Bearer ${token}` }
         })
         .then(res => res.json())
         .then(data => { setStats(data); setLoading(false); })
         .catch(err => { console.error(err); setLoading(false); });
-    }, [token]);
+    }, [token, isPractice]);
 
     if (loading) return <div className="text-gray-400">Učitavanje...</div>;
     if (!stats || stats.cases.length === 0) return <div className="text-gray-400">Nemate objavljenih slučajeva s riješenim pokušajima.</div>;

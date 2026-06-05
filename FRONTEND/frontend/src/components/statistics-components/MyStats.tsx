@@ -15,24 +15,28 @@ interface Statistics {
     weakest_topics: Topic[];
 }
 
+interface MyStatsProps {
+    isPractice: boolean;
+}
+
 const backendURL = import.meta.env.VITE_APP_BACKEND;
 
-function MyStats() {
+function MyStats({ isPractice }: MyStatsProps) {
     const token = useAuthStore((state) => state.token);
     const [stats, setStats] = useState<Statistics>();
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        fetch(`${backendURL}/statistics/me`, {
+        fetch(`${backendURL}/statistics/me?is_practice=${isPractice}`, {
             headers: { "Authorization": `Bearer ${token}` }
         })
         .then(res => res.json())
         .then(data => { setStats(data); setLoading(false); })
         .catch(err => { console.error(err); setLoading(false); });
-    }, [token]);
+    }, [token, isPractice]);
 
     if (loading) return <div className="text-gray-400">Učitavanje...</div>;
-    if (!stats || stats.total_completed_cases === 0) return <div className="text-gray-400">Još nemate riješenih slučajeva.</div>;
+    if (!stats || stats.total_completed_cases === 0) return <div className="text-gray-400">Još nemate riješenih {isPractice ? "vježbi" : "ispita"}.</div>;
 
     return (
         <div className="space-y-6">

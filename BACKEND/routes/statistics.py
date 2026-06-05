@@ -17,7 +17,7 @@ def get_user_roles(session: Session, user_id: uuid.UUID) -> List[str]:
 
 
 @router.get("/me", response_model=PersonalStatsResponse)
-def get_my_statistics(current_user: User = Depends(get_current_active_user), session: Session = Depends(get_session)):
+def get_my_statistics(is_practice: bool = True, current_user: User = Depends(get_current_active_user), session: Session = Depends(get_session)):
     # Dohvaćanje svih završenih/terminiranih pokušaja ovog korisnika uz naziv kategorije slučaja
     stmt = (
         select(SolveAttempt, Category.name)
@@ -26,6 +26,7 @@ def get_my_statistics(current_user: User = Depends(get_current_active_user), ses
         .outerjoin(Category, CaseCategory.category_id == Category.id)
         .where(SolveAttempt.user_id == current_user.id)
         .where(SolveAttempt.status.in_(["completed", "terminated"]))
+        .where(SolveAttempt.is_practice == is_practice)
     )
     
     results = session.exec(stmt).all()
@@ -107,7 +108,7 @@ def get_my_statistics(current_user: User = Depends(get_current_active_user), ses
 
 
 @router.get("/group-analytics")
-def get_group_statistics(current_user: User = Depends(get_current_active_user), session: Session = Depends(get_session)):
+def get_group_statistics(is_practice: bool = True, current_user: User = Depends(get_current_active_user), session: Session = Depends(get_session)):
     roles = get_user_roles(session, current_user.id)
     if "teacher" not in roles:
         raise HTTPException(status_code=403, detail="Nemate ovlasti nastavnika.")
@@ -131,6 +132,7 @@ def get_group_statistics(current_user: User = Depends(get_current_active_user), 
                 .where(GroupAssignment.group_id == group.id)
                 .where(SolveAttempt.user_id == student.id)
                 .where(SolveAttempt.status.in_(["completed", "terminated"]))
+                .where(SolveAttempt.is_practice == is_practice)
             )
             attempts = session.exec(stmt).all()
             
@@ -196,7 +198,7 @@ def get_group_statistics(current_user: User = Depends(get_current_active_user), 
 
 
 @router.get("/case-analytics")
-def get_case_statistics(current_user: User = Depends(get_current_active_user), session: Session = Depends(get_session)):
+def get_case_statistics(is_practice: bool = True, current_user: User = Depends(get_current_active_user), session: Session = Depends(get_session)):
     roles = get_user_roles(session, current_user.id)
     if "teacher" not in roles and "expert" not in roles:
         raise HTTPException(status_code=403, detail="Nemate ovlasti za pristup ovim podatcima.")
@@ -211,6 +213,7 @@ def get_case_statistics(current_user: User = Depends(get_current_active_user), s
             select(SolveAttempt)
             .where(SolveAttempt.case_id == case.id)
             .where(SolveAttempt.status.in_(["completed", "terminated"]))
+            .where(SolveAttempt.is_practice == is_practice)
         ).all()
 
         total_attempts = len(attempts)
