@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { ArrowNarrowLeft } from "@untitledui/icons";
 import { useAuthStore } from "../store/useAuthStore";
+import { useRole } from "../hooks/useRole";
 
 const backendURL = import.meta.env.VITE_APP_BACKEND;
 
@@ -51,13 +52,15 @@ interface EvaluationReport {
 }
 
 function Results() {
+    const [report, setReport] = useState<EvaluationReport | null>(null);
+    const [loading, setLoading] = useState(true);
+    const [teacherComment, setTeacherComment] = useState<string | null>(null);
+    
     const { id: attemptId } = useParams();
     const navigate = useNavigate();
     const token = useAuthStore((state) => state.token);
-
-    const [report, setReport] = useState<EvaluationReport | null>(null);
-    const [loading, setLoading] = useState(true);
-
+    const { isTeacher } = useRole();
+    
     useEffect(() => {
         const fetchReport = async () => {
             try {
@@ -68,6 +71,7 @@ function Results() {
                 if (response.ok) {
                     const data = await response.json();
                     setReport(data.evaluation_report);
+                    setTeacherComment(data.teacher_comment);
                 } else {
                     console.error("Greška pri dohvaćanju izvještaja.");
                 }
@@ -80,6 +84,24 @@ function Results() {
 
         if (attemptId) fetchReport();
     }, [attemptId, token]);
+
+
+    const handleSaveComment = async () => {
+        try {
+            const res = await fetch(`${backendURL}/attempts/${attemptId}/comment`, {
+                method: "PATCH",
+                headers: { 
+                    "Authorization": `Bearer ${token}`,
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({ comment: teacherComment })
+            });
+            if (res.ok) alert("Komentar uspješno spremljen!");
+        } catch (err) {
+            console.error(err);
+        }
+    };
+
 
     if (loading) {
         return <div className="w-screen h-screen flex items-center justify-center bg-gray-50 text-gray-500 font-medium">Učitavanje rezultata...</div>;
@@ -133,7 +155,7 @@ function Results() {
     return (
         <div className="min-h-screen text-gray-100 p-8 bg-gray-700 font-sans relative">
             <ArrowNarrowLeft 
-                onClick={() => navigate("/user/dashboard")} 
+                onClick={isTeacher ? () => navigate("/user/dashboard?tab=statistics") : () => navigate("/user/dashboard?tab=solve-history")} 
                 className="absolute top-5 left-5 scale-130 hover:cursor-pointer text-gray-50" 
             />
             <div className="max-w-5xl mx-auto flex flex-col">                
@@ -144,6 +166,34 @@ function Results() {
                         <p className="text-gray-300 mt-5"><span className="text-orange-400">VRIJEME RJEŠAVANJA:</span> {formatTime(report.time_spent)}</p>
                     </div>
                 </div>
+
+                {(isTeacher || teacherComment) && (
+                    <div className="bg-gray-800 rounded-2xl p-6 mb-6">
+                        <h2 className="text-lg font-bold text-orange-500 uppercase tracking-wider mb-2">Povratna informacija nastavnika</h2>
+                        
+                        {isTeacher ? (
+                            <div className="flex flex-col gap-3">
+                                <textarea 
+                                    value={teacherComment || ""}
+                                    onChange={(e) => setTeacherComment(e.target.value)}
+                                    className="w-full bg-gray-800 border border-gray-600 rounded-lg p-3 text-gray-100 outline-none focus:border-orange-500"
+                                    placeholder="Upišite komentar za studenta..."
+                                    rows={3}
+                                />
+                                <button 
+                                    onClick={handleSaveComment}
+                                    className="self-end bg-orange-500 cursor-pointer text-white font-bold py-2 px-6 rounded-lg transition-colors"
+                                >
+                                    Spremi komentar
+                                </button>
+                            </div>
+                        ) : (
+                            <p className="text-gray-100 italic bg-gray-800/50 p-4 rounded-lg border border-orange-500/30">
+                                "{teacherComment}"
+                            </p>
+                        )}
+                    </div>
+                )}
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
 
@@ -324,7 +374,7 @@ function Results() {
                 <div className="border border-b border-gray-600"/>
 
                 <button
-                    onClick={() => navigate("/user/dashboard?tab=solve-history")}
+                    onClick={isTeacher ? () => navigate("/user/dashboard?tab=statistics") : () => navigate("/user/dashboard?tab=solve-history")}
                     className="bg-orange-500 px-4 py-2 font-bold rounded hover:cursor-pointer w-fit self-center mt-5"
                 >
                     Završi pregled

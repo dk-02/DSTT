@@ -205,6 +205,7 @@ class SolveAttempt(SQLModel, table=True):
     started_at: datetime = Field(default_factory=datetime.now)
     finished_at: Optional[datetime] = None
     evaluation_report: Optional[Dict[str, Any]] = Field(default=None, sa_column=SAColumn(JSONB))
+    teacher_comment: Optional[str] = None
     
     case_id: uuid.UUID = Field(foreign_key="cases.id")
     user_id: uuid.UUID = Field(foreign_key="users.id")
@@ -255,6 +256,8 @@ class AttemptStart(BaseModel):
     is_practice: bool = True # practice ili practice_exam
     is_exam_simulation: bool = False # practice_exam
 
+class TeacherCommentRequest(BaseModel):
+    comment: str
 
 # --------- INSTITUTIONS --------------
 

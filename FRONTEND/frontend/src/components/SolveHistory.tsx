@@ -5,15 +5,15 @@ import { useNavigate } from "react-router-dom";
 
 interface EvaluationReport {
     attempt_status: string;
-    is_late?: boolean;
-    late_readable?: string;
-    time_spent: number;
     action_history: {
         type: string;
         status: string;
         description: string;
         feedback?: string;
     }[],
+    time_spent: number;
+    is_late?: boolean;
+    late_readable?: string;
     metrics: {
         accuracy: {
             verdict: string;
@@ -22,9 +22,14 @@ interface EvaluationReport {
         efficiency: {
             total_cost_money: number;
             total_cost_time_seconds: number;
-            readable_time: string;
+            penalty_cost_money: number;
+            penalty_cost_time_seconds: number;
+            readable_time_total: string;
+            readable_time_penalty: string;
             budget_money_limit: number | null;
+            budget_time_limit: number | null;
             budget_exceeded: boolean;
+            efficiency_category: string;
         };
         methodology: {
             score_percentage: number;
@@ -32,6 +37,7 @@ interface EvaluationReport {
             ignored_indicators_count: number;
             wrong_diagnosis_attempts: number;
             fatal_mistakes_count: number;
+            unjustified_jumps_count: number;
         };
         independence: {
             score_percentage: number;
@@ -52,6 +58,7 @@ interface AttemptHistory {
     started_at: string;
     finished_at: string | null;
     evaluation_report: EvaluationReport; 
+    teacher_comment: string | null;
 }
 
 const backendURL = import.meta.env.VITE_APP_BACKEND;
@@ -115,7 +122,7 @@ function SolveHistory() {
 
 
     return (
-        <div className="mt-5 h-full overflow-y-auto">
+        <div className="pt-5 h-full overflow-y-auto">
             {!selectedAttempt ? (
                 <>
                     <div className="flex justify-between items-center bg-gray-800 p-5 rounded-2xl border border-gray-700 shadow-sm mb-5">
@@ -143,8 +150,25 @@ function SolveHistory() {
                                             <span>{formatDate(attempt.started_at)}</span>
                                             <span className="w-1 h-1 bg-gray-500 rounded-full"></span>
                                             <span className={`${attempt.is_practice ? 'text-blue-400' : 'text-purple-400 font-semibold'}`}>
-                                                {attempt.assignment_title ? attempt.assignment_title : "Slobodna vježba"}
+                                                {attempt.assignment_title ? attempt.assignment_title : "Vježba"}
                                             </span>
+                                            
+                                            {attempt.teacher_comment ? 
+                                                <>
+                                                    <span className="w-1 h-1 bg-gray-500 rounded-full"></span>
+                                                    <span className="text-green-400">
+                                                        Pregledano
+                                                    </span>
+                                                </>
+                                                :
+                                                attempt.status !== "cancelled" &&
+                                                    <>
+                                                        <span className="w-1 h-1 bg-gray-500 rounded-full"></span>
+                                                        <span className="text-gray-300">
+                                                            Nije pregledano
+                                                        </span>
+                                                    </>
+                                            }
                                         </div>
                                     </div>
                                     
@@ -154,7 +178,14 @@ function SolveHistory() {
                                                 attempt.status === 'in_progress' ? 'bg-yellow-900/50 text-yellow-400 border border-yellow-800' : 
                                                 'bg-red-900/50 text-red-400 border border-red-800'}`}
                                         >
-                                            {attempt.status === 'completed' ? 'Završeno' : attempt.status === 'in_progress' ? 'U tijeku' : 'Prekinuto'}
+                                            {
+                                                attempt.status === 'completed' ? 'Završeno' 
+                                                : attempt.status === 'in_progress' ? 'U tijeku' 
+                                                : attempt.status === 'terminated' ? 'Prekinuto'
+                                                : attempt.status === 'cancelled' ? 'Odustao/la'
+                                                : attempt.status === 'not_started' ? 'Nije započeto'    
+                                                : 'Nepoznat status'
+                                            }
                                         </span>
                                         {attempt.status !== "cancelled" && <ChevronRight className="text-gray-400" />}
                                     </div>
@@ -177,8 +208,8 @@ function SolveHistory() {
                         <h2 className="text-xl font-bold text-white">Detalji rješavanja</h2>
                     </div>
 
-                    <div className="bg-gray-800 rounded-2xl p-8 max-w-4xl mt-5">
-                        <div className="mb-6 pb-6 border-b border-gray-700">
+                    <div className="bg-gray-800 rounded-2xl p-5 max-w-5xl mt-5">
+                        <div className="mb-4 pb-4 border-b border-gray-700">
                             <h3 className="text-xl font-bold text-orange-400 mb-2">{selectedAttempt.case_title}</h3>
                             <p className="text-gray-400">
                                 {selectedAttempt.attempt_type} {selectedAttempt.assignment_title ? `(${selectedAttempt.assignment_title})` : ""}
@@ -197,14 +228,21 @@ function SolveHistory() {
                             <div>
                                 <p className="text-sm text-gray-500 uppercase tracking-wider mb-1">Status</p>
                                 <p className={`font-bold ${selectedAttempt.status === 'completed' ? 'text-green-500' : selectedAttempt.status === 'in_progress' ? 'text-yellow-500' : 'text-red-500'}`}>
-                                    {selectedAttempt.status === 'completed' ? 'Završeno' : selectedAttempt.status === 'in_progress' ? 'U tijeku' : 'Prekinuto'}
+                                    {
+                                        selectedAttempt.status === 'completed' ? 'Završeno' 
+                                        : selectedAttempt.status === 'in_progress' ? 'U tijeku' 
+                                        : selectedAttempt.status === 'terminated' ? 'Prekinuto'
+                                        : selectedAttempt.status === 'cancelled' ? 'Odustao/la'
+                                        : selectedAttempt.status === 'not_started' ? 'Nije započeto'
+                                        : 'Nepoznat status'
+                                    }
                                 </p>
                             </div>
                         </div>
 
                         {/* Prikaz rezultata (ako postoje) */}
                         {selectedAttempt.evaluation_report ? (
-                            <div className="bg-gray-900/50 rounded-xl p-6 border border-gray-700 mb-6">
+                            <div className="bg-gray-900/50 rounded-xl p-4 border border-gray-700 mb-6">
                                 <h4 className="text-lg font-bold text-gray-100 mb-4">Sažetak rezultata</h4>
                                 <div className="grid grid-cols-4 gap-4">
                                     <div className="flex flex-col">
@@ -220,7 +258,7 @@ function SolveHistory() {
                                     </div>
                                     <div className="flex flex-col">
                                         <span className="text-xs text-gray-500 uppercase tracking-wider">Efikasnost</span>
-                                        <span className="text-lg font-bold text-gray-200">€{selectedAttempt.evaluation_report.metrics.efficiency.total_cost_money} | {selectedAttempt.evaluation_report.metrics.efficiency.readable_time}</span>
+                                        <span className="text-lg font-bold text-gray-200">€{selectedAttempt.evaluation_report.metrics.efficiency.total_cost_money} | {selectedAttempt.evaluation_report.metrics.efficiency.readable_time_total}</span>
                                     </div>
                                     <div className="flex flex-col">
                                         <span className="text-xs text-gray-500 uppercase tracking-wider">Samostalnost</span>

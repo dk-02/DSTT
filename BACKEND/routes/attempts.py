@@ -7,9 +7,9 @@ import uuid
 from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import Session, select
-from routes.auth import get_current_active_user
+from routes.auth import get_current_active_user, get_current_teacher
 from database import engine
-from models import Assignment, AssignmentCase, AttemptLog, AttemptStart, Case, ChatRequest, DiagnosisRequest, DiagnosisSubmission, DiagnosticUnit, GroupAssignment, GroupMember, Hint, SolveAttempt, User
+from models import Assignment, AssignmentCase, AttemptLog, AttemptStart, Case, ChatRequest, DiagnosisRequest, DiagnosisSubmission, DiagnosticUnit, Group, GroupAssignment, GroupMember, Hint, SolveAttempt, TeacherCommentRequest, User
 
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 OPENROUTER_MODEL = os.getenv("OPENROUTER_MODEL")
@@ -395,19 +395,19 @@ def get_my_solve_history(current_user: User = Depends(get_current_active_user), 
             "is_practice": attempt.is_practice,
             "started_at": attempt.started_at.isoformat(),
             "finished_at": attempt.finished_at.isoformat() if attempt.finished_at else None,
-            "evaluation_report": attempt.evaluation_report
+            "evaluation_report": attempt.evaluation_report,
+            "teacher_comment": attempt.teacher_comment if attempt.teacher_comment else None
         })
         
     return history
 
 
 @router.get("/{attempt_id}/details")
-async def get_attempt_details(attempt_id: uuid.UUID, session: Session = Depends(get_session)):
+async def get_attempt_details(attempt_id: uuid.UUID, current_user: User = Depends(get_current_active_user), session: Session = Depends(get_session)):
     attempt = session.get(SolveAttempt, attempt_id)
     if not attempt:
         raise HTTPException(status_code=404, detail="Pokušaj rješavanja nije pronađen.")
     return attempt
-
 
 
 @router.post("/start")
@@ -1004,3 +1004,51 @@ async def undo_last_action(attempt_id: uuid.UUID, session: Session = Depends(get
         "total_cost_money": attempt.total_cost_money,
         "total_cost_time": attempt.total_cost_time
     }
+
+
+@router.get("/{group_id}/student/{student_id}")
+def get_student_attempts_in_group(group_id: uuid.UUID, student_id: uuid.UUID, current_user: User = Depends(get_current_teacher), session: Session = Depends(get_session)):
+    group = session.get(Group, group_id)
+    if not group:
+        raise HTTPException(status_code=404, detail="Grupa ne postoji.")
+    
+    if group.teacher_id != current_user.id:
+        raise HTTPException(
+            status_code=403, 
+            detail="Nemate ovlasti za pristup podatcima ove grupe jer niste njezin vlasnik."
+        )
+    
+    stmt = (
+        select(SolveAttempt, Case.title, Case.version)
+        .join(Case, SolveAttempt.case_id == Case.id)
+        .join(GroupAssignment, SolveAttempt.assignment_id == GroupAssignment.assignment_id)
+        .where(GroupAssignment.group_id == group_id)
+        .where(SolveAttempt.user_id == student_id)
+        .order_by(SolveAttempt.started_at.desc())
+    )
+    
+    results = session.exec(stmt).all()
+    
+    return [
+        {
+            "attempt_id": str(att.id),
+            "case_title": title,
+            "case_version": version,
+            "status": att.status,
+            "started_at": att.started_at,
+            "teacher_comment": att.teacher_comment
+        } for att, title, version in results
+    ]
+
+
+@router.patch("/{attempt_id}/comment")
+def add_teacher_comment(attempt_id: uuid.UUID, data: TeacherCommentRequest, current_user: User = Depends(get_current_active_user), session: Session = Depends(get_session)):
+    attempt = session.get(SolveAttempt, attempt_id)
+    if not attempt:
+        raise HTTPException(status_code=404, detail="Pokušaj nije pronađen.")
+    
+    attempt.teacher_comment = data.comment
+    session.add(attempt)
+    session.commit()
+    
+    return {"status": "success", "message": "Komentar je spremljen."}
