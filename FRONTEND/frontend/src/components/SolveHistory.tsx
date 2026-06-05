@@ -150,7 +150,7 @@ function SolveHistory() {
                                             <span>{formatDate(attempt.started_at)}</span>
                                             <span className="w-1 h-1 bg-gray-500 rounded-full"></span>
                                             <span className={`${attempt.is_practice ? 'text-blue-400' : 'text-purple-400 font-semibold'}`}>
-                                                {attempt.assignment_title ? attempt.assignment_title : "Vježba"}
+                                                {attempt.assignment_title ? attempt.assignment_title : attempt.attempt_type}
                                             </span>
                                             
                                             {attempt.teacher_comment ? 
