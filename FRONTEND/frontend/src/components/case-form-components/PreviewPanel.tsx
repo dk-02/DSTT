@@ -61,7 +61,7 @@ export const PreviewPanel = () => {
               <div key={du.id} className="text-xs p-2 bg-gray-700 rounded flex justify-between items-center">
                 <span className='text-gray-400'>{du.name || "Bez naziva"}</span>
                 <span className={`px-2 py-0.5 rounded ${du.type === 'data' ? 'bg-blue-900 text-blue-200' : 'bg-orange-900 text-orange-200'}`}>
-                  {du.type}
+                  {du.type.toUpperCase()}
                 </span>
               </div>
             ))}

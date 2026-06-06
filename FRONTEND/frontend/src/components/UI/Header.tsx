@@ -1,13 +1,14 @@
 import { useLocation, useNavigate } from "react-router-dom";
 import { useAuthStore } from "../../store/useAuthStore";
 import { useRole } from "../../hooks/useRole";
+import { NotificationDropdown } from "./NotificationDropdown";
 
 function Header() {
     const location = useLocation();
     const navigate = useNavigate();
 
     const user = useAuthStore((state) => state.user);
-    const { isAdmin } = useRole();
+    const { isAdmin, isTeacher } = useRole();
 
     const isHome = location.pathname === "/";
     const isDashboard = location.pathname === "/user/dashboard";
@@ -41,16 +42,20 @@ function Header() {
                 ))}                
 
                 {user ?
-                    <>
+                    <div className="flex gap-5 items-center">
                         {isAdmin && !isAdminDashboard && 
-                        <button onClick={() => navigate("/admin/dashboard")} className="cursor-pointer border border-gray-600 font-semibold px-3 rounded">Admin dash</button>
+                            <button onClick={() => navigate("/admin/dashboard")} className="h-full cursor-pointer border border-gray-600 font-semibold px-3 rounded">Admin dash</button>
                         } 
-                        {!isDashboard && <button onClick={() => navigate("/user/dashboard")} className="cursor-pointer border border-gray-600 font-semibold px-3 rounded">Dashboard</button>}
-                        {isDashboard && <div onClick={() => navigate("/user/profile")} className="hover:bg-gray-700 hover:cursor-pointer flex items-center justify-center w-12.5 h-12.5 bg-gray-900 font-bold rounded-full">
-                            <span className="select-none">{user.first_name.at(0)?.toUpperCase()}{user.last_name.at(0)?.toUpperCase()}</span>
-                        </div>}
+                        {!isDashboard && 
+                            <button onClick={() => navigate("/user/dashboard")} className="h-full cursor-pointer border border-gray-600 font-semibold px-3 rounded">Dashboard</button>
+                        }
+                         
+                        {isTeacher && <NotificationDropdown />}
                         
-                    </>
+                        <div onClick={() => navigate("/user/profile")} className="hover:bg-gray-700 hover:cursor-pointer flex items-center justify-center w-12.5 h-12.5 bg-gray-900 font-bold rounded-full">
+                            <span className="select-none">{user.first_name.at(0)?.toUpperCase()}{user.last_name.at(0)?.toUpperCase()}</span>
+                        </div>
+                    </div>
                 : <div className="flex gap-2 justify-center items-center">
                     <button onClick={() => navigate("/user/register")} className="cursor-pointer bg-orange-500 text-orange-50 font-semibold px-3 py-2 rounded">Registracija</button>
 

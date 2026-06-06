@@ -39,6 +39,13 @@ export const BasicInfo = () => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name: newName, parent_id: parentId })
       });
+
+      if (!response.ok) {
+        const err = await response.json();
+        alert(err.detail)
+        return;
+      }
+
       const newCat = await response.json();
 
       setCategories([...categories, newCat]);
@@ -75,7 +82,7 @@ export const BasicInfo = () => {
         </label>
         <div className="flex gap-2">
           <select 
-            className="flex-1 px-3 border rounded-lg bg-gray-600 text-gray-50 outline-none"
+            className="flex-1 px-1 border rounded-lg bg-gray-600 text-gray-50 outline-none"
             value={currentSelectedId}
             onChange={(e) => {
               const newValue = e.target.value;
@@ -97,7 +104,7 @@ export const BasicInfo = () => {
           
           <button 
               onClick={() => setIsAdding({ parentId })}
-              className="p-2 bg-gray-600 border rounded-lg hover:bg-gray-500 transition-colors"
+              className="p-2 bg-gray-600 border rounded-lg hover:bg-gray-500 cursor-pointer transition-colors"
               title="Dodaj novu kategoriju na ovu razinu"
           >
               <Plus className="w-5 h-5 text-orange-400" />
@@ -114,8 +121,8 @@ export const BasicInfo = () => {
                     value={newName}
                     onChange={(e) => setNewName(e.target.value)}
                 />
-                <button onClick={() => handleAddNew(parentId)} className="p-2 text-green-400"><Check className="w-5 h-5"/></button>
-                <button onClick={() => setIsAdding(null)} className="p-2 text-red-400"><X className="w-5 h-5"/></button>
+                <button onClick={() => handleAddNew(parentId)} className="cursor-pointer p-2 text-green-400"><Check className="w-5 h-5"/></button>
+                <button onClick={() => setIsAdding(null)} className="cursor-pointer p-2 text-red-400"><X className="w-5 h-5"/></button>
             </div>
         )}
       </div>
@@ -136,15 +143,15 @@ export const BasicInfo = () => {
   const difficulties = [
     {
       level: 'novice',
-      name: 'Lagano'
+      name: 'Početna'
     },
     {
       level: 'intermediate',
-      name: 'Srednje'
+      name: 'Srednja'
     },
     {
       level: 'expert',
-      name: 'Teško'
+      name: 'Napredna'
     }
   ];
 
@@ -205,7 +212,7 @@ export const BasicInfo = () => {
         </label>
         <div className="h-6 w-px bg-gray-300" />
 
-        <p>Težina:</p>
+        <p>Razina:</p>
         {difficulties.map((d, idx) => (
           <label key={idx} className="flex items-center gap-2 cursor-pointer">
           <input 

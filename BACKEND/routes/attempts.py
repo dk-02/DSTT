@@ -1,17 +1,18 @@
 import os
 import json
-from typing import Optional
+import re
+from typing import Any, Dict
 import requests
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel
 from sqlmodel import Session, select
-from routes.auth import get_current_active_user
+from routes.auth import get_current_active_user, get_current_teacher
 from database import engine
-from models import Assignment, AttemptLog, Case, ChatRequest, DiagnosisRequest, DiagnosisSubmission, DiagnosticUnit, Hint, Media, SolveAttempt, User
+from models import Assignment, AssignmentCase, AttemptLog, AttemptStart, Case, ChatRequest, DiagnosisRequest, DiagnosisSubmission, DiagnosticUnit, Group, GroupAssignment, GroupMember, Hint, SolveAttempt, TeacherCommentRequest, User
 
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
+OPENROUTER_MODEL = os.getenv("OPENROUTER_MODEL")
 
 router = APIRouter(prefix="/attempts", tags=["Attempts"])
 
@@ -20,17 +21,412 @@ def get_session():
         yield session
 
 
-class AttemptStart(BaseModel):
-    case_id: uuid.UUID
-    assignment_id: Optional[uuid.UUID] = None
-    is_free_practice: bool = True
+# HELPER FUNCTIONS
+def check_is_redundant(session: Session, attempt_id: uuid.UUID, requested_du: DiagnosticUnit) -> bool:
+    """ Provjerava je li ispitanik već dobio informacije koje pruža traženi DU. """
+
+    if not requested_du.provides:
+        return False
+
+    past_logs = session.exec(
+        select(AttemptLog).where(
+            AttemptLog.attempt_id == attempt_id,
+            AttemptLog.event_type == "du_request",
+            AttemptLog.status.notin_(["undone", "consequence_mistake", "fatal_mistake"])
+        )
+    ).all()
+
+    past_du_ids = [log.diagnostic_unit_id for log in past_logs if log.diagnostic_unit_id]
+
+    if not past_du_ids:
+        return False
+
+    past_dus = session.exec(select(DiagnosticUnit).where(DiagnosticUnit.id.in_(past_du_ids))).all()
+    provided_so_far = set()
+
+    for du in past_dus:
+        if du.provides:
+            provided_so_far.update(du.provides)
+
+    # Provjera donosi li traženi DU išta novo
+    # Ako su sve njegove 'provides' oznake već u skupu onoga što student zna => redundantni podatak
+    requested_provides = set(requested_du.provides)
+    if requested_provides and requested_provides.issubset(provided_so_far):
+        return True
+
+    return False
 
 
-@router.get("/{attempt_id}")
-async def get_attempt_details(attempt_id: uuid.UUID, session: Session = Depends(get_session)):
+def check_logical_indicators(session: Session, attempt_id: uuid.UUID, requested_du: DiagnosticUnit):
+    """ Provjerava jesu li zadovoljeni preduvjeti i vraća (status_greške, objekt_posljedice). """
+
+    if not requested_du.required_units:
+        return "no_mistake", None
+
+    past_logs = session.exec(
+        select(AttemptLog).where(
+            AttemptLog.attempt_id == attempt_id,
+            AttemptLog.event_type == "du_request",
+            AttemptLog.status.notin_(["undone", "consequence_mistake", "fatal_mistake"])
+        )
+    ).all()
+    past_du_ids = {log.diagnostic_unit_id for log in past_logs if log.diagnostic_unit_id}
+
+    missing_units = [req_du.id for req_du in requested_du.required_units if req_du.id not in past_du_ids]
+
+    if not missing_units:
+        return "no_mistake", None
+
+    # Posljedica (consequence) za prvi preduvjet koji nedostaje
+    consequence_to_apply = None
+    for cons in requested_du.consequences:
+        req_id_str = cons.get("required_id")
+
+        if req_id_str and uuid.UUID(req_id_str) in missing_units:
+            consequence_to_apply = cons
+            # TERMINATE ima prioritet
+            if cons.get("type", "").lower() == "terminate":
+                break
+
+    # Ako kreator slučaja nije dobro definirao posljedicu
+    if not consequence_to_apply:
+        consequence_to_apply = {"type": "WARNING", "value": "Nedostaje logički preduvjet za provođenje ove radnje."}
+
+    c_type = consequence_to_apply.get("type", "").lower()
+    if c_type == "terminate":
+        return "fatal_mistake", consequence_to_apply
+    else:
+        return "consequence_mistake", consequence_to_apply
+
+
+def check_is_unjustified_jump(session: Session, attempt_id: uuid.UUID, requested_du: DiagnosticUnit) -> bool:
+    """ Provjerava je li trenutni zahtjev neopravdani skok na L2/L3 bez ikakvih prethodnih L1 pretraga. """
+
+    # Ako je level 1, nije skok
+    if requested_du.level == 1:
+        return False
+    
+    # Skok je opravdan SAMO ako taj DU nema nikakve required_units (preduvjete)
+    if not requested_du.required_units:
+        return False
+
+    past_logs = session.exec(
+        select(AttemptLog)
+        .where(
+            AttemptLog.attempt_id == attempt_id, 
+            AttemptLog.event_type == "du_request",
+            AttemptLog.status.notin_(["undone", "consequence_mistake", "fatal_mistake"])
+        )
+    ).all()
+
+    past_du_ids = [log.diagnostic_unit_id for log in past_logs if log.diagnostic_unit_id]
+
+    # Ako nema prošlih upita uopće, a student traži L2/L3 koji IMA preduvjete => neopravdano
+    if not past_du_ids:
+        return True
+
+    # Provjera postoji li barem jedan L1 u povijesti
+    past_dus = session.exec(select(DiagnosticUnit).where(DiagnosticUnit.id.in_(past_du_ids))).all()
+    has_l1_in_past = any(du.level == 1 for du in past_dus)
+
+    if not has_l1_in_past:
+        return True # Skače na L2/L3 a nema ni jedan L1
+
+    return False
+
+
+def generate_evaluation_report(attempt_id: uuid.UUID, session: Session) -> Dict[str, Any]:
+    """ Prolazi kroz povijest pokušaja, izračunava metriku na 4 osi i sprema konačni JSON izvještaj u SolveAttempt tablicu. """
+
     attempt = session.get(SolveAttempt, attempt_id)
     if not attempt:
-        raise HTTPException(status_code=404, detail="Attempt not found")
+        return {"Greška": "Pokušaj rješavanja nije pronađen."}
+    
+    case = session.get(Case, attempt.case_id)
+
+    # DOHVAT PODATAKA
+    submissions = session.exec(
+        select(DiagnosisSubmission)
+        .where(DiagnosisSubmission.attempt_id == attempt_id)
+        .order_by(DiagnosisSubmission.submitted_at.asc())
+    ).all()
+
+    valid_logs = session.exec(
+        select(AttemptLog)
+        .where(AttemptLog.attempt_id == attempt_id, AttemptLog.status != "undone")
+    ).all()
+
+    # (1) TOČNOST (accuracy) - dijagnoza
+    last_submission = submissions[-1] if submissions else None
+
+    if attempt.status == "terminated":
+        accuracy_verdict = "failed_due_to_fatal_mistake"
+        accuracy_feedback = "Rješavanje je prekinuto zbog izvršavanja radnje s fatalnim posljedicama."
+    elif last_submission:
+        accuracy_verdict = last_submission.verdict
+        accuracy_feedback = last_submission.feedback_given
+    else:
+        accuracy_verdict = "unknown"
+        accuracy_feedback = "Nema zabilježenih pokušaja dijagnoze."
+
+    # (2) EFIKASNOST (efficiency) - resursi
+    total_money = attempt.total_cost_money
+    total_time_seconds = attempt.total_cost_time
+    penalty_money = attempt.penalty_cost_money
+    penalty_time_seconds = attempt.penalty_cost_time
+
+    # Ukupni zbrojeni trošak s kaznama
+    final_money = total_money + penalty_money
+    final_time = total_time_seconds + penalty_time_seconds
+
+    hours_total = total_time_seconds // 3600
+    minutes_total = (total_time_seconds % 3600) // 60
+    readable_time_total = f"{hours_total}h {minutes_total}m" if hours_total > 0 else f"{minutes_total}m"
+
+    hours_penalty = penalty_time_seconds // 3600
+    minutes_penalty = (penalty_time_seconds % 3600) // 60
+    readable_time_penalty = f"{hours_penalty}h {minutes_penalty}m" if hours_penalty > 0 else f"{minutes_penalty}m"
+
+    # BUDŽET I KATEGORITACIJA
+    budget_dict = case.budget or {}
+    budget_money = budget_dict.get("money")
+    budget_time_raw = budget_dict.get("time")
+    budget_time_unit = budget_dict.get("time_unit")
+
+    budget_time_seconds = None
+    if budget_time_raw is not None and budget_time_unit:
+        budget_time_seconds = int(budget_time_raw)
+
+        if budget_time_unit == "minutes":
+            budget_time_seconds *= 60
+        elif budget_time_unit == "hours":
+            budget_time_seconds *= 3600
+        elif budget_time_unit == "days":
+            budget_time_seconds *= 86400
+    
+    budget_exceeded = False
+    efficiency_category = "unutar_kriterija"
+
+    if budget_money is not None and budget_time_seconds is not None:
+        if final_money > budget_money or final_time > budget_time_seconds:
+            budget_exceeded = True
+            efficiency_category = "losije_od_kriterija"
+        else:
+            efficiency_category = "bolje_od_kriterija"
+
+
+    # (3) METODIČNOST (methodology) - slijed koraka, pogreške
+    redundant_count = sum(1 for log in valid_logs if log.status == "redundant")
+    indicator_warnings = sum(1 for log in valid_logs if log.status == "consequence_mistake")
+    fatal_mistakes = sum(1 for log in valid_logs if log.status == "fatal_mistake")
+    unjustified_jumps_count = sum(1 for log in valid_logs if log.status == "unjustified_jump")   
+
+    wrong_diagnosis_count = sum(1 for sub in submissions if sub.verdict in ["incorrect", "partial"])
+
+    methodology_score = 100
+    methodology_score -= (redundant_count * 10)          # -10% za svaki redundantni upit
+    methodology_score -= (indicator_warnings * 15)       # -15% za ignoriranje preduvjeta
+    methodology_score -= (unjustified_jumps_count * 10)  # -10% za svaki neopravdani skok na višu razinu DU-a
+
+    if attempt.settings.get("penalize_wrong_diagnosis") == True:
+        methodology_score -= (wrong_diagnosis_count * 15)    # -15% za svaki netočan pokušaj dijagnoze
+        
+    if fatal_mistakes > 0:
+        methodology_score = 0                            # 0% ako je bilo fatalnih pogreški
+        
+    methodology_score = max(0, methodology_score)        
+
+    # (4) SAMOSTALNOST (independence) - hintovi, upiti LLM mentoru
+    hint_requests = [log for log in valid_logs if log.event_type == "hint_request"]
+    penalized_hints = sum(1 for h in hint_requests if h.event_result_data.get("is_penalized") is True)
+
+    mentor_requests_count = sum(1 for log in valid_logs if log.event_type == "mentor_request")
+
+    independence_score = 100 - (penalized_hints * 20)
+    independence_score = max(0, independence_score)
+
+    # PROVJERA KAŠNJENJA S PREDAJOM
+    late_by_seconds = 0
+    is_late = False
+
+    if attempt.assignment_id and attempt.finished_at:
+        deadline_stmt = (
+            select(GroupAssignment.available_until)
+            .join(GroupMember, GroupMember.group_id == GroupAssignment.group_id)
+            .where(GroupMember.student_id == attempt.user_id)
+            .where(GroupAssignment.assignment_id == attempt.assignment_id)
+        )
+        deadline = session.exec(deadline_stmt).first()
+        
+        if deadline.tzinfo is None:
+            deadline = deadline.replace(tzinfo=timezone.utc)
+
+        if attempt.finished_at.tzinfo is None:
+            attempt.finished_at = attempt.finished_at.replace(tzinfo=timezone.utc)
+
+        if deadline and attempt.finished_at > deadline:
+            is_late = True
+            late_by_seconds = int((attempt.finished_at - deadline).total_seconds())
+
+    late_minutes = late_by_seconds // 60
+    late_seconds_remainder = late_by_seconds % 60
+
+    start = attempt.started_at.replace(tzinfo=None)
+    finish = attempt.finished_at.replace(tzinfo=None)
+    time_spent = finish - start
+
+    action_history = []
+
+    all_logs = session.exec(
+        select(AttemptLog)
+        .where(AttemptLog.attempt_id == attempt_id)
+    ).all()
+
+    desc = ""
+    for log in all_logs:
+        if log.event_type == "du_request":
+            desc = log.event_result_data.get("student_question", "Nepoznat upit za DU")
+        elif log.event_type == "mentor_request":
+            desc = log.event_result_data.get("student_question", "Upit mentoru")
+        elif log.event_type == "hint_request":
+            desc = "Zatražen hint"
+        elif log.event_type == "undo_request":
+            desc = "Poništen zadnji dohvat DU (UNDO)"
+        else:
+            desc = "Nepoznata akcija"
+
+        action_history.append({
+            "type": log.event_type,
+            "status": log.status,
+            "description": desc,
+            "feedback": log.event_result_data.get("llm_response", "")
+        })
+
+    for sub in submissions:
+        action_history.append({
+            "type": "diagnosis_submission",
+            "status": sub.verdict,
+            "description": f"Pokušaj dijagnoze: {sub.diagnosis_text}",
+            "feedback": sub.feedback_given
+        })
+
+    report = {
+        "generated_at": datetime.now().isoformat(),
+        "attempt_status": attempt.status,
+        "action_history": action_history,
+        "time_spent": int(time_spent.total_seconds()),
+        "is_late": is_late,
+        "late_by_seconds": late_by_seconds,
+        "late_readable": f"{late_minutes}m {late_seconds_remainder}s" if is_late else "Na vrijeme",
+        "metrics": {
+            "accuracy": {
+                "verdict": accuracy_verdict,
+                "feedback": accuracy_feedback
+            },
+            "efficiency": {
+                "total_cost_money": total_money,
+                "total_cost_time_seconds": total_time_seconds,
+                "penalty_cost_money": penalty_money,
+                "penalty_cost_time_seconds": penalty_time_seconds,
+                "readable_time_total": readable_time_total,
+                "readable_time_penalty": readable_time_penalty,
+                "budget_money_limit": budget_money,
+                "budget_time_limit": budget_time_seconds,
+                "budget_exceeded": budget_exceeded,
+                "efficiency_category": efficiency_category
+            },
+            "methodology": {
+                "score_percentage": methodology_score,
+                "redundant_queries_count": redundant_count,
+                "ignored_indicators_count": indicator_warnings,
+                "wrong_diagnosis_attempts": wrong_diagnosis_count,
+                "fatal_mistakes_count": fatal_mistakes,
+                "unjustified_jumps_count": unjustified_jumps_count
+            },
+            "independence": {
+                "score_percentage": independence_score,
+                "total_hints_used": len(hint_requests),
+                "penalized_hints_used": penalized_hints,
+                "mentor_queries_count": mentor_requests_count
+            }
+        }
+    }
+
+    attempt.evaluation_report = report
+    session.add(attempt)
+
+    return report
+
+
+@router.get("/my-history")
+def get_my_solve_history(current_user: User = Depends(get_current_active_user), session: Session = Depends(get_session)):
+    # Outer join s Assignment tablicom jer slobodna vježba nema zadaću
+    stmt = (
+        select(SolveAttempt, Case.title, Assignment.title, Assignment.type)
+        .join(Case, SolveAttempt.case_id == Case.id)
+        .join(Assignment, SolveAttempt.assignment_id == Assignment.id, isouter=True)
+        .where(SolveAttempt.user_id == current_user.id)
+        .order_by(SolveAttempt.started_at.desc())
+    )
+    
+    results = session.exec(stmt).all()
+
+    history = []
+    for attempt, case_title, assignment_title, assignment_type in results:
+        if assignment_title:
+            if assignment_type == "exam":
+                attempt_type = "Ispit"
+            elif assignment_type == "practice-exam":
+                attempt_type = "Simulacija ispita"
+            else:
+                attempt_type = "Zadaća"
+        else:
+            if attempt.settings.get("penalize_wrong_diagnosis") and not attempt.settings.get("enable_hints"):
+                attempt_type = "Simulacija ispita"
+            else:
+                attempt_type = "Slobodna vježba"
+
+
+        show_report = True
+        if attempt.settings and attempt.settings.get("show_result_immediately") is False:
+            if attempt.assignment_id:
+                deadline_stmt = (
+                    select(GroupAssignment.available_until)
+                    .join(GroupMember, GroupMember.group_id == GroupAssignment.group_id)
+                    .where(GroupMember.student_id == current_user.id)
+                    .where(GroupAssignment.assignment_id == attempt.assignment_id)
+                )
+                deadline = session.exec(deadline_stmt).first()
+
+                if deadline:
+                    now_aware = datetime.now(timezone.utc)
+                    if deadline.tzinfo is None:
+                        deadline = deadline.replace(tzinfo=timezone.utc)
+                    
+                    if now_aware < deadline:
+                        show_report = False
+
+        history.append({
+            "id": str(attempt.id),
+            "case_title": case_title,
+            "assignment_title": assignment_title,
+            "attempt_type": attempt_type,
+            "status": attempt.status,
+            "is_practice": attempt.is_practice,
+            "started_at": attempt.started_at.isoformat(),
+            "finished_at": attempt.finished_at.isoformat() if attempt.finished_at else None,
+            "evaluation_report": attempt.evaluation_report if show_report else None,
+            "teacher_comment": attempt.teacher_comment if show_report else None
+        })
+        
+    return history
+
+
+@router.get("/{attempt_id}/details")
+async def get_attempt_details(attempt_id: uuid.UUID, current_user: User = Depends(get_current_active_user), session: Session = Depends(get_session)):
+    attempt = session.get(SolveAttempt, attempt_id)
+    if not attempt:
+        raise HTTPException(status_code=404, detail="Pokušaj rješavanja nije pronađen.")
     return attempt
 
 
@@ -39,23 +435,66 @@ async def start_attempt(data: AttemptStart, current_user: User = Depends(get_cur
     existing_attempt_stmt = select(SolveAttempt).where(
         SolveAttempt.user_id == current_user.id,
         SolveAttempt.case_id == data.case_id,
-        SolveAttempt.status == "in_progress"
-    )
+        SolveAttempt.assignment_id == data.assignment_id
+    ).order_by(SolveAttempt.started_at.desc())
+
     existing_attempt = session.exec(existing_attempt_stmt).first()
 
     if existing_attempt:
-        return { 
-            "attempt_id": existing_attempt.id, 
-            "settings": existing_attempt.settings, 
-            "started_at": existing_attempt.started_at,
-            "message": "Nastavak postojećeg rješavanja."
-        }
+        if existing_attempt.status == "in_progress":
+            return { 
+                "attempt_id": existing_attempt.id, 
+                "settings": existing_attempt.settings, 
+                "started_at": existing_attempt.started_at,
+                "message": "Nastavak postojećeg rješavanja."
+            }
+        
+        elif existing_attempt.status == "not_started":
+            existing_attempt.status = "in_progress"
+            existing_attempt.started_at = datetime.now()
+            
+            if data.is_exam_simulation:
+                simulation_overrides = {
+                    "enable_hints": False,
+                    "ignore_hint_penalty": False,
+                    "enable_undo": False,
+                    "enable_LLM_mentor": False,
+                    "ignore_terminating_consequences": False,
+                    "show_result_immediately": True,
+                    "allow_diagnosis_retry": False,
+                    "penalize_wrong_diagnosis": True
+                }
+
+                current_settings = existing_attempt.settings or {}
+                current_settings.update(simulation_overrides)
+                existing_attempt.settings = current_settings
+
+            session.add(existing_attempt)
+            session.commit()
+
+            return { 
+                "attempt_id": existing_attempt.id, 
+                "settings": existing_attempt.settings, 
+                "started_at": existing_attempt.started_at 
+            }
+        
+        elif existing_attempt.status in ["completed", "terminated", "cancelled"]:
+            if not existing_attempt.is_practice:
+                raise HTTPException(status_code=403, detail="Ovaj slučaj ste već riješili.")
     
+
     case = session.get(Case, data.case_id)
     if not case:
-        raise HTTPException(status_code=404, detail="Case not found")
+        raise HTTPException(status_code=404, detail="Slučaj nije pronađen.")
     
-    if case.type == "EXAM" and (not data.assignment_id or data.is_free_practice == True):
+    if case.status == "draft":
+        if current_user.id != case.created_by:
+            raise HTTPException(
+                status_code=403, 
+                detail="Skice mogu prije objave isprobati samo autori slučaja."
+            )
+    
+    if case.type == "exam" and (not data.assignment_id or data.is_practice == True):
         raise HTTPException(
             status_code=403, 
             detail="Ovaj slučaj je rezerviran za ispite i ne može se pokrenuti kao vježba."
@@ -63,39 +502,106 @@ async def start_attempt(data: AttemptStart, current_user: User = Depends(get_cur
 
     final_settings = case.default_settings.copy()
 
-    # 2. LOGIKA NADJAČAVANJA
     if data.assignment_id:
-        # SCENARIJ A: Unutar assignmenta (Ispit/Zadaća)
         assignment = session.get(Assignment, data.assignment_id)
-        if assignment:
-            # if assignment_cases.assignment_id == assignment.id and assignment_cases.case_id != data.case_id:
-            #     raise HTTPException(status_code=400, detail="Assignment ne odgovara odabranom slučaju.")
-            final_settings.update(assignment.settings)
+        if not assignment:
+            raise HTTPException(status_code=404, detail="Zadaća nije pronađena.")
+        
+        if not existing_attempt:
+            deadline_stmt = (
+                select(GroupAssignment.available_until)
+                .join(GroupMember, GroupMember.group_id == GroupAssignment.group_id)
+                .where(GroupMember.student_id == current_user.id)
+                .where(GroupAssignment.assignment_id == data.assignment_id)
+            )
+            deadline = session.exec(deadline_stmt).first()
+
+            if deadline.tzinfo is None:
+                deadline = deadline.replace(tzinfo=timezone.utc)
+
+            if deadline and datetime.now(timezone.utc) >= deadline:
+                raise HTTPException(
+                    status_code=403, 
+                    detail="Rok za rješavanje ove zadaće je istekao. Ne možete započeti novo rješavanje."
+                )
+
+        if assignment.type == "exam":
+            any_past_attempt = session.exec(
+                select(SolveAttempt).where(
+                    SolveAttempt.user_id == current_user.id,
+                    SolveAttempt.case_id == data.case_id,
+                    SolveAttempt.assignment_id == data.assignment_id
+                )
+            ).first()
+
+            if any_past_attempt:
+                raise HTTPException(
+                    status_code=403, 
+                    detail="Iskoristili ste svoj jedini pokušaj za ovaj ispitni slučaj."
+                )
+        
+        if assignment.settings.get("case_sequence_lock"):
+            # Redni broj (sequence_no) trenutnog slučaja u ovoj zadaći
+            current_assignment_case = session.exec(
+                select(AssignmentCase).where(
+                    AssignmentCase.assignment_id == data.assignment_id,
+                    AssignmentCase.case_id == data.case_id
+                )
+            ).first()
+
+            if current_assignment_case and current_assignment_case.sequence_no > 1:
+                # Svi slučajevi koji moraju biti riješeni prije ovoga
+                preceding_cases_stmt = select(AssignmentCase.case_id).where(
+                    AssignmentCase.assignment_id == data.assignment_id,
+                    AssignmentCase.sequence_no < current_assignment_case.sequence_no
+                )
+                preceding_case_ids = session.exec(preceding_cases_stmt).all()
+
+                # Jesu li svi ti slučajevi završeni?
+                for prev_case_id in preceding_case_ids:
+                    finished_attempt = session.exec(
+                        select(SolveAttempt).where(
+                            SolveAttempt.user_id == current_user.id,
+                            SolveAttempt.assignment_id == data.assignment_id,
+                            SolveAttempt.case_id == prev_case_id,
+                            SolveAttempt.status.in_(["completed", "terminated"])
+                        )
+                    ).first()
+
+                    if not finished_attempt:
+                        raise HTTPException(
+                            status_code=403, 
+                            detail="Morate završiti prethodne slučajeve u zadaći prije pokretanja ovog slučaja."
+                        )
+
+        is_practice = assignment.type != "exam"
+        final_settings.update(assignment.settings)
+
     else:
-        # SCENARIJ B: Izvan assignmenta (Slobodni rad)
-        if not data.is_free_practice:
-            # Vježba koja simulira ispit
+        is_practice = True
+        
+        if data.is_exam_simulation:
             simulation_overrides = {
                 "enable_hints": False,
-                "ignore_hint_cost": False,
+                "ignore_hint_penalty": False,
                 "enable_undo": False,
                 "enable_LLM_mentor": False,
                 "ignore_terminating_consequences": False,
-                "show_result_immediately": True
+                "show_result_immediately": True,
+                "allow_diagnosis_retry": False,
+                "penalize_wrong_diagnosis": True
             }
             final_settings.update(simulation_overrides)
 
-        # Inače je slobodna vježba - ostaju defaultne postavke (sve True)
  
     new_attempt = SolveAttempt(
         case_id=data.case_id,
         user_id=current_user.id,
-        assignment_id=None, # data.assignment_id
-        is_free_practice=data.is_free_practice,
+        assignment_id=data.assignment_id,
+        is_practice=is_practice,
         status="in_progress",
         settings=final_settings,
-        started_at=datetime.now(),
-        score=100.0
+        started_at=datetime.now()
     )
     
     session.add(new_attempt)
@@ -118,51 +624,116 @@ async def get_DU(attempt_id: uuid.UUID, request: ChatRequest, session: Session =
 
     system_prompt = f"""
     You are the assistant in this diagnostics case. The student writes what he wants to check. You need to check for similarities of student's request with given label and name of a diagnostic unit. Select the ID of the most appropriate (most similar to the request) DU from the list: {du_list}. Answer with the ID only. If nothing matches, answer 'NONE'.
+    If you can, answer in CROATIAN.
     """
 
     combined_content = f"INSTRUCTION: {system_prompt}\n\nUSER QUESTION: {request.message}"
 
     response = requests.post(
         url="https://openrouter.ai/api/v1/chat/completions",
-        headers={"Authorization": f"Bearer {OPENROUTER_API_KEY}", "Content-Type": "application/json"},
+        headers={
+            "Authorization": f"Bearer {OPENROUTER_API_KEY}", 
+            "Content-Type": "application/json"
+        },
         data=json.dumps({
-            "model": "google/gemma-3n-e2b-it:free",
+            "model": OPENROUTER_MODEL,
             "messages": [
-                {"role": "user", "content": combined_content}
+                {
+                    "role": "user", 
+                    "content": combined_content
+                }
             ]
         })
     )
     
-    du_id = response.json()['choices'][0]['message']['content'].strip()
+    raw_content = response.json()['choices'][0]['message']['content'].strip()
+
+    uuid_pattern = re.compile(r'[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}', re.IGNORECASE)
+    match = uuid_pattern.search(raw_content)
+
+    if match:
+        du_id = match.group(0)
+    else:
+        du_id = "NONE"
 
     # Obrada rezultata i LOGIRANJE
     selected_du = None
     media_list = []
-    result_text = "Unfortunately, i don't understand your request."
+    result_text = "Nažalost, ne razumijem vaš zahtjev."
+    log_status = "no_mistake"
+    applied_consequence = {}
 
     if du_id != "NONE":
-        selected_du = session.get(DiagnosticUnit, du_id)
+        try:
+            # Još jedna sigurnosna provjera pretvaranjem u UUID objekt
+            valid_uuid = uuid.UUID(du_id)
+            selected_du = session.get(DiagnosticUnit, valid_uuid)
+        except ValueError:
+            selected_du = None
+
+        # selected_du = session.get(DiagnosticUnit, du_id)
         
         if selected_du:
-            result_text = selected_du.result_text
+            indicator_status, consequence = check_logical_indicators(session, attempt_id, selected_du)
 
-            media_statement = select(Media).where(Media.du_id == selected_du.id)
-            media_list = [{"file_path": m.file_path, "file_type": m.file_type, "title": m.title} for m in session.exec(media_statement).all()]
+            if indicator_status in ["fatal_mistake", "consequence_mistake"]:
+                log_status = indicator_status
+                applied_consequence = consequence
 
-            attempt.total_cost_money += selected_du.resources.get("money", 0)
+                if consequence:
+                    attempt.penalty_cost_money += consequence.get("penalty_money", 0.0)
 
-            unit = selected_du.resources.get("time_unit")
-            time = selected_du.resources.get("time", 0)
-            if unit == "days":
-                time *= 86400
-            elif unit == "hours":
-                time *= 3600
-            elif unit == "minutes":
-                time *= 60
+                    unit = consequence.get("penalty_time_unit", "")
+                    penalty_cost_time_raw = consequence.get("penalty_time", 0)
+                    penalty_cost_time_seconds = 0
 
-            attempt.total_cost_time += time
+                    if penalty_cost_time_raw is not None and unit:
+                        penalty_cost_time_seconds = int(penalty_cost_time_raw)
 
-    # Spremi u attempt_logs
+                        if unit == "minutes":
+                            penalty_cost_time_seconds *= 60
+                        elif unit == "hours":
+                            penalty_cost_time_seconds *= 3600
+                        elif unit == "days":
+                            penalty_cost_time_seconds *= 86400
+
+                    attempt.penalty_cost_time += penalty_cost_time_seconds
+
+                if indicator_status == "fatal_mistake":
+                    if not attempt.settings.get("ignore_terminating_consequences"):
+                        attempt.status = "terminated"
+                        attempt.finished_at = datetime.now()
+                        result_text = consequence.get("value", "Fatalna pogreška! Rješavanje slučaja je prekinuto.")
+                    
+                    else:
+                        result_text = consequence.get("value", "Fatalna pogreška! Rješavanje slučaja nije prekinuto zbog postavki.")
+                
+                else:
+                    result_text = consequence.get("value", "Nedostaje logički preduvjet")
+
+            else:
+                is_redundant = check_is_redundant(session, attempt_id, selected_du)
+                is_unjustified = check_is_unjustified_jump(session, attempt_id, selected_du)
+
+                if is_redundant:
+                    log_status = "redundant"
+                elif is_unjustified:
+                    log_status = "unjustified_jump"
+
+                result_text = selected_du.result_text
+                media_list = [{"file_path": m.file_path, "file_type": m.file_type, "title": m.title} for m in selected_du.media]
+
+                attempt.total_cost_money += selected_du.resources.get("money", 0)
+
+                unit = selected_du.resources.get("time_unit")
+                time = selected_du.resources.get("time", 0)
+
+                if unit == "days": time *= 86400
+                elif unit == "hours": time *= 3600
+                elif unit == "minutes": time *= 60
+
+                attempt.total_cost_time += time
+
     new_log = AttemptLog(
         attempt_id=attempt_id,
         event_type="du_request",
@@ -172,20 +743,23 @@ async def get_DU(attempt_id: uuid.UUID, request: ChatRequest, session: Session =
             "llm_response": result_text,
             "found_du": True if selected_du else False
         },
-        status="no_mistake", # DODATI POMOĆNU FUNKCIJU ZA PROVJERU LOGIČKIH INDIKATORA 
-        # consequence={}  # AKO JE STATUS consequence_mistake
+        status=log_status, 
+        consequence=applied_consequence 
     )
     
     session.add(new_log)
-
+    session.add(attempt)
     session.commit()
+
+    if attempt.status == "terminated":
+        generate_evaluation_report(attempt_id, session)
 
     return {
         "du_id": selected_du.id if selected_du else None, 
         "result": result_text,
-        "media": media_list
+        "media": media_list,
+        "attempt_status": attempt.status
     }
-
 
 
 @router.post("/{attempt_id}/submit")
@@ -193,14 +767,15 @@ async def submit_diagnosis(attempt_id: uuid.UUID, data: DiagnosisRequest, sessio
 ):
     attempt = session.get(SolveAttempt, attempt_id)
     if not attempt or attempt.status != "in_progress":
-        raise HTTPException(status_code=400, detail="Attempt doesn't exist or is not active")
+        raise HTTPException(status_code=400, detail="Pokušaj rješavanja ne postoji ili nije aktivan.")
 
     case = session.get(Case, attempt.case_id)
     if not case:
-        raise HTTPException(status_code=404, detail="Case not found")
+        raise HTTPException(status_code=404, detail="Slučaj nije pronađen.")
 
-    if attempt.is_free_practice:
+    if attempt.is_practice:
         system_prompt = f"""
+        If you can, answer in CROATIAN.
         You are an expert instructor. 
         Correct diagnosis: {case.correct_diagnosis}
         Student's answer: {data.student_diagnosis}
@@ -211,20 +786,21 @@ async def submit_diagnosis(attempt_id: uuid.UUID, data: DiagnosisRequest, sessio
         """
     else:
         system_prompt = f"""
+        If you can, answer in CROATIAN.
         You are an expert instructor.
         Correct diagnosis: {case.correct_diagnosis}
         Student's answer: {data.student_diagnosis}
         
         Compare them. Be strict but fair. If the student correctly identified the issue, respond with 'CORRECT.' and a short feedback paragraph (note that the student's answer MUST contain keywords from the correct diagnosis, it should not be too vague, e.g. student says 'sensor' and the correct diagnosis is 'faulty crankshaft sensor (coil break)' your verdict should not be 'CORRECT'). 
         If they are wrong or missed key parts, respond with 'INCORRECT.'. 
-        If they are partially correct, respond with 'PARTIAL.'.
+        If they are partially correct, respond with 'PARTIAL.' (this means that they mentioned some of the key parts but no ALL of them, so if their phrasing is a little different than the correct diagnosis, you should look for the keywords, if they have all the keywords, you should answer with CORRECT.).
         """
 
     response = requests.post(
         url="https://openrouter.ai/api/v1/chat/completions",
         headers={"Authorization": f"Bearer {OPENROUTER_API_KEY}", "Content-Type": "application/json"},
         data=json.dumps({
-            "model": "google/gemma-3n-e2b-it:free",
+            "model": OPENROUTER_MODEL,
             "messages": [{"role": "user", "content": system_prompt}]
         })
     )
@@ -258,29 +834,26 @@ async def submit_diagnosis(attempt_id: uuid.UUID, data: DiagnosisRequest, sessio
         attempt.status = "completed"
         attempt.finished_at = datetime.now()
         attempt.student_diagnosis = data.student_diagnosis
-        # attempt.score =  # DODATI POMOĆNU FUNKCIJU ZA RAČUNANNJE SCORE-a
+        session.add(attempt)
+
+        generate_evaluation_report(attempt_id, session)
 
     else:
-        ignore_terminating_consequences = attempt.settings.get("ignore_terminating_consequences")
+        if attempt.settings.get("allow_diagnosis_retry", True):
+            if attempt.settings.get("penalize_wrong_diagnosis") == True:
+                attempt.penalty_cost_time += 1800  # Kazna: 30 minuta (1800 sekundi)
+                session.add(attempt)
+                feedback = f"{feedback}\n\nKAZNA: Zbog netočne dijagnoze dodano je 30 minuta na vaše simulirano vrijeme izvođenja akcija."
 
-        if not ignore_terminating_consequences:
-            if case.if_incorrect == "terminate":
-                attempt.status = "terminated"
-                attempt.finished_at = datetime.now()
-                attempt.student_diagnosis = data.student_diagnosis
-
-            elif case.if_incorrect == "penalize":
-                attempt.score = max(0, attempt.score - 5) # PROMIJENI NA DINAMIČKO RAČUNANJE KAD SE DODAJU DRUGE VRSTE POSLJEDICA
-
-            elif case.if_incorrect == "continue":
-                pass
+            pass
 
         else:
-            if case.if_incorrect == "penalize":
-                attempt.score = max(0, attempt.score - 5) # PROMIJENI NA DINAMIČKO RAČUNANJE KAD SE DODAJU DRUGE VRSTE POSLJEDICA
-            else:
-                pass
+            attempt.status = "completed"
+            attempt.finished_at = datetime.now()
+            attempt.student_diagnosis = data.student_diagnosis
+            session.add(attempt)
 
+            generate_evaluation_report(attempt_id, session)
     
     session.commit()
     
@@ -296,14 +869,15 @@ async def cancel_attempt(attempt_id: uuid.UUID, session: Session = Depends(get_s
     attempt = session.get(SolveAttempt, attempt_id)
     
     if not attempt:
-        raise HTTPException(status_code=404, detail="Attempt not found")
+        raise HTTPException(status_code=404, detail="Pokušaj rješavanja nije pronađen.")
         
     if attempt.status != "in_progress":
         raise HTTPException(status_code=400, detail="Moguće je otkazati samo aktivna rješavanja.")
 
     attempt.status = "cancelled"
     attempt.finished_at = datetime.now()
-    
+
+    session.add(attempt)    
     session.commit()
     
     return {"status": "success", "message": "Rješavanje je otkazano."}
@@ -314,7 +888,7 @@ def get_hint(attempt_id: uuid.UUID, sequence_no: int, session: Session = Depends
     attempt = session.get(SolveAttempt, attempt_id)
 
     if not attempt or attempt.status != "in_progress":
-        raise HTTPException(status_code=400, detail="Attempt not active")
+        raise HTTPException(status_code=400, detail="Pokušaj rješavanja nije aktivan.")
     
     if not attempt.settings.get("enable_hints", True):
         raise HTTPException(status_code=403, detail="Pomoć je isključena za ovaj pokušaj.")
@@ -331,16 +905,15 @@ def get_hint(attempt_id: uuid.UUID, sequence_no: int, session: Session = Depends
     if not hint:
         raise HTTPException(status_code=404, detail="Nema dostupnih hintova")
     
-    ignore_cost = attempt.settings.get("ignore_hint_cost", False)
-
-    if not ignore_cost:
-        attempt.score = max(0, attempt.score - hint.cost)
-
+    ignore_penalty = attempt.settings.get("ignore_hint_penalty", False)
 
     new_log = AttemptLog(
         attempt_id=attempt_id,
         event_type="hint_request",
-        event_result_data={"hint_id": str(hint.id), "penalty": 0 if ignore_cost else hint.cost},
+        event_result_data={
+            "hint_id": str(hint.id), 
+            "is_penalized": not ignore_penalty
+        },
         status="no_mistake"
     )
     session.add(new_log)
@@ -348,9 +921,55 @@ def get_hint(attempt_id: uuid.UUID, sequence_no: int, session: Session = Depends
     
     return {
         "text": hint.text,
-        "sequence_no": hint.sequence_no,
-        "new_score": attempt.score
+        "sequence_no": hint.sequence_no
     }
+
+
+@router.post("/{attempt_id}/ask-llm-mentor")
+async def ask_llm_mentor(data: ChatRequest, attempt_id: uuid.UUID, session: Session = Depends(get_session)):
+    attempt = session.get(SolveAttempt, attempt_id)
+    
+    if not attempt:
+        raise HTTPException(status_code=404, detail="Pokušaj rješavanja nije pronađen.")
+        
+    if attempt.status != "in_progress":
+        raise HTTPException(status_code=400, detail="Pokušaj rješavanja nije aktivan.")
+    
+    if not attempt.settings.get("enable_LLM_mentor", True):
+        raise HTTPException(status_code=403, detail="LLM mentor je onemogućen za ovaj pokušaj.")
+
+    case = session.get(Case, attempt.case_id)
+    if not case:
+        raise HTTPException(status_code=404, detail="Slučaj nije pronađen.")
+
+    message = data.message    
+
+    prompt = f"Ti si mentor studentu koji dijagnosticira slučaj: {case.initial_info}. Točna dijagnoza je {case.correct_diagnosis}. Student te pita: '{message}'. Daj mu pedagoški savjet, ali mu NIKAKO ne smiješ otkriti konačno rješenje. Uputi ga na pravi put."
+  
+    response = requests.post(
+        url="https://openrouter.ai/api/v1/chat/completions",
+        headers={"Authorization": f"Bearer {OPENROUTER_API_KEY}", "Content-Type": "application/json"},
+        data=json.dumps({
+            "model": OPENROUTER_MODEL,
+            "messages": [{"role": "user", "content": prompt}]
+        })
+    )
+
+    mentor_response = response.json()['choices'][0]['message']['content']
+
+    new_log = AttemptLog(
+        attempt_id=attempt_id,
+        event_type="mentor_request",
+        event_result_data={
+            "student_question": message,
+            "llm_response": mentor_response
+        },
+        status="no_mistake"
+    )
+    session.add(new_log)
+    session.commit()
+    
+    return {"status": "success", "result": mentor_response}
 
 
 @router.post("/{attempt_id}/undo")
@@ -358,14 +977,15 @@ async def undo_last_action(attempt_id: uuid.UUID, session: Session = Depends(get
     attempt = session.get(SolveAttempt, attempt_id)
     
     if not attempt or attempt.status != "in_progress":
-        raise HTTPException(status_code=400, detail="Pokušaj nije aktivan.")
+        raise HTTPException(status_code=400, detail="Pokušaj rješavanja nije aktivan.")
 
     if not attempt.settings.get("enable_undo", True):
         raise HTTPException(status_code=403, detail="Poništavanje radnji je onemogućeno za ovaj pokušaj.")
 
     statement = select(AttemptLog).where(
         AttemptLog.attempt_id == attempt_id,
-        AttemptLog.event_type == "du_request"
+        AttemptLog.event_type == "du_request",
+        AttemptLog.status != "undone"
     ).order_by(AttemptLog.id.desc())
     
     last_log = session.exec(statement).first()
@@ -374,17 +994,36 @@ async def undo_last_action(attempt_id: uuid.UUID, session: Session = Depends(get
         raise HTTPException(status_code=404, detail="Nema radnji koje se mogu poništiti.")
 
     if last_log.diagnostic_unit_id:
-        du = session.get(DiagnosticUnit, last_log.diagnostic_unit_id)
-        if du:
-            attempt.total_cost_money -= du.resources.get("money", 0)
-            
-            unit = du.resources.get("time_unit")
-            time = du.resources.get("time", 0)
-            if unit == "days": time *= 86400
-            elif unit == "hours": time *= 3600
-            elif unit == "minutes": time *= 60
-            
-            attempt.total_cost_time -= time
+        if last_log.status not in ["consequence_mistake", "fatal_mistake"]:
+            du = session.get(DiagnosticUnit, last_log.diagnostic_unit_id)
+            if du:
+                attempt.total_cost_money -= du.resources.get("money", 0)
+                
+                unit = du.resources.get("time_unit")
+                time = du.resources.get("time", 0)
+
+                if unit == "days": time *= 86400
+                elif unit == "hours": time *= 3600
+                elif unit == "minutes": time *= 60
+                
+                attempt.total_cost_time -= time
+
+    attempt.penalty_cost_money -= last_log.consequence.get("penalty_money")
+
+    p_unit = du.resources.get("time_unit")
+    p_time = du.resources.get("time", 0)
+
+    if p_unit == "days": p_time *= 86400
+    elif p_unit == "hours": p_time *= 3600
+    elif p_unit == "minutes": p_time *= 60
+    
+    attempt.penalty_cost_time -= p_time
+
+    attempt.penalty_cost_money = max(0.0, attempt.penalty_cost_money)
+    attempt.penalty_cost_time = max(0, attempt.penalty_cost_time)
+
+    attempt.total_cost_money = max(0.0, attempt.total_cost_money)
+    attempt.total_cost_time = max(0, attempt.total_cost_time)
 
     undo_log = AttemptLog(
         attempt_id=attempt_id,
@@ -407,3 +1046,51 @@ async def undo_last_action(attempt_id: uuid.UUID, session: Session = Depends(get
         "total_cost_money": attempt.total_cost_money,
         "total_cost_time": attempt.total_cost_time
     }
+
+
+@router.get("/{group_id}/student/{student_id}")
+def get_student_attempts_in_group(group_id: uuid.UUID, student_id: uuid.UUID, current_user: User = Depends(get_current_teacher), session: Session = Depends(get_session)):
+    group = session.get(Group, group_id)
+    if not group:
+        raise HTTPException(status_code=404, detail="Grupa ne postoji.")
+    
+    if group.teacher_id != current_user.id:
+        raise HTTPException(
+            status_code=403, 
+            detail="Nemate ovlasti za pristup podatcima ove grupe jer niste njezin vlasnik."
+        )
+    
+    stmt = (
+        select(SolveAttempt, Case.title, Case.version)
+        .join(Case, SolveAttempt.case_id == Case.id)
+        .join(GroupAssignment, SolveAttempt.assignment_id == GroupAssignment.assignment_id)
+        .where(GroupAssignment.group_id == group_id)
+        .where(SolveAttempt.user_id == student_id)
+        .order_by(SolveAttempt.started_at.desc())
+    )
+    
+    results = session.exec(stmt).all()
+    
+    return [
+        {
+            "attempt_id": str(att.id),
+            "case_title": title,
+            "case_version": version,
+            "status": att.status,
+            "started_at": att.started_at,
+            "teacher_comment": att.teacher_comment
+        } for att, title, version in results
+    ]
+
+
+@router.patch("/{attempt_id}/comment")
+def add_teacher_comment(attempt_id: uuid.UUID, data: TeacherCommentRequest, current_user: User = Depends(get_current_active_user), session: Session = Depends(get_session)):
+    attempt = session.get(SolveAttempt, attempt_id)
+    if not attempt:
+        raise HTTPException(status_code=404, detail="Pokušaj nije pronađen.")
+    
+    attempt.teacher_comment = data.comment
+    session.add(attempt)
+    session.commit()
+    
+    return {"status": "success", "message": "Komentar je spremljen."}

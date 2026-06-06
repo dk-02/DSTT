@@ -8,7 +8,7 @@ interface Media {
 }
 
 interface userMsg {
-  sender: 'user' | 'assistant' | 'system';
+  sender: 'korisnik' | 'llm-mentor' | 'sustav';
   text: string;
   du?: string;
   media?: Media[];
@@ -17,7 +17,6 @@ interface userMsg {
 interface Hint {
   sequence_no: number;
   text: string;
-  cost: number;
 }
 
 interface CaseSolvingState {
@@ -40,11 +39,26 @@ export const useCaseSolvingStore = create<CaseSolvingState>()(
       unlockedHints: [],
       startTime: null,
       
-      setAttempt: (id) => set({ attemptId: id, startTime: Date.now() }),
+      setAttempt: (id, startedAt) => set({ attemptId: id, startTime: startedAt }),
       addMessage: (msg) => set((state) => ({ messages: [...state.messages, msg] })),
       addHint: (hint) => set((state) => ({ unlockedHints: [...state.unlockedHints, hint] })),
       reset: () => set({ attemptId: null, messages: [], unlockedHints: [], startTime: null }),
-      undoLastAction: (duId) => set((state) => ({ messages: state.messages.filter(m => m.du !== duId) })),
+      undoLastAction: (duId) => set((state) => {
+        const index = state.messages.findIndex(m => m.du === duId);
+        
+        if (index > 0) {
+          const newMessages = [...state.messages];
+          // Briše se poruka sustava (index) i korisnički upit prije nje (index - 1)
+          newMessages.splice(index - 1, 2); 
+          return { messages: newMessages };
+        } else if (index === 0) {
+          const newMessages = [...state.messages];
+          newMessages.splice(0, 1);
+          return { messages: newMessages };
+        }
+        
+        return state;
+      }),
     }),
     { 
       name: 'case-solving-storage-default',

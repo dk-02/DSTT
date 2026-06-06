@@ -1,15 +1,19 @@
 import os
+import re
 from datetime import datetime, timedelta, timezone
+from typing import Dict
 import uuid
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from jose import jwt
 from passlib.context import CryptContext
+from sqlalchemy import func
 from sqlmodel import Session, select
 from database import engine
-from models import AdminUserRegister, PasswordChange, User, UserRole, Role, UserRegister
+from models import AdminUserRegister, Institution, PasswordChange, PasswordChangeAdmin, User, UserRole, Role, UserRegister
 from slowapi import Limiter
 from slowapi.util import get_remote_address
+import resend
 
 SECRET_KEY = os.getenv("SECRET_KEY")
 ALGORITHM = "HS256"
@@ -82,32 +86,76 @@ def hash_password(password: str):
 def verify_password(plain_password: str, hashed_password: str):
     return pwd_context.verify(plain_password, hashed_password)
 
+def validate_password_strength(password: str) -> None:
+    if len(password) < 8:
+        raise HTTPException(
+            status_code=400, 
+            detail="Lozinka mora sadržavati minimalno 8 znakova."
+        )
+    if not re.search(r"[A-Z]", password):
+        raise HTTPException(
+            status_code=400, 
+            detail="Lozinka mora sadržavati barem jedno veliko slovo."
+        )
+    if not re.search(r"[a-z]", password):
+        raise HTTPException(
+            status_code=400, 
+            detail="Lozinka mora sadržavati barem jedno malo slovo."
+        )
+    if not re.search(r"[0-9]", password):
+        raise HTTPException(
+            status_code=400, 
+            detail="Lozinka mora sadržavati barem jedan broj."
+        )
+    if not re.search(r"[!@#$%^&*(),.?\":{}|<>_+\-\[\]\/\\]", password):
+        raise HTTPException(
+            status_code=400, 
+            detail="Lozinka mora sadržavati barem jedan posebni znak."
+        )
+
 def create_access_token(data: dict):
     to_encode = data.copy()
     expire = datetime.now(timezone.utc) + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     to_encode.update({"exp": expire})
     return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
 
+def create_reset_token(data: dict, expires_delta: int):
+    to_encode = data.copy()
+    expire = datetime.now(timezone.utc) + timedelta(minutes=expires_delta)
+    to_encode.update({"exp": expire})
+    return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+
 
 @router.post("/register")
 def register(user_data: UserRegister, session: Session = Depends(get_session)):
-    statement = select(User).where(User.email == user_data.email)
+    validate_password_strength(user_data.password)
+
+    statement = select(User).where(func.lower(User.email) == func.lower(user_data.email))
     existing_user = session.exec(statement).first()
     if existing_user:
         raise HTTPException(
             status_code=400, 
-            detail="Korisnik s ovim emailom već postoji"
+            detail="Korisnik s ovim emailom već postoji."
         )
+    
+    domain = user_data.email.split("@")[-1].lower()
+
+    inst_stmt = select(Institution).where(Institution.domain == domain)
+    inst = session.exec(inst_stmt).first()
+
 
     try:
+        clean_email = user_data.email.lower().strip()
+
         new_user = User(
-            email=user_data.email,
+            email=clean_email,
             password_hash=hash_password(user_data.password),
             first_name=user_data.first_name,
             last_name=user_data.last_name,
             is_active=True,
             expertise_level="novice",
-            xp_points=0
+            xp_points=0,
+            institution_id=inst.id if inst else None
         )
         session.add(new_user)
         session.flush() # generira se ID bez commit-a
@@ -128,25 +176,31 @@ def register(user_data: UserRegister, session: Session = Depends(get_session)):
 
 @router.post("/admin-register")
 def admin_register(user_data: AdminUserRegister, current_admin: User = Depends(get_current_admin), session: Session = Depends(get_session)):
-    statement = select(User).where(User.email == user_data.email)
+    validate_password_strength(user_data.password)
+
+    statement = select(User).where(func.lower(User.email) == func.lower(user_data.email))
     existing_user = session.exec(statement).first()
+
     if existing_user:
         raise HTTPException(
             status_code=400, 
-            detail="Korisnik s ovim emailom već postoji"
+            detail="Korisnik s ovim emailom već postoji."
         )
 
     try:
         is_examinee = "examinee" in user_data.roles
 
+        clean_email = user_data.email.lower().strip()
+
         new_user = User(
-            email=user_data.email,
+            email=clean_email,
             password_hash=hash_password(user_data.password),
             first_name=user_data.first_name,
             last_name=user_data.last_name,
             is_active=True,
             expertise_level="novice" if is_examinee else None,
-            xp_points=0 if is_examinee else None
+            xp_points=0 if is_examinee else None,
+            institution_id=user_data.institution_id
         )
         session.add(new_user)
         session.flush()
@@ -167,13 +221,13 @@ def admin_register(user_data: AdminUserRegister, current_admin: User = Depends(g
 
 @router.post("/login")
 def login(request: Request, user_data: OAuth2PasswordRequestForm = Depends(), session: Session = Depends(get_session)):
-    statement = select(User).where(User.email == user_data.username) #OAuth zbog Swagger testiranja; username = email
+    statement = select(User).where(User.email == user_data.username.lower().strip()) #OAuth zbog Swagger testiranja; username = email
     user = session.exec(statement).first()
 
     if not user or not verify_password(user_data.password, user.password_hash):
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Pogrešan email ili lozinka",
+            status_code=401,
+            detail="Pogrešan email ili lozinka.",
             headers={"WWW-Authenticate": "Bearer"},
         )
 
@@ -192,8 +246,8 @@ def login(request: Request, user_data: OAuth2PasswordRequestForm = Depends(), se
             "email": user.email,
             "first_name": user.first_name,
             "last_name": user.last_name,
-            "expertise_level": user.expertise_level,
-            "xp_points": user.xp_points
+            # "expertise_level": user.expertise_level,
+            # "xp_points": user.xp_points
         }
     }
 
@@ -236,9 +290,82 @@ def change_password(data: PasswordChange, current_user: User = Depends(get_curre
             status_code=400, 
             detail="Trenutna lozinka nije ispravna."
         )
+    
+    validate_password_strength(data.new_password)
 
     current_user.password_hash = hash_password(data.new_password)
     session.add(current_user)
     session.commit()
 
     return {"message": "Lozinka uspješno promijenjena."}
+
+
+@router.post("/change-password-admin")
+def change_password_admin(data: PasswordChangeAdmin, current_user: User = Depends(get_current_admin), session: Session = Depends(get_session)):
+    user = session.get(User, data.user_id)
+
+    if not user:
+        raise HTTPException(status_code=404, detail="Korisnik nije pronađen.")
+    
+    # validate_password_strength(data.new_password)
+
+    user.password_hash = hash_password(data.new_password)
+
+    session.add(user)
+    session.commit()
+
+    return {"message": f"Lozinka korisnika {user.email} uspješno promijenjena."}
+
+
+# @router.post("/forgot-password")
+# async def forgot_password(email_data: Dict[str, str], session: Session = Depends(get_session)):
+#     email = email_data.get("email")
+#     user = session.exec(select(User).where(User.email == email)).first()
+    
+#     if not user:
+#         return {"message": "Ako račun postoji, upute su poslane na mail."}
+
+#     reset_token = create_reset_token(
+#         data={"sub": str(user.id), "type": "password_reset"}, 
+#         expires_delta=15
+#     )
+
+#     reset_link = f"http://localhost:5173/reset-password?token={reset_token}"
+
+#     try:
+#         resend.api_key = os.getenv("RESEND_API_KEY")
+#         resend.Emails.send({
+#             "from": "onboarding@resend.dev",
+#             "to": [user.email],
+#             "subject": "Resetiranje lozinke - DSTT",
+#             "html": f"<p>Kliknite na link za promjenu lozinke: <a href='{reset_link}'>Resetiraj lozinku</a></p>"
+#         })
+#     except Exception as e:
+#         raise HTTPException(status_code=500, detail=f"Greška pri slanju maila {e}")
+
+#     return {"message": "Upute su poslane na mail."}
+
+
+# @router.post("/reset-password-confirm")
+# def reset_password_confirm(data: Dict[str, str], session: Session = Depends(get_session)):
+#     token = data.get("token")
+#     new_password = data.get("new_password")
+
+#     try:
+#         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+#         if payload.get("type") != "password_reset":
+#             raise HTTPException(status_code=400, detail="Neispravan tip tokena")
+        
+#         user_id = payload.get("sub")
+#         user = session.get(User, uuid.UUID(user_id))
+        
+#         if not user:
+#             raise HTTPException(status_code=404, detail="Korisnik nije pronađen")
+
+#         user.password_hash = hash_password(new_password)
+#         session.add(user)
+#         session.commit()
+        
+#         return {"message": "Lozinka uspješno promijenjena."}
+#     except Exception:
+#         raise HTTPException(status_code=400, detail="Link je istekao ili je nevaljan.")

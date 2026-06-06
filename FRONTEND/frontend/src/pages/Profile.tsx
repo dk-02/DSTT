@@ -1,6 +1,6 @@
 import { useNavigate } from "react-router-dom";
 import { useAuthStore } from "../store/useAuthStore";
-import { ArrowNarrowLeft } from "@untitledui/icons";
+import { ArrowNarrowLeft, Check, XClose } from "@untitledui/icons";
 import { Modal } from "../components/UI/Modal";
 import { useState } from "react";
 import { useCaseStore } from "../store/useCaseStore";
@@ -23,6 +23,13 @@ function Profile() {
         newPassword: "",
         confirmNewPassword: ""
     });
+    
+    const { isExaminee, isAdmin, isExpert, isTeacher } = useRole();
+    const user = useAuthStore((state) => state.user);
+    const token = useAuthStore((state) => state.token);
+    const { logout } = useAuthStore();
+
+    const navigate = useNavigate();
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const { name, value } = e.target;
@@ -33,18 +40,8 @@ function Profile() {
         }));
     };
 
-    const {isExaminee} = useRole();
-
-    const user = useAuthStore((state) => state.user);
-    const token = useAuthStore((state) => state.token);
-    const { logout } = useAuthStore();
-
-    const navigate = useNavigate();
 
     const handleLogout = () => {
-        if (!isExaminee) {
-            if(!window.confirm("Odjavom se poništavaju svi nespremljeni podatci (npr. u kreatoru slučaja). Želite li nastaviti?")) return;
-        }
         useCaseStore.getState().clearCaseData();
         logout();
         navigate("/user/login");
@@ -132,27 +129,92 @@ function Profile() {
         }
     ]
 
+    const passwordChecks = {
+        hasMinLength: formData.newPassword.length >= 8,
+        hasUpperCase: /[A-Z]/.test(formData.newPassword),
+        hasLowerCase: /[a-z]/.test(formData.newPassword),
+        hasNumber: /[0-9]/.test(formData.newPassword),
+        hasSpecialChar: /[!@#$%^&*(),.?":{}|<>_+\-[\]/\\]/.test(formData.newPassword),
+    };
+    const isPasswordValid = Object.values(passwordChecks).every(Boolean);
+
+    const handleNavigateBack = () => {
+        if (window.history.length <= 1) {
+            navigate("/user/dashboard");
+        } else {
+            navigate(-1);
+        }
+    };
+
     return(
         <div className="flex justify-center items-center w-screen h-screen bg-gray-700 text-white relative">
-            <ArrowNarrowLeft onClick={() => navigate("/user/dashboard")} className="absolute top-5 left-5 scale-130 text-gray-50 hover:cursor-pointer" />
+            <ArrowNarrowLeft onClick={handleNavigateBack} className="absolute top-5 left-5 scale-130 text-gray-50 hover:cursor-pointer" />
             <div className="w-1/4 p-10 bg-gray-800  h-full flex flex-col justify-between items-center">
                 <div className="flex flex-col items-center gap-5 w-full">
-                    <div className="flex items-center justify-center w-40 h-40 text-4xl bg-gray-900 border-2 border-orange-500 font-bold rounded-full">
-                        <span className="select-none">{user?.first_name.at(0)?.toUpperCase()}{user?.last_name.at(0)?.toUpperCase()}</span>
+                    <div className="flex items-center justify-center w-40 h-40 text-5xl bg-gray-900 border-4 border-gray-700 shadow-xl font-bold rounded-full relative">
+                        <span className="select-none text-gray-100">{user?.first_name?.at(0)?.toUpperCase()}{user?.last_name?.at(0)?.toUpperCase()}</span>
+                        <div className="absolute bottom-2 right-4 w-5 h-5 bg-green-500 border-4 border-gray-800 rounded-full"></div>
                     </div>
-                    {isExaminee && 
+                    {/* {isExaminee ?                         
                         <div className="flex gap-3 text-xl w-full">
-                            <div className="flex justify-center items-center border-2 border-gray-500 w-[50%] h-24 rounded">
-                                <span>{user?.xp_points} XP</span>
+                            <div className="flex flex-col justify-center items-center border border-gray-600 bg-gray-700/50 w-[50%] h-24 rounded-xl shadow-sm">
+                                <span className="flex items-end text-xl h-1/2 font-black text-orange-400">{user?.xp_points || 0}</span>
+                                <span className="text-[10px] h-1/2 text-gray-400 uppercase font-bold tracking-widest mt-1">XP Bodova</span>
                             </div>
-                            <div className="flex justify-center items-center border-2 border-gray-500 w-[50%] h-24 rounded">
-                                <span>{user?.expertise_level.toUpperCase()}</span>
+                            <div className="flex flex-col justify-center items-center border border-gray-600 bg-gray-700/50 w-[50%] h-24 rounded-xl shadow-sm px-2 text-center">
+                                <span className="flex items-end text-lg h-1/2 font-black text-blue-400 leading-tight">
+                                    {user?.expertise_level === "novice" ? "POČETNIK" : user?.expertise_level === "intermediate" ? "NAPREDNI" : "STRUČNJAK"}
+                                </span>
+                                <span className="text-[10px] h-1/2 text-gray-400 uppercase font-bold tracking-widest mt-1">Razina</span>
                             </div>
                         </div>
-                    }
-                    
+                                
+                        : <></>
+                    } */}
+                        <div className="w-full flex flex-col gap-3 mt-5">
+                            {isExaminee && 
+                                <div className="w-full flex flex-col gap-3">
+                                    <div className={"flex justify-center items-center border w-full py-3 rounded-xl shadow-sm bg-green-500/10 border-green-500/30"}>
+                                        <span className={"text-sm font-bold uppercase tracking-widest text-green-400"}>
+                                            Ispitanik/student
+                                        </span>
+                                    </div>
+                                </div>
+                            }
 
-                    <button className="cursor-pointer border border-gray-600 font-semibold px-3 py-2 rounded">Povijest rješavanja i statistika</button>
+                            {isAdmin && 
+                                <div className="w-full flex flex-col gap-3">
+                                    <div className={"flex justify-center items-center border w-full py-3 rounded-xl shadow-sm bg-purple-500/10 border-purple-500/30"}>
+                                        <span className={"text-sm font-bold uppercase tracking-widest text-purple-400"}>
+                                            Administrator
+                                        </span>
+                                    </div>
+                                </div>
+                            }
+
+                            {isTeacher && 
+                                <div className="w-full flex flex-col gap-3">
+                                    <div className={"flex justify-center items-center border w-full py-3 rounded-xl shadow-sm bg-blue-500/10 border-blue-500/30"}>
+                                        <span className={"text-sm font-bold uppercase tracking-widest text-blue-400"}>
+                                            Nastavnik 
+                                        </span>
+                                    </div>
+                                </div>
+                            }
+                            
+                            {isExpert && 
+                                <div className="w-full flex flex-col gap-3">
+                                    <div className={"flex justify-center items-center border w-full py-3 rounded-xl shadow-sm bg-orange-500/10 border-orange-500/30"}>
+                                        <span className={"text-sm font-bold uppercase tracking-widest text-orange-400"}>
+                                            Stručnjak
+                                        </span>
+                                    </div>
+                                </div>
+                            }
+                            
+                            
+                        </div>
+                        
                 </div>
 
                 <div className="w-full">
@@ -181,27 +243,74 @@ function Profile() {
                     <button onClick={() => setChangePasswordModalOpen(true)} className="cursor-pointer border border-gray-600 font-semibold px-3 py-2 rounded">Promijeni lozinku</button>
                     <button onClick={() => setDeactivateModalOpen(true)} className="cursor-pointer border border-gray-600 font-semibold px-3 py-2 rounded text-red-400">Deaktiviraj račun</button>
                 </div>
-            </div>
+            </div>            
             
             <Modal
                 isOpen={changePasswordModalOpen}
-                onClose={() => setChangePasswordModalOpen(false)}
+                onClose={() => {
+                    setFormData({
+                        oldPassword: "",
+                        newPassword: "",
+                        confirmNewPassword: ""
+                    });
+                    setChangePasswordModalOpen(false);
+                }}
                 title="Promjena lozinke"
             >
                 <div className="w-full flex flex-col items-center gap-3">
-                    {passwordChangeInputs.map((i, idx) => (
-                        <div key={idx} className="relative flex items-center w-1/2">
-                            <input 
-                                type={"password"} 
-                                placeholder={i.label} 
-                                name={i.name} 
-                                value={i.value}
-                                onChange={handleChange} 
-                                className="p-2 bg-gray-200 text-gray-600 border border-gray-400 rounded focus:ring-2 focus:ring-orange-500 outline-none w-full"
-                            />
+                    {passwordChangeInputs.map((i, idx) => {
+                        const isConfirmField = i.name === "confirmNewPassword";
+                        const hasTypedConfirm = formData.confirmNewPassword.length > 0;
+                        const isMismatched = formData.confirmNewPassword !== formData.newPassword;
+                        const hasError = isConfirmField && hasTypedConfirm && isMismatched;
+
+                        return(
+                            <div key={idx} className="relative flex flex-col justify-center-center w-1/2">
+                                <input 
+                                    type={"password"} 
+                                    placeholder={i.label} 
+                                    name={i.name} 
+                                    value={i.value}
+                                    onChange={handleChange} 
+                                    className={`p-2 bg-gray-200 text-gray-600 border rounded outline-none w-full transition-all ${
+                                        hasError 
+                                            ? "border-red-500 ring-2 ring-red-500 focus:ring-red-500 focus:border-red-500" 
+                                            : "border-gray-400 focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                                    }`}
+                                />
+                                {hasError && (
+                                    <span className="text-[11px] text-red-400 font-medium mt-1 animate-fadeIn">
+                                        Nove lozinke se ne podudaraju.
+                                    </span>
+                                )}
+                            </div>
+                        )
+                    })}
+
+                    {formData.newPassword.length > 0 && (
+                        <div className="w-1/2 bg-gray-200 p-3 rounded-lg border border-gray-600/40 space-y-1.5 text-xs animate-fadeIn">
+                            <p className="font-semibold text-gray-500 mb-2">Sigurnost lozinke:</p>
+                            
+                            {[
+                                { checked: passwordChecks.hasMinLength, label: "Minimalno 8 znakova" },
+                                { checked: passwordChecks.hasUpperCase, label: "Barem jedno veliko slovo (A-Z)" },
+                                { checked: passwordChecks.hasLowerCase, label: "Barem jedno malo slovo (a-z)" },
+                                { checked: passwordChecks.hasNumber, label: "Barem jedan broj (0-9)" },
+                                { checked: passwordChecks.hasSpecialChar, label: "Barem jedan posebni znak (npr. !, @, #, $)" },
+                            ].map((rule, index) => (
+                                <div key={index} className="flex items-center gap-2 transition-all">
+                                    <span className={`font-bold ${rule.checked ? "text-green-400" : "text-red-400"}`}>
+                                        {rule.checked ? <Check className="scale-70" /> : <XClose className="scale-70" />}
+                                    </span>
+                                    <span className={rule.checked ? "text-gray-400" : "text-gray-500"}>
+                                        {rule.label}
+                                    </span>
+                                </div>
+                            ))}
                         </div>
-                    ))}
-                    <button onClick={handleChangePassword} className="cursor-pointer border bg-red-600 font-semibold px-3 py-2 rounded-md">Potvrdi</button>
+                    )}
+
+                    <button disabled={!isPasswordValid || formData.confirmNewPassword.length === 0 || (formData.confirmNewPassword !== formData.newPassword) } onClick={handleChangePassword} className="disabled:bg-gray-500 disabled:cursor-not-allowed cursor-pointer border bg-orange-500 font-semibold px-3 py-2 rounded-md">Potvrdi</button>
                 </div>
             </Modal>
 

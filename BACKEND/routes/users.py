@@ -15,10 +15,7 @@ def get_session():
         yield session
 
 @router.get("/", response_model=List[dict])
-def get_all_users(
-    session: Session = Depends(get_session),
-    current_admin: User = Depends(get_current_admin)
-):
+def get_all_users(session: Session = Depends(get_session), current_admin: User = Depends(get_current_admin)):
     """
     Dohvaća popis svih korisnika iz baze zajedno s njihovim ulogama.
     Dostupno samo administratorima.
@@ -42,7 +39,8 @@ def get_all_users(
             "last_name": user.last_name,
             "email": user.email,
             "is_active": user.is_active,
-            "roles": user_roles
+            "roles": user_roles,
+            "institution_id": user.institution_id
         })
         
     return result

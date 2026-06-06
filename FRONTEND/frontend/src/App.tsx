@@ -50,6 +50,7 @@ function App() {
                 <Route path="/case/solve/:id" element={<CaseSolving />} />
                 <Route path="/case/:id/results" element={<Results />} />
                 <Route path="/case/create" element={<CaseCreating />} />
+                <Route path="/case/edit/:caseId" element={<CaseCreating />} />
                 <Route path="/user/register" element={<Register />} />
                 <Route path="/user/login" element={<Login />} />
                 <Route path="/user/profile" element={<Profile />} />

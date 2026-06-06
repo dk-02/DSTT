@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { ArrowNarrowLeft, Eye, EyeOff, HelpCircle } from "@untitledui/icons";
+import { useEffect, useState } from "react";
+import { ArrowNarrowLeft, Check, Eye, EyeOff, HelpCircle, XClose } from "@untitledui/icons";
 import { useNavigate } from "react-router-dom";
 import { useAuthStore } from "../store/useAuthStore";
 import { Tooltip, TooltipTrigger } from "../components/base/tooltip/tooltip";
@@ -11,13 +11,21 @@ interface RegisterProps {
     onSuccess?: () => void;
 }
 
+interface Institution {
+    id: string;
+    name: string;
+    domain: string;
+}
+
 export const Register = ({ isAdminMode = false, onSuccess } : RegisterProps) => {
+    const [institutions, setInstitutions] = useState<Institution[]>([]);
     const [passwordVisible, setPasswordVisible] = useState<boolean>(false);
     const [formData, setFormData] = useState({
         email: "",
         password: "",
         firstName: "",
         lastName: "",
+        institution_id: "",
         roles: [""]
     });
 
@@ -30,6 +38,33 @@ export const Register = ({ isAdminMode = false, onSuccess } : RegisterProps) => 
         { id: "expert", label: "Stručnjak" },
         { id: "teacher", label: "Nastavnik" }
     ];
+
+
+    useEffect(() => {
+        if (isAdminMode) {
+            const fetchInstitutions = async () => {
+                try {
+                    const res = await fetch(`${backendURL}/institutions/`, {
+                        headers: {
+                            "Authorization": `Bearer ${token}` 
+                        }
+                    });
+                    
+                    if (res.ok) {
+                        const data = await res.json();
+                        setInstitutions(data);
+                    } else {
+                        console.error("Neuspješno dohvaćanje institucija");
+                    }
+                } catch (error) {
+                    console.error("Greška pri dohvaćanju institucija:", error);
+                }
+            };
+
+            fetchInstitutions();
+        }
+    }, [isAdminMode, token]);
+
 
     const handleRoleToggle = (roleId: string) => {
         setFormData(prev => {
@@ -55,13 +90,36 @@ export const Register = ({ isAdminMode = false, onSuccess } : RegisterProps) => 
         });
     };
 
-    const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const handleChange = (e: React.ChangeEvent<HTMLInputElement> | React.ChangeEvent<HTMLSelectElement>) => {
         const { name, value } = e.target;
         
-        setFormData((prev) => ({
-            ...prev,
-            [name]: value 
-        }));
+
+        setFormData((prev) => {
+            const updatedData = {
+                ...prev,
+                [name]: value 
+            };
+
+            if (isAdminMode && name === "email" && value.includes("@")) {
+                const parts = value.split("@");
+                
+                if (parts.length === 2) {
+                    const typedDomain = parts[1].toLowerCase();
+                    
+                    const matchedInstitution = institutions.find(inst => inst.domain === typedDomain);
+                    
+                    if (matchedInstitution) {
+                        updatedData.institution_id = matchedInstitution.id;
+                    }
+                }
+            }
+
+            return updatedData;
+        });
+        // setFormData((prev) => ({
+        //     ...prev,
+        //     [name]: value 
+        // }));
     };
 
     const handleRegister = async () => {
@@ -78,6 +136,7 @@ export const Register = ({ isAdminMode = false, onSuccess } : RegisterProps) => 
                 password: formData.password,
                 first_name: formData.firstName,
                 last_name: formData.lastName,
+                institution_id: formData.institution_id === "" ? null : formData.institution_id,
                 roles: formData.roles
             })
             : JSON.stringify({ 
@@ -109,13 +168,23 @@ export const Register = ({ isAdminMode = false, onSuccess } : RegisterProps) => 
         setPasswordVisible(prev => !prev);
     }
 
+    const passwordChecks = {
+        hasMinLength: formData.password.length >= 8,
+        hasUpperCase: /[A-Z]/.test(formData.password),
+        hasLowerCase: /[a-z]/.test(formData.password),
+        hasNumber: /[0-9]/.test(formData.password),
+        hasSpecialChar: /[!@#$%^&*(),.?":{}|<>_+\-[\]/\\]/.test(formData.password),
+    };
+
+    const isPasswordValid = Object.values(passwordChecks).every(Boolean);
+
     const containerClasses = isAdminMode 
         ? "w-full p-2 text-white"
-        : "flex justify-center items-center w-full h-screen bg-gray-700 relative";
+        : "flex justify-center items-center w-full h-screen bg-gray-800 relative";
 
     const formClasses = isAdminMode
         ? "w-full flex flex-col gap-4"
-        : "w-1/4 flex flex-col gap-4 p-10 bg-gray-600 text-white rounded-xl shadow-2xl";
+        : "w-1/4 flex flex-col gap-4 p-10 bg-gray-700 text-white rounded-xl shadow-2xl";
 
     const inputClasses = isAdminMode
         ? "p-2 bg-gray-200 text-gray-600 border border-gray-400 rounded focus:ring-2 focus:ring-orange-500 outline-none w-full"
@@ -129,7 +198,7 @@ export const Register = ({ isAdminMode = false, onSuccess } : RegisterProps) => 
                     className="absolute top-5 left-5 scale-130 text-gray-50 hover:cursor-pointer" 
                 />
             )}
-            <div className={formClasses}>
+            <form onSubmit={(e) => { e.preventDefault(); handleRegister(); }} className={formClasses}>
                 {!isAdminMode && (
                     <div className="border-l-3 border-orange-400 flex items-center pl-2 mb-5">
                         <h2 className="font-bold text-2xl">Registracija</h2>
@@ -170,6 +239,29 @@ export const Register = ({ isAdminMode = false, onSuccess } : RegisterProps) => 
 
                 </div>
 
+                {formData.password.length > 0 && (
+                    <div className={`${isAdminMode ? "bg-gray-200/50" : "bg-gray-800/40"} p-3 rounded-lg border border-gray-600/40 space-y-1.5 text-xs animate-fadeIn`}>
+                        <p className={`font-semibold ${isAdminMode ? "text-gray-600" : "text-gray-400"}  mb-2`}>Sigurnost lozinke:</p>
+                        
+                        {[
+                            { checked: passwordChecks.hasMinLength, label: "Minimalno 8 znakova" },
+                            { checked: passwordChecks.hasUpperCase, label: "Barem jedno veliko slovo (A-Z)" },
+                            { checked: passwordChecks.hasLowerCase, label: "Barem jedno malo slovo (a-z)" },
+                            { checked: passwordChecks.hasNumber, label: "Barem jedan broj (0-9)" },
+                            { checked: passwordChecks.hasSpecialChar, label: "Barem jedan posebni znak (npr. !, @, #, $)" },
+                        ].map((rule, index) => (
+                            <div key={index} className="flex items-center gap-2 transition-all">
+                                <span className={`font-bold ${rule.checked ? "text-green-400" : "text-red-400"}`}>
+                                    {rule.checked ? <Check className="w-5" /> : <XClose className="w-5" />}
+                                </span>
+                                <span className={rule.checked ? (isAdminMode ? "text-gray-400" : "text-gray-300") : (isAdminMode ? "text-gray-600" : "text-gray-400")}>
+                                    {rule.label}
+                                </span>
+                            </div>
+                        ))}
+                    </div>
+                )}
+
                 {isAdminMode && (
                     <div className="flex flex-col gap-2 mt-2">
                         <div className="flex items-center gap-1">
@@ -203,13 +295,34 @@ export const Register = ({ isAdminMode = false, onSuccess } : RegisterProps) => 
                                 </div>
                             )})}
                         </div>
+
+                        {(formData.roles.includes("teacher") || formData.roles.includes("examinee")) && 
+                            <select 
+                                name="institution_id"
+                                className="p-2 bg-gray-200 text-gray-600 border border-gray-400 rounded text-sm outline-none focus:ring-2 focus:ring-orange-500"
+                                value={formData.institution_id}
+                                onChange={handleChange}
+                            >
+                                <option value="">Odaberite ustanovu</option>
+                                {institutions.map((inst) => (
+                                    <option key={inst.id} value={inst.id}>
+                                        {inst.name}
+                                    </option>
+                                ))}
+                            </select>
+                        }
+                        
                     </div>
                 )}
 
-                <button onClick={handleRegister} className="bg-orange-500 p-2 rounded hover:cursor-pointer">
+                <button 
+                    type="submit"
+                    disabled={!isPasswordValid || !formData.email || !formData.firstName || !formData.lastName}
+                    className="disabled:bg-gray-500 disabled:cursor-not-allowed bg-orange-500 p-2 rounded hover:cursor-pointer"
+                >
                     {isAdminMode ? "Kreiraj račun" : "Registriraj se"}
                 </button>
-            </div>
+            </form>
         </div>
     );
 };

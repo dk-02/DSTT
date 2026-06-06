@@ -6,8 +6,8 @@ export interface User {
   email: string;
   first_name: string;
   last_name: string;
-  expertise_level: 'novice' | 'intermediate' | 'expert';
-  xp_points: number;
+  // expertise_level: 'novice' | 'intermediate' | 'expert';
+  // xp_points: number;
   roles: string[];
 }
 
