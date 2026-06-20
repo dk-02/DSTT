@@ -781,8 +781,24 @@ async def submit_diagnosis(attempt_id: uuid.UUID, data: DiagnosisRequest, sessio
     case = session.get(Case, attempt.case_id)
     if not case:
         raise HTTPException(status_code=404, detail="Slučaj nije pronađen.")
-
     
+    assignment = session.get(Assignment, attempt.assignment_id)
+
+    is_strict_mode = not attempt.is_practice or (assignment is not None and assignment.type != "practice") or attempt.settings.get("allow_diagnosis_retry") == False
+    
+    if is_strict_mode:
+        feedback_rules = """
+        - If the student correctly identified the core issue (even with different words), respond with 'CORRECT.' followed by a short confirmation.
+        - If they missed some details but got the main direction, respond with 'PARTIAL.' Provide a very brief generic explanation, but DO NOT reveal exactly what is missing and DO NOT give hints.
+        - If they are completely wrong, respond with 'INCORRECT.' DO NOT give any hints and DO NOT reveal the correct answer.
+        """
+    else:
+        feedback_rules = """
+        - If the student correctly identified the core issue (even with different words), respond with 'CORRECT.' followed by short feedback.
+        - If they missed some details but got the main direction, respond with 'PARTIAL.' followed by exactly what is missing.
+        - If they are completely wrong, respond with 'INCORRECT.' and a brief hint to guide them.
+        """
+
     system_prompt = f"""
         If you can, answer in CROATIAN.
         You are an expert instructor evaluating student's diagnosis. 
@@ -792,9 +808,7 @@ async def submit_diagnosis(attempt_id: uuid.UUID, data: DiagnosisRequest, sessio
         Compare them. Focus on the core meaning and technical substance, NOT on the exact wording. 
         Accept synonyms, slight spelling mistakes, or alternative phrasing if the student clearly understands the root cause.
         
-        - If the student correctly identified the core issue (even with different words), respond with 'CORRECT.' followed by short feedback.
-        - If they missed some details but got the main direction, respond with 'PARTIAL.' followed by what is missing.
-        - If they are completely wrong, respond with 'INCORRECT.' and a brief hint.
+        {feedback_rules}
     """
 
     response = requests.post(
