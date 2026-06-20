@@ -78,6 +78,9 @@ function CaseSolving() {
     // CANCEL
     const [cancelModalOpen, setCancelModalOpen] = useState<boolean>(false);
 
+    // FINISH
+    const [finishModalOpen, setFinishModalOpen] = useState<boolean>(false);
+
     const [isStoreReady, setIsStoreReady] = useState(false);
 
     const navigate = useNavigate();
@@ -344,6 +347,24 @@ function CaseSolving() {
         }
     }
 
+    const handleFinalSubmitManually = async () => {
+        try {
+            const response = await fetch(`${backendURL}/attempts/${attemptId}/finalize`, {
+                method: "POST",
+                headers: { "Authorization": `Bearer ${token}` }
+            });
+
+            if (response.ok) {
+                reset();
+                navigate("/user/dashboard?tab=solve-history");
+            } else {
+                alert("Greška pri zaključavanju rada.");
+            }
+        } catch(err) {
+            console.error(err);
+        }
+    };
+
     if (!isStoreReady) {
         return <div className="text-white">Učitavanje slučaja...</div>;
     }
@@ -361,8 +382,19 @@ function CaseSolving() {
             <div className="p-5 relative flex justify-center items-center h-fit w-full shrink-0">
                 <ArrowNarrowLeft onClick={handleNavigateBack} className="absolute left-5 top-1/2 -translate-y-1/2 scale-130 text-gray-50 hover:cursor-pointer" />
                 <h1 className="text-white font-bold text-2xl">{caseInfo?.title}</h1>
-                <div className="absolute right-5 top-1/2 -translate-y-1/2 text-white font-mono bg-gray-800 px-4 py-2 rounded-lg border border-gray-600 flex gap-3">
-                    <Clock /> {elapsedTime}
+                <div className="absolute right-5 top-1/2 -translate-y-1/4 text-white  flex flex-col gap-3">
+                    <div className="font-mono flex gap-3 bg-gray-800 px-4 py-2 rounded-lg border border-gray-600">
+                        <Clock /> {elapsedTime}
+                    </div>
+                    <button 
+                        onClick={() => setFinishModalOpen(true)} 
+                        className="bg-orange-500 text-white font-bold text-sm px-2 py-1.5 rounded hover:cursor-pointer"
+                    >
+                        Predaj i završi
+                    </button>
+                    <button onClick={() => setCancelModalOpen(true)} className="bg-red-600 text-white text-sm font-bold px-2 py-1.5 rounded hover:cursor-pointer">
+                        Prekini rješavanje
+                    </button>
                 </div>
             </div>
             <div className="p-5 flex gap-5 flex-1 overflow-hidden min-h-0">
@@ -398,7 +430,7 @@ function CaseSolving() {
                         )}
                     </div>
                 </div>
-                <div className="w-2/3 h-full flex flex-col items-center">
+                <div className="w-1/2 h-full flex flex-col items-center">
                     <div className="flex-1 min-h-0 border border-gray-500 overflow-y-auto p-2.5 w-full bg-gray-800 rounded-lg shadow-inner mb-4">
                         {messages.map((m, i) => (
                             <div key={i} className="flex flex-col">
@@ -428,7 +460,7 @@ function CaseSolving() {
                     <div className="w-full shrink-0 flex flex-col items-center gap-1">
                         {attemptStatus === "in_progress" ? (
                             <>
-                                <div className="w-2/3 mt-2 flex gap-2">
+                                <div className="w-full mt-2 flex gap-2">
                                     <input 
                                         type="text" 
                                         value={input} 
@@ -447,7 +479,7 @@ function CaseSolving() {
                                     )}
                                 </div>
 
-                                <div className="w-2/3 mt-2 flex gap-2">
+                                <div className="w-full mt-2 flex gap-2">
                                     <input 
                                         type="text" 
                                         value={diagnosis} 
@@ -460,7 +492,7 @@ function CaseSolving() {
                                     >Provjeri</button>
                                 </div>
 
-                                <div className="w-2/3 mt-2 flex gap-2">
+                                <div className="w-full mt-2 flex gap-2">
                                     {settings?.enable_hints && (
                                         <button onClick={handleGetHint} className="bg-orange-500 text-orange-50 font-bold px-3 py-2 rounded-lg hover:cursor-pointer">
                                             Hint
@@ -471,9 +503,6 @@ function CaseSolving() {
                                             <ReverseLeft className="w-5" /> Poništi 
                                         </button>
                                     )}
-                                    <button onClick={() => setCancelModalOpen(true)} className="bg-red-600 text-white font-bold px-3 py-2 rounded-lg hover:cursor-pointer ml-auto">
-                                        Prekini rješavanje
-                                    </button>
                                 </div> 
                             </>
                         ) : (
@@ -498,10 +527,24 @@ function CaseSolving() {
                 onClose={() => setCancelModalOpen(false)}
                 title={"Prekinuti rješavanje?"}
             >
-                <div className="w-full flex justify-center">
+                <div className="w-full flex justify-center flex-col items-center gap-5">
+                    <p>Ovom akcijom <strong>gubi se cijeli postupak rješavanja</strong>. Jeste li sigurni da želite prekinuti rješavanje?</p>
                     <button onClick={handleQuit} 
                         className="bg-red-600 text-orange-50 font-bold px-3 py-2 rounded hover:cursor-pointer"
                     >Potvrdi</button>
+                </div>
+            </Modal>
+
+            <Modal 
+                isOpen={finishModalOpen}
+                onClose={() => setFinishModalOpen(false)}
+                title={"Završiti rješavanje?"}
+            >
+                <div className="w-full flex justify-center flex-col items-center gap-5">
+                    <p>Jeste li sigurni da želite konačno predati i zaključati rad? Nakon ovoga više nećete moći mijenjati dijagnozu ni slati upite.</p>
+                    <button onClick={handleFinalSubmitManually} 
+                        className="bg-orange-500 text-orange-50 font-bold px-3 py-2 rounded hover:cursor-pointer"
+                    >Predaj</button>
                 </div>
             </Modal>
 

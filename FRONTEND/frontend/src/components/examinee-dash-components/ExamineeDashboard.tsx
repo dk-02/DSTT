@@ -444,49 +444,94 @@ function ExamineeDashboard() {
                             </div>
                         </div>
                         {studentAssignments.length > 0 ? (
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 mt-5">
-                                {studentAssignments.map((a) => {
-                                    const isExam = a.type === "exam";
-                                    const badgeColor = isExam ? "bg-red-900/40 text-red-400" : "bg-purple-900/40 text-purple-400";
-                                    const typeLabel = a.type === "practice" ? "Vježba" : a.type === "practice_exam" ? "Probni ispit" : "Ispit";
-                                    
-                                    const deadline = a.available_until;
-
+                            <div className="space-y-10">
+                                
+                                {/* AKTIVNE ZADAĆE */}
+                                {(() => {
+                                    const active = studentAssignments.filter(a => !a.available_until || new Date() < new Date(a.available_until));
+                                    if (active.length === 0) return null;
                                     return (
-                                        <div key={a.id} className="flex flex-col bg-gray-600 rounded-2xl shadow-lg border border-gray-700 overflow-hidden group">
-                                            
-                                            <div className="flex justify-between items-start p-4 bg-gray-700/50 border-b border-gray-600">
-                                                <span className="bg-gray-800 text-xs font-semibold px-2 py-1 rounded-md text-gray-300 truncate max-w-[60%]">
-                                                    {a.group_name}
-                                                </span>
-                                                <span className={`${badgeColor} text-xs font-bold px-2 py-1 rounded-md`}>
-                                                    {typeLabel}
-                                                </span>
-                                            </div>
+                                        <div>
+                                            <h3 className="text-lg font-bold text-gray-200 mb-4 flex items-center gap-2">
+                                                <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span> Aktivne zadaće ({active.length})
+                                            </h3>
+                                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                                                {active.map((a) => {
+                                                    const isExam = a.type === "exam";
+                                                    const badgeColor = isExam ? "bg-red-900/40 text-red-400" : "bg-purple-900/40 text-purple-400";
+                                                    const typeLabel = a.type === "practice" ? "Vježba" : a.type === "practice_exam" ? "Probni ispit" : "Ispit";
+                                                    const deadline = a.available_until;
 
-                                            <div className="p-5 flex-1 flex flex-col justify-between">
-                                                <div>
-                                                    <h3 className="text-lg font-bold text-white mb-2">
-                                                        {a.title}
-                                                    </h3>
-                                                    <p className="text-sm text-gray-400 mb-4 line-clamp-2">
-                                                        {a.instructions || "Nema dodatnih uputa."}
-                                                    </p>
-                                                    
-                                                    {deadline && (
-                                                        <div className="text-xs font-medium inline-block px-2 py-1 rounded bg-gray-800/50 text-gray-300">
-                                                            Rok: {new Date(deadline).toLocaleString('hr-HR', { day: 'numeric', month: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                                                    return (
+                                                        <div key={a.id} className="flex flex-col bg-gray-600 rounded-2xl shadow-lg border border-gray-700 overflow-hidden group">
+                                                            <div className="flex justify-between items-start p-4 bg-gray-700/50 border-b border-gray-600">
+                                                                <span className="bg-gray-800 text-xs font-semibold px-2 py-1 rounded-md text-gray-300 truncate max-w-[60%]">{a.group_name}</span>
+                                                                <span className={`${badgeColor} text-xs font-bold px-2 py-1 rounded-md`}>{typeLabel}</span>
+                                                            </div>
+                                                            <div className="p-5 flex-1 flex flex-col justify-between">
+                                                                <div>
+                                                                    <h3 className="text-lg font-bold text-white mb-2">{a.title}</h3>
+                                                                    <p className="text-sm text-gray-400 mb-4 line-clamp-2">{a.instructions || "Nema dodatnih uputa."}</p>
+                                                                    {deadline && (
+                                                                        <div className="text-xs font-medium inline-block px-2 py-1 rounded bg-gray-800/50 text-gray-300">
+                                                                            Rok: {new Date(deadline).toLocaleString('hr-HR', { day: 'numeric', month: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                                                                        </div>
+                                                                    )}
+                                                                </div>
+                                                                <button onClick={() => handleViewAssignment(a.id)} className="w-full mt-5 bg-orange-500 text-white font-bold py-2.5 rounded-lg transition-all shadow-md cursor-pointer hover:bg-orange-600">
+                                                                    Detalji zadaće
+                                                                </button>
+                                                            </div>
                                                         </div>
-                                                    )}
-                                                </div>
-                                                
-                                                <button onClick={() => handleViewAssignment(a.id)} className="w-full mt-5 bg-orange-500  text-white font-bold py-2.5 rounded-lg transition-all shadow-md cursor-pointer">
-                                                    Detalji zadaće
-                                                </button>
+                                                    );
+                                                })}
                                             </div>
                                         </div>
                                     );
-                                })}
+                                })()}
+
+                                {/* PROŠLE / ISTEKLE ZADAĆE */}
+                                {(() => {
+                                    const past = studentAssignments.filter(a => a.available_until && new Date() >= new Date(a.available_until));
+                                    if (past.length === 0) return null;
+                                    return (
+                                        <div className="pt-6 border-t border-gray-700/50">
+                                            <h3 className="text-lg font-bold text-gray-400 mb-4 flex items-center gap-2">
+                                                <span className="w-2 h-2 bg-gray-500 rounded-full"></span> Prošle zadaće ({past.length})
+                                            </h3>
+                                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 opacity-65">
+                                                {past.map((a) => {
+                                                    const isExam = a.type === "exam";
+                                                    const badgeColor = isExam ? "bg-red-900/20 text-red-400/70" : "bg-purple-900/20 text-purple-400/70";
+                                                    const typeLabel = a.type === "practice" ? "Vježba" : a.type === "practice_exam" ? "Probni ispit" : "Ispit";
+                                                    const deadline = a.available_until;
+
+                                                    return (
+                                                        <div key={a.id} className="flex flex-col bg-gray-700 rounded-2xl shadow-md border border-gray-600/50 overflow-hidden group">
+                                                            <div className="flex justify-between items-start p-4 bg-gray-800/40 border-b border-gray-700">
+                                                                <span className="bg-gray-800 text-xs font-semibold px-2 py-1 rounded-md text-gray-400 truncate max-w-[60%]">{a.group_name}</span>
+                                                                <span className={`${badgeColor} text-xs font-bold px-2 py-1 rounded-md`}>{typeLabel}</span>
+                                                            </div>
+                                                            <div className="p-5 flex-1 flex flex-col justify-between">
+                                                                <div>
+                                                                    <h3 className="text-lg font-bold text-gray-300 mb-2">{a.title}</h3>
+                                                                    <p className="text-sm text-gray-400 mb-4 line-clamp-2">{a.instructions || "Nema dodatnih uputa."}</p>
+                                                                    <div className="text-xs font-medium inline-block px-2 py-1 rounded bg-red-900/20 text-red-400 border border-red-900/30">
+                                                                        Isteklo: {new Date(deadline).toLocaleString('hr-HR', { day: 'numeric', month: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                                                                    </div>
+                                                                </div>
+                                                                <button onClick={() => handleViewAssignment(a.id)} className="w-full mt-5 bg-gray-600 border border-gray-500 text-gray-200 font-bold py-2.5 rounded-lg transition-all shadow-md cursor-pointer hover:bg-gray-500">
+                                                                    Pregledaj slučajeve
+                                                                </button>
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                        </div>
+                                    );
+                                })()}
+
                             </div>
                         ) : (
                             renderEmptyState("Nema zadaća", "Nemate zadaća koje čekaju na rješavanje.")
@@ -607,12 +652,30 @@ function ExamineeDashboard() {
                                             </div>
                                         </div>
                                         
-                                        <button 
-                                            onClick={() => handleStartCase(c.id, selectedAssignment.id, selectedAssignment.type)} 
-                                            className="bg-orange-500 hover:bg-orange-600 text-white font-bold px-5 py-2.5 rounded-lg transition-colors shadow-md cursor-pointer"
-                                        >
-                                            {c.status === "in_progress" ? "Nastavi s rješavanjem" : "Pokreni"}
-                                        </button>
+
+                                        {(() => {
+                                            const currentAssignmentInfo = studentAssignments.find(sa => sa.id === selectedAssignment.id);
+                                            const isExpired = currentAssignmentInfo?.available_until 
+                                                ? new Date() >= new Date(currentAssignmentInfo.available_until) 
+                                                : false;
+
+                                            return (
+                                                <button
+                                                    disabled={isExpired && c.status !== "in_progress"}
+                                                    onClick={() => handleStartCase(c.id, selectedAssignment.id, selectedAssignment.type)} 
+                                                    className={`font-bold px-5 py-2.5 rounded-lg shadow-md flex items-center justify-center gap-2
+                                                        ${isExpired && c.status !== "in_progress"
+                                                            ? "bg-gray-600 text-gray-400 cursor-not-allowed border border-gray-700" 
+                                                            : "bg-orange-500 text-white hover:cursor-pointer"
+                                                        }`}
+                                                >
+                                                    {c.status === "in_progress" 
+                                                        ? "Nastavi s rješavanjem" 
+                                                        : isExpired ? "Rok istekao" : "Pokreni"
+                                                    }
+                                                </button>
+                                            );
+                                        })()}
                                     </div>
                                 ))}
 

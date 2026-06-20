@@ -51,6 +51,9 @@ export interface AssignmentDetails {
     case_count: number;
     assigned_groups: AssignedGroups[];
     settings: Settings;
+    warning_not_enough_cases: boolean;
+    available_cases_count: number;
+    warning_reasons: string[];
 }
 
 export interface Assignment {

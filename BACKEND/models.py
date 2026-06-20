@@ -259,6 +259,9 @@ class AttemptStart(BaseModel):
 class TeacherCommentRequest(BaseModel):
     comment: str
 
+class OverrideVerdictRequest(BaseModel):
+    verdict: str  # "correct", "partial", "incorrect"
+
 # --------- INSTITUTIONS --------------
 
 class Institution(SQLModel, table=True):

@@ -64,6 +64,7 @@ function Results() {
     const [loading, setLoading] = useState(true);
     const [teacherComment, setTeacherComment] = useState<string | null>(null);
     const [attemptUserId, setAttemptUserId] = useState<string | null>(null);
+    const [manualVerdict, setManualVerdict] = useState<string>("");
 
     const { id: attemptId } = useParams();
     const navigate = useNavigate();
@@ -87,6 +88,7 @@ function Results() {
                     const data = await response.json();
                     setReport(data.evaluation_report);
                     setTeacherComment(data.teacher_comment);
+                    setManualVerdict(data.evaluation_report.metrics.accuracy.verdict);
                     setAttemptUserId(data.user_id);
                 } else {
                     console.error("Greška pri dohvaćanju izvještaja.");
@@ -118,6 +120,32 @@ function Results() {
         }
     };
 
+    const handleOverrideVerdict = async (newVerdict: string | null) => {
+        if (!newVerdict) return;
+
+        try {
+            const res = await fetch(`${backendURL}/attempts/${attemptId}/override-verdict`, {
+                method: "PATCH",
+                headers: { 
+                    "Authorization": `Bearer ${token}`,
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({ verdict: newVerdict })
+            });
+
+            if (res.ok) {
+                const data = await res.json();
+                setReport(data.evaluation_report);
+            } else {
+                const errorData = await res.json();
+                alert(`Greška: ${errorData.detail}`);
+            }
+        } catch (err) {
+            console.error(err);
+            alert("Došlo je do pogreške pri komunikaciji sa serverom.");
+        }
+    };
+
 
     if (loading) {
         return <div className="w-screen h-screen flex items-center justify-center bg-gray-50 text-gray-500 font-medium">Učitavanje rezultata...</div>;
@@ -138,6 +166,7 @@ function Results() {
     const getVerdictColor = (verdict: string) => {
         if (verdict === "correct") return "bg-green-100 text-green-800 border-green-300";
         if (verdict === "partial") return "bg-yellow-100 text-yellow-800 border-yellow-300";
+        if (verdict === "unknown") return "bg-gray-100 text-gray-800 border-gray-300";
         return "bg-red-100 text-red-800 border-red-300";
     };
 
@@ -215,15 +244,47 @@ function Results() {
 
                     {/* 1. TOČNOST */}
                     <div className="bg-gray-800 rounded-2xl shadow-sm p-6 flex flex-col">
-                        <h2 className="text-lg font-bold text-gray-100 uppercase tracking-wider mb-4 border-b border-b-gray-700 pb-2">1. Točnost (Accuracy)</h2>
-                        <div className={`p-4 rounded-xl border ${getVerdictColor(accuracy.verdict)} mb-4`}>
-                            <p className="font-bold uppercase mb-1">
-                                {accuracy.verdict === "correct" ? "Točna dijagnoza" : 
-                                 accuracy.verdict === "partial" ? "Djelomično točno" : 
-                                 accuracy.verdict === "failed_due_to_fatal_mistake" ? "Fatalna pogreška" : "Netočna dijagnoza"}
-                            </p>
-                            <p className="text-sm opacity-90">{accuracy.feedback}</p>
+                        <div>
+                            <h2 className="text-lg font-bold text-gray-100 uppercase tracking-wider mb-4 border-b border-b-gray-700 pb-2">1. Točnost (Accuracy)</h2>
+                            <div className={`p-4 rounded-xl border ${getVerdictColor(accuracy.verdict)} mb-4`}>
+                                <p className="font-bold uppercase mb-1">
+                                    {accuracy.verdict === "correct" ? "Točna dijagnoza" : 
+                                    accuracy.verdict === "partial" ? "Djelomično točno" : 
+                                    accuracy.verdict === "failed_due_to_fatal_mistake" ? "Fatalna pogreška" : 
+                                    accuracy.verdict === "unknown" ? "Nije pokušano" : "Netočna dijagnoza"}
+                                </p>
+                                <p className="text-sm opacity-90">{accuracy.feedback}</p>
+                            </div>
                         </div>
+
+                        {isTeacher && (
+                            <div className="mt-2 pt-4 border-t border-gray-700 flex flex-col gap-2">
+                                <label className="text-xs font-bold text-orange-400 uppercase tracking-wider">
+                                    Ručna korekcija točnosti (Admin/Nastavnik)
+                                </label>
+                                <div className="flex gap-2">
+                                    <select 
+                                        value={accuracy.verdict === "failed_due_to_fatal_mistake" ? "incorrect" : manualVerdict}
+                                        onChange={(e) => setManualVerdict(e.target.value)}
+                                        className="bg-gray-700 border border-gray-600 text-gray-100 px-3 py-1.5 rounded-lg text-sm outline-none focus:border-orange-500 cursor-pointer flex-1"
+                                    >
+                                        <option value="correct">Ocijeni kao: TOČNO</option>
+                                        <option value="partial">Ocijeni kao: DJELOMIČNO TOČNO</option>
+                                        <option value="incorrect">Ocijeni kao: NETOČNO</option>
+                                    </select>
+                                </div>
+                                <p className="text-[10px] text-gray-400 italic">
+                                    *Napomena: Promjenom ove vrijednosti ponovno će se izračunati i postotak za Metodičnost.
+                                </p>
+
+                                <button 
+                                    onClick={() => handleOverrideVerdict(manualVerdict)}
+                                    className="bg-orange-500 w-fit cursor-pointer text-white py-1 px-2 rounded-lg"
+                                >
+                                    Potvrdi
+                                </button>
+                            </div>
+                        )}
                     </div>
 
                     {/* 2. METODIČNOST */}

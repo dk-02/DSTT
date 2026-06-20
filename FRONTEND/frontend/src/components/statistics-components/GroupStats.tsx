@@ -202,12 +202,13 @@ function GroupStats({ isPractice }: GroupStatsProps) {
                                         </span>
                                     </div>
                                 </div>
-                                <button
+                                {attempt.status !== "cancelled" && <button
                                     onClick={() => navigate(`/case/${attempt.attempt_id}/results`)}
                                     className="bg-orange-500 cursor-pointer text-white text-sm font-bold py-2 px-4 rounded"
                                 >
                                     Pregledaj
-                                </button>
+                                </button>}
+                                
                             </div>
                         ))
                     )}
