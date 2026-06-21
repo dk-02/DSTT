@@ -976,7 +976,14 @@ async def ask_llm_mentor(data: ChatRequest, attempt_id: uuid.UUID, session: Sess
 
     message = data.message    
 
-    prompt = f"Ti si mentor studentu koji dijagnosticira slučaj: {case.initial_info}. Točna dijagnoza je {case.correct_diagnosis}. Student te pita: '{message}'. Daj mu pedagoški savjet, ali mu NIKAKO ne smiješ otkriti konačno rješenje. Uputi ga na pravi put."
+    prompt = f"""
+    If you can, answer in CROATIAN.
+    You are an expert mentor helping a student who is diagnosing the following case: {case.initial_info}. 
+    The correct diagnosis is: {case.correct_diagnosis}. 
+    The student asks you: '{message}'. 
+    
+    Answer their questions, provide advice and guide them on the right path. UNDER NO CIRCUMSTANCES are you allowed to reveal the final correct diagnosis or the direct solution.
+    """
   
     response = requests.post(
         url="https://openrouter.ai/api/v1/chat/completions",
