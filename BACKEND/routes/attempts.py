@@ -250,7 +250,7 @@ def generate_evaluation_report(attempt_id: uuid.UUID, session: Session) -> Dict[
 
     mentor_requests_count = sum(1 for log in valid_logs if log.event_type == "mentor_request")
 
-    independence_score = 100 - (penalized_hints * 20)
+    independence_score = 100 - (penalized_hints * 10)
     independence_score = max(0, independence_score)
 
     # PROVJERA KAŠNJENJA S PREDAJOM
