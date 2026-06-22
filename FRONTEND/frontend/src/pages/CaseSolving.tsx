@@ -390,7 +390,7 @@ function CaseSolving() {
                         onClick={() => setFinishModalOpen(true)} 
                         className="bg-orange-500 text-white font-bold text-sm px-2 py-1.5 rounded hover:cursor-pointer"
                     >
-                        Predaj sve i završi
+                        Predaj i završi
                     </button>
                     <button onClick={() => setCancelModalOpen(true)} className="bg-red-600 text-white text-sm font-bold px-2 py-1.5 rounded hover:cursor-pointer">
                         Prekini rješavanje
