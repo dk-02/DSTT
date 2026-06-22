@@ -9,14 +9,6 @@ function Landing() {
                     <p data-aos="fade-right" className="text-gray-200 text-5xl font-bold tracking-wide leading-18">Učite na temelju situacija s kojima se susreću <span className="text-orange-500">stručnjaci</span></p>
                 </div>
             </div>
-            <div className="min-h-screen w-full flex flex-col items-center text-gray-200">
-                <div className="bg-gray-700 w-full p-10 flex justify-center items-center">
-                    <p className="text-4xl font-bold tracking-wide">Istaknuta područja</p>
-                </div>
-                {/* <div>
-
-                </div> */}
-            </div>
         </div>
     );
 }
