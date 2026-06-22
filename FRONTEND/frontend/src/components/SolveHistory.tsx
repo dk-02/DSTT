@@ -71,7 +71,7 @@ function SolveHistory() {
     const [selectedAttempt, setSelectedAttempt] = useState<AttemptHistory | null>(null);
 
     const token = useAuthStore((state) => state.token);
-    const { isTeacher } = useRole();
+    const { isExaminee } = useRole();
 
     const navigate = useNavigate();
 
@@ -155,7 +155,7 @@ function SolveHistory() {
                                                 {attempt.assignment_title ? attempt.assignment_title : attempt.attempt_type}
                                             </span>
                                             
-                                            {!isTeacher && <>
+                                            {isExaminee && <>
                                                 {attempt.teacher_comment ? 
                                                     <>
                                                         <span className="w-1 h-1 bg-gray-500 rounded-full"></span>
@@ -251,9 +251,9 @@ function SolveHistory() {
                                 <div className="grid grid-cols-4 gap-4">
                                     <div className="flex flex-col">
                                         <span className="text-xs text-gray-500 uppercase tracking-wider">Točnost dijagnoze</span>
-                                        <span className={`text-lg font-bold ${selectedAttempt.evaluation_report.metrics.accuracy.verdict === 'correct' ? 'text-green-500' : 'text-red-500'}`}>
+                                        <span className={`text-lg font-bold ${selectedAttempt.evaluation_report.metrics.accuracy.verdict === 'correct' ? 'text-green-500' : selectedAttempt.evaluation_report.metrics.accuracy.verdict === 'incorrect' ? 'text-red-500' : 'text-yellow-500'}`}>
                                             {selectedAttempt.evaluation_report.metrics.accuracy.verdict === 'correct' ? 'Točno' : 
-                                                selectedAttempt.evaluation_report.metrics.accuracy.verdict === 'partial' ? 'Djelomično' : 'Netočno'}
+                                                selectedAttempt.evaluation_report.metrics.accuracy.verdict === 'partial' ? 'Djelomično' : selectedAttempt.evaluation_report.metrics.accuracy.verdict === "unknown" ? "Nije pokušano" : 'Netočno'}
                                         </span>
                                     </div>
                                     <div className="flex flex-col">

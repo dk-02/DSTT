@@ -9,7 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import Session, select
 from routes.auth import get_current_active_user, get_current_teacher
 from database import engine
-from models import Assignment, AssignmentCase, AttemptLog, AttemptStart, Case, ChatRequest, DiagnosisRequest, DiagnosisSubmission, DiagnosticUnit, Group, GroupAssignment, GroupMember, Hint, SolveAttempt, TeacherCommentRequest, User
+from models import Assignment, AssignmentCase, AttemptLog, AttemptStart, Case, ChatRequest, DiagnosisRequest, DiagnosisSubmission, DiagnosticUnit, Group, GroupAssignment, GroupMember, Hint, OverrideVerdictRequest, SolveAttempt, TeacherCommentRequest, User
 
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 OPENROUTER_MODEL = os.getenv("OPENROUTER_MODEL")
@@ -207,12 +207,17 @@ def generate_evaluation_report(attempt_id: uuid.UUID, session: Session) -> Dict[
     budget_exceeded = False
     efficiency_category = "unutar_kriterija"
 
+    du_requests_count = sum(1 for log in valid_logs if log.event_type == "du_request")
+
     if budget_money is not None and budget_time_seconds is not None:
         if final_money > budget_money or final_time > budget_time_seconds:
             budget_exceeded = True
             efficiency_category = "losije_od_kriterija"
         else:
-            efficiency_category = "bolje_od_kriterija"
+            if du_requests_count == 0:
+                efficiency_category = "unutar_kriterija"
+            else:
+                efficiency_category = "bolje_od_kriterija"
 
 
     # (3) METODIČNOST (methodology) - slijed koraka, pogreške
@@ -233,6 +238,9 @@ def generate_evaluation_report(attempt_id: uuid.UUID, session: Session) -> Dict[
         
     if fatal_mistakes > 0:
         methodology_score = 0                            # 0% ako je bilo fatalnih pogreški
+
+    if du_requests_count == 0:
+        methodology_score = 0
         
     methodology_score = max(0, methodology_score)        
 
@@ -258,15 +266,16 @@ def generate_evaluation_report(attempt_id: uuid.UUID, session: Session) -> Dict[
         )
         deadline = session.exec(deadline_stmt).first()
         
-        if deadline.tzinfo is None:
-            deadline = deadline.replace(tzinfo=timezone.utc)
+        if deadline:
+            if deadline.tzinfo is None:
+                deadline = deadline.replace(tzinfo=timezone.utc)
 
-        if attempt.finished_at.tzinfo is None:
-            attempt.finished_at = attempt.finished_at.replace(tzinfo=timezone.utc)
+            if attempt.finished_at.tzinfo is None:
+                attempt.finished_at = attempt.finished_at.replace(tzinfo=timezone.utc)
 
-        if deadline and attempt.finished_at > deadline:
-            is_late = True
-            late_by_seconds = int((attempt.finished_at - deadline).total_seconds())
+            if deadline and attempt.finished_at > deadline:
+                is_late = True
+                late_by_seconds = int((attempt.finished_at - deadline).total_seconds())
 
     late_minutes = late_by_seconds // 60
     late_seconds_remainder = late_by_seconds % 60
@@ -772,29 +781,35 @@ async def submit_diagnosis(attempt_id: uuid.UUID, data: DiagnosisRequest, sessio
     case = session.get(Case, attempt.case_id)
     if not case:
         raise HTTPException(status_code=404, detail="Slučaj nije pronađen.")
+    
+    assignment = session.get(Assignment, attempt.assignment_id)
 
-    if attempt.is_practice:
-        system_prompt = f"""
-        If you can, answer in CROATIAN.
-        You are an expert instructor. 
-        Correct diagnosis: {case.correct_diagnosis}
-        Student's answer: {data.student_diagnosis}
-        
-        Compare them. If the student correctly identified the issue, respond with 'CORRECT.' and a short feedback paragraph (note that the student's answer MUST contain keywords from the correct diagnosis, it should not be too vague, e.g. student says 'sensor' and the correct diagnosis is 'faulty crankshaft sensor (coil break)' your verdict should not be 'CORRECT'). 
-        If they are wrong or missed key parts, respond with 'INCORRECT.' and a short explanation why. 
-        If they are partially correct, respond with 'PARTIAL.' and a short explanation why.
+    is_strict_mode = not attempt.is_practice or (assignment is not None and assignment.type != "practice") or attempt.settings.get("allow_diagnosis_retry") == False
+    
+    if is_strict_mode:
+        feedback_rules = """
+        - If the student correctly identified the core issue (even with different words), respond with 'CORRECT.' followed by a short confirmation.
+        - If they missed some details but got the main direction, respond with 'PARTIAL.' Provide a very brief generic explanation, but DO NOT reveal exactly what is missing and DO NOT give hints.
+        - If they are completely wrong, respond with 'INCORRECT.' DO NOT give any hints and DO NOT reveal the correct answer.
         """
     else:
-        system_prompt = f"""
+        feedback_rules = """
+        - If the student correctly identified the core issue (even with different words), respond with 'CORRECT.' followed by short feedback.
+        - If they missed some details but got the main direction, respond with 'PARTIAL.' followed by exactly what is missing.
+        - If they are completely wrong, respond with 'INCORRECT.' and a brief hint to guide them.
+        """
+
+    system_prompt = f"""
         If you can, answer in CROATIAN.
-        You are an expert instructor.
-        Correct diagnosis: {case.correct_diagnosis}
+        You are an expert instructor evaluating student's diagnosis. 
+        Correct diagnosis reference: {case.correct_diagnosis}
         Student's answer: {data.student_diagnosis}
         
-        Compare them. Be strict but fair. If the student correctly identified the issue, respond with 'CORRECT.' and a short feedback paragraph (note that the student's answer MUST contain keywords from the correct diagnosis, it should not be too vague, e.g. student says 'sensor' and the correct diagnosis is 'faulty crankshaft sensor (coil break)' your verdict should not be 'CORRECT'). 
-        If they are wrong or missed key parts, respond with 'INCORRECT.'. 
-        If they are partially correct, respond with 'PARTIAL.' (this means that they mentioned some of the key parts but no ALL of them, so if their phrasing is a little different than the correct diagnosis, you should look for the keywords, if they have all the keywords, you should answer with CORRECT.).
-        """
+        Compare them. Focus on the core meaning and technical substance, NOT on the exact wording. 
+        Accept synonyms, slight spelling mistakes, or alternative phrasing if the student clearly understands the root cause.
+        
+        {feedback_rules}
+    """
 
     response = requests.post(
         url="https://openrouter.ai/api/v1/chat/completions",
@@ -842,16 +857,16 @@ async def submit_diagnosis(attempt_id: uuid.UUID, data: DiagnosisRequest, sessio
         if attempt.settings.get("allow_diagnosis_retry", True):
             if attempt.settings.get("penalize_wrong_diagnosis") == True:
                 attempt.penalty_cost_time += 1800  # Kazna: 30 minuta (1800 sekundi)
-                session.add(attempt)
                 feedback = f"{feedback}\n\nKAZNA: Zbog netočne dijagnoze dodano je 30 minuta na vaše simulirano vrijeme izvođenja akcija."
 
-            pass
+            session.add(attempt)
 
         else:
             attempt.status = "completed"
             attempt.finished_at = datetime.now()
             attempt.student_diagnosis = data.student_diagnosis
             session.add(attempt)
+            session.commit()
 
             generate_evaluation_report(attempt_id, session)
     
@@ -881,6 +896,23 @@ async def cancel_attempt(attempt_id: uuid.UUID, session: Session = Depends(get_s
     session.commit()
     
     return {"status": "success", "message": "Rješavanje je otkazano."}
+
+
+@router.post("/{attempt_id}/finalize")
+async def finalize_attempt_manually(attempt_id: uuid.UUID, session: Session = Depends(get_session)):
+    attempt = session.get(SolveAttempt, attempt_id)
+    if not attempt or attempt.status != "in_progress":
+        raise HTTPException(status_code=400, detail="Pokušaj nije aktivan ili je već završen.")
+        
+    attempt.status = "completed"
+    attempt.finished_at = datetime.now()
+    session.add(attempt)
+    
+    generate_evaluation_report(attempt_id, session)
+
+    session.commit()
+    
+    return {"status": "success", "message": "Pokušaj uspješno zaključen."}
 
 
 @router.get("/{attempt_id}/hint")
@@ -944,7 +976,14 @@ async def ask_llm_mentor(data: ChatRequest, attempt_id: uuid.UUID, session: Sess
 
     message = data.message    
 
-    prompt = f"Ti si mentor studentu koji dijagnosticira slučaj: {case.initial_info}. Točna dijagnoza je {case.correct_diagnosis}. Student te pita: '{message}'. Daj mu pedagoški savjet, ali mu NIKAKO ne smiješ otkriti konačno rješenje. Uputi ga na pravi put."
+    prompt = f"""
+    If you can, answer in CROATIAN.
+    You are an expert mentor helping a student who is diagnosing the following case: {case.initial_info}. 
+    The correct diagnosis is: {case.correct_diagnosis}. 
+    The student asks you: '{message}'. 
+    
+    Answer their questions, provide advice and guide them on the right path. UNDER NO CIRCUMSTANCES are you allowed to reveal the final correct diagnosis or the direct solution.
+    """
   
     response = requests.post(
         url="https://openrouter.ai/api/v1/chat/completions",
@@ -1094,3 +1133,40 @@ def add_teacher_comment(attempt_id: uuid.UUID, data: TeacherCommentRequest, curr
     session.commit()
     
     return {"status": "success", "message": "Komentar je spremljen."}
+
+
+
+@router.patch("/{attempt_id}/override-verdict")
+def override_student_verdict(attempt_id: uuid.UUID, data: OverrideVerdictRequest, current_user: User = Depends(get_current_teacher), session: Session = Depends(get_session)):
+    attempt = session.get(SolveAttempt, attempt_id)
+    if not attempt:
+        raise HTTPException(status_code=404, detail="Pokušaj nije pronađen.")
+    
+    submission_stmt = (
+        select(DiagnosisSubmission)
+        .where(DiagnosisSubmission.attempt_id == attempt_id)
+        .order_by(DiagnosisSubmission.submitted_at.desc())
+    )
+    last_submission = session.exec(submission_stmt).first()
+    
+    if not last_submission:
+        raise HTTPException(status_code=400, detail="Student još nije predao niti jednu dijagnozu za ovaj pokušaj.")
+    
+    old_verdict = last_submission.verdict
+    last_submission.verdict = data.verdict
+    last_submission.feedback_given = f"[Ručna izmjena nastavnika]: Promjena iz '{old_verdict}' u '{data.verdict}'.\n\n{last_submission.feedback_given}"
+    
+    if data.verdict == "correct":
+        attempt.status = "completed"
+        if not attempt.finished_at:
+            attempt.finished_at = datetime.now()
+    
+            
+    session.add(last_submission)
+    session.add(attempt)
+    
+    updated_report = generate_evaluation_report(attempt_id, session)
+
+    session.commit()
+    
+    return {"status": "success", "message": "Točnost uspješno ažurirana.", "evaluation_report": updated_report}

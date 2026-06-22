@@ -562,8 +562,6 @@ def get_assignment_details(assignment_id: uuid.UUID, session: Session = Depends(
             case_query = case_query.order_by(func.random()).limit(no_of_cases)
             picked_cases = session.exec(case_query).all()
 
-            if len(picked_cases) < no_of_cases:
-                raise HTTPException(status_code=400, detail="Nema dovoljno dostupnih slučajeva koji zadovoljavaju kriterije ove zadaće.")
 
             for c in picked_cases:
                 sa = SolveAttempt(
@@ -664,15 +662,59 @@ def get_assignment_details(assignment_id: uuid.UUID, session: Session = Depends(
         res_settings = dict(assignment.settings) if assignment.settings else {}
         random_settings = res_settings.get("random_case_picker_settings")
 
+        warning_not_enough_cases = False
+        available_cases_count = 0
+        warning_reasons = []
+
+        if is_random and random_settings:
+            no_of_cases = random_settings.get("no_of_cases", 1)
+            topic_id = random_settings.get("topic") 
+            level = random_settings.get("case_level")
+
+            target_type = "practice" if assignment.type in ["practice", "practice_exam"] else "exam"
+            base_query = select(func.count(Case.id)).where(Case.status == "published", Case.type == target_type)
+
+            final_query = base_query
+            if topic_id:
+                final_query = final_query.join(CaseCategory).where(CaseCategory.category_id == uuid.UUID(topic_id))
+            if level:
+                final_query = final_query.where(Case.level == level)
+
+            available_cases_count = session.exec(final_query).first() or 0
+            
+            if available_cases_count < no_of_cases:
+                warning_not_enough_cases = True
+
+                if topic_id:
+                    topic_only_count = session.exec(base_query.join(CaseCategory).where(CaseCategory.category_id == uuid.UUID(topic_id))).first()
+                    if not topic_only_count:
+                        warning_reasons.append("U bazi nema nijednog objavljenog slučaja s traženom temom.")
+                
+                if level:
+                    level_only_count = session.exec(base_query.where(Case.level == level)).first()
+                    if not level_only_count:
+                        warning_reasons.append("U bazi nema nijednog objavljenog slučaja s traženom razinom.")
+
+                if not warning_reasons and available_cases_count == 0:
+                    warning_reasons.append("Postoje slučajevi s tom temom i tom razinom, ali ne postoji nijedan slučaj koji ima OBJE značajke istovremeno.")
+
+                elif not warning_reasons and available_cases_count > 0:
+                    warning_reasons.append(f"Nedostaje slučajeva. Baza ima {available_cases_count} takav slučaj, a Vi za svakog studenta tražite {no_of_cases}.")
+
+
         if random_settings and "topic" in random_settings:
-            topic_id = random_settings["topic"]
+            topic_id = random_settings.get("topic")
 
-            stmt_topic = select(Category.name).where(Category.id == topic_id)
-            topic = session.exec(stmt_topic).first()
-
-            res_settings["random_case_picker_settings"]["topic"] = topic
+            if topic_id:
+                stmt_topic = select(Category.name).where(Category.id == uuid.UUID(topic_id))
+                topic = session.exec(stmt_topic).first()
+                res_settings["random_case_picker_settings"]["topic"] = topic
 
         response_data["assigned_groups"] = assigned_groups
         response_data["settings"] = res_settings
+
+        response_data["warning_not_enough_cases"] = warning_not_enough_cases
+        response_data["available_cases_count"] = available_cases_count
+        response_data["warning_reasons"] = warning_reasons
 
     return response_data

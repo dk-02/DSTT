@@ -712,6 +712,25 @@ function AssignmentMgmt() {
                         {selectedAssignmentFullDetails.settings?.randomly_choose_cases ? (
                             <div className="bg-gray-700/30 p-6 rounded-2xl border border-dashed border-gray-500/50 my-6">
                                 <h3 className="text-lg font-bold text-orange-400 mb-2">Nasumični odabir slučajeva je uključen</h3>
+
+                                {selectedAssignmentFullDetails.warning_not_enough_cases && (
+                                    <div className="my-4 bg-red-900/20 border border-red-500/50 p-4 rounded-xl animate-fadeIn">
+                                        <p className="text-red-400 font-bold text-sm mb-1 flex items-center gap-2">
+                                            Upozorenje: Problem sa slučajevima u zadaći!
+                                        </p>
+
+                                        <ul className="list-disc list-inside text-gray-300 text-xs space-y-1.5 mb-3 ml-1">
+                                            {selectedAssignmentFullDetails.warning_reasons?.map((reason, idx) => (
+                                                <li key={idx}>{reason}</li>
+                                            ))}
+                                        </ul>
+
+                                        <p className="text-gray-400 text-[11px] italic border-t border-red-500/50 pt-2">
+                                            *Studentima će biti dodijeljen samo onaj broj slučajeva koji je trenutno dostupan. Kako biste riješili ovaj problem, promijenite kriterije u postavkama zadaće ili kreirajte nove slučajeve.
+                                        </p>
+                                    </div>
+                                )}
+
                                 <p className="text-sm text-gray-300 mb-4">
                                     Slučajevi se automatski i jedinstveno generiraju za svakog studenta pri njegovom prvom pokretanju ove zadaće prema sljedećim pravilima:
                                 </p>
@@ -1163,7 +1182,7 @@ function AssignmentMgmt() {
                                 <div 
                                     key={g.id} 
                                     onClick={() => handleToggleGroupSelection(g.id)}
-                                    className={`m-1 flex flex-col rounded-2xl shadow-md border overflow-hidden transition-all group cursor-pointer ${
+                                    className={`m-1 flex flex-col rounded-2xl shadow-md border transition-all group cursor-pointer ${
                                         isSelected 
                                             ? "bg-gray-200 ring-2 ring-orange-500" 
                                             : "bg-gray-200 border-gray-400"
@@ -1203,7 +1222,7 @@ function AssignmentMgmt() {
                                                 type="datetime-local" 
                                                 value={selectedGroup?.available_until || ""}
                                                 onChange={(e) => handleGroupDateChange(g.id, e.target.value)}
-                                                className="w-full px-3 py-2 bg-gray-200 border border-gray-400 text-gray-800 text-sm rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none transition-all cursor-pointer color-scheme-dark"
+                                                className="w-full px-3 py-2 bg-gray-200 border border-gray-400 text-gray-800 text-sm rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none transition-all cursor-pointer"
                                             />
                                         </div>
                                     )}
