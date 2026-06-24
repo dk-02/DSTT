@@ -8,7 +8,7 @@ interface Media {
 }
 
 interface userMsg {
-  sender: 'korisnik' | 'llm-mentor' | 'sustav';
+  sender: 'korisnik' | 'llm-mentor' | 'odgovor';
   text: string;
   du?: string;
   media?: Media[];

@@ -14,6 +14,7 @@ interface Case {
     level: string;
     topic_name: string;
     status: string;
+    attempt_status: string;
 }
 
 interface Group {
@@ -299,14 +300,16 @@ function ExamineeDashboard() {
                                             </div>
                                             
                                             <button 
-                                                onClick={() => {
+                                                onClick={c.attempt_status === "in_progress" ? () => {
+                                                    handleStartCase(c.id, null, null, selectedPracticeMode);
+                                                } : () => {
                                                     setCaseToStartId(c.id);
                                                     setSelectedPracticeMode("practice");
                                                     setStartCaseModalOpen(true);
                                                 }} 
                                                 className="w-full bg-orange-500 text-white font-bold py-2.5 rounded-xl transition-all shadow-md active:scale-95 cursor-pointer"
                                             >
-                                                {c.status === "in_progress" ? "Nastavi s rješavanjem" : "Pokreni vježbu"}
+                                                {c.attempt_status === "in_progress" ? "Nastavi s rješavanjem" : "Pokreni vježbu"}
                                             </button>
                                         </div>
                                     </div>

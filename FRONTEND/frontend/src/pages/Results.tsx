@@ -4,12 +4,14 @@ import { ArrowNarrowLeft } from "@untitledui/icons";
 import { useAuthStore } from "../store/useAuthStore";
 import { useRole } from "../hooks/useRole";
 import { jwtDecode } from "jwt-decode";
+import ReactMarkdown from "react-markdown";
 
 const backendURL = import.meta.env.VITE_APP_BACKEND;
 
 interface EvaluationReport {
     attempt_status: string;
     action_history: {
+        relative_time_str: string;
         type: string;
         status: string;
         description: string;
@@ -416,38 +418,52 @@ function Results() {
                         </h2>
                         
                         <div className="relative border-l-2 border-gray-500 ml-3 md:ml-4 space-y-8">
+                            <div className="ml-6 bg-gray-900/50 rounded-lg p-4 border border-gray-700 flex justify-center items-center font-semibold">
+                                Početak (00:00:00)
+                            </div>
+
                             {report.action_history && report.action_history.map((action, index) => (
                                 <div key={index} className="relative pl-6">
                                     <div className={`absolute -left-2.25 top-0 w-4 h-4 rounded-full border-2 border-gray-800 ${getActionColor(action.type, action.status)}`}></div>
                                     
-                                    <div className="bg-gray-900/50 rounded-lg p-4 border border-gray-700">
-                                        <div className="flex justify-between items-start mb-2">
-                                            <h3 className="font-bold text-gray-200">
-                                                {
-                                                    action.type === "du_request" ? "Zatražena dijagnostička jedinica" 
-                                                    : action.type === "hint_request" ? "Korišten hint" 
-                                                    : action.type === "mentor_request" ? "Pitanje mentoru" 
-                                                    : action.type === "diagnosis_submission" ? "Pokušaj dijagnoze"
-                                                    : action.type === "undo_request" ? "Zatražen UNDO" 
-                                                    : "Nepoznata akcija"
-                                                }
-                                            </h3>
+                                    <div className="bg-gray-900/50 rounded-lg p-4 border border-gray-700 flex items-center">
+                                        <div className="pr-5 font-bold">{index + 1}</div>
+                                        <div className="w-full">
+                                            <div className="flex justify-between items-start mb-2">
+                                                <div className="w-full font-bold text-gray-200 flex justify-between">
+                                                    <span>
+                                                    {
+                                                        action.type === "du_request" ? "Zatražena dijagnostička jedinica" 
+                                                        : action.type === "hint_request" ? "Korišten hint" 
+                                                        : action.type === "mentor_request" ? "Pitanje mentoru" 
+                                                        : action.type === "diagnosis_submission" ? "Pokušaj dijagnoze"
+                                                        : action.type === "undo_request" ? "Zatražen UNDO" 
+                                                        : "Nepoznata akcija"
+                                                    }
+                                                    </span>
+                                                    <span className="text-sm text-gray-400">Proteklo vrijeme: {action.relative_time_str}</span>
+                                                </div>
 
-                                            {action.status === "redundant" && <span className="px-2 py-1 bg-yellow-900/50 text-yellow-500 text-xs rounded border border-yellow-800">Redundantno</span>}
-                                            {action.status === "consequence_mistake" && <span className="px-2 py-1 bg-yellow-900/50 text-yellow-500 text-xs rounded border border-yellow-800">Upozorenje</span>}
-                                            {action.status === "fatal_mistake" && <span className="px-2 py-1 bg-red-900/50 text-red-500 text-xs rounded border border-red-800">Fatalna pogreška</span>}
-                                        </div>
-                                        {action.type === "du_request" || action.type == "mentor_request" ?
-                                            <p className="text-sm text-gray-400 italic mb-2">"{action.description}"</p>
-                                            :
-                                            <p className="text-sm text-gray-400 italic mb-2">{action.description}</p>
-                                        }
-                                        
-                                        {action.feedback && (
-                                            <div className="mt-2 text-sm text-gray-300 bg-gray-800 p-3 rounded border border-gray-700">
-                                                <strong>Odgovor sustava:</strong> {action.feedback}
+                                                {action.status === "redundant" && <span className="px-2 py-1 bg-yellow-900/50 text-yellow-500 text-xs rounded border border-yellow-800">Redundantno</span>}
+                                                {action.status === "consequence_mistake" && <span className="px-2 py-1 bg-yellow-900/50 text-yellow-500 text-xs rounded border border-yellow-800">Upozorenje</span>}
+                                                {action.status === "fatal_mistake" && <span className="px-2 py-1 bg-red-900/50 text-red-500 text-xs rounded border border-red-800">Fatalna pogreška</span>}
                                             </div>
-                                        )}
+
+                                            {action.type === "du_request" || action.type == "mentor_request" ?
+                                                <p className="text-sm text-gray-400 italic mb-2">"{action.description}"</p>
+                                                :
+                                                <p className="text-sm text-gray-400 italic mb-2">{action.description}</p>
+                                            }
+                                            
+                                            {action.feedback && (
+                                                <div className="mt-2 text-sm text-gray-300 bg-gray-800 p-3 rounded border border-gray-700">
+                                                    <strong>Odgovor sustava:</strong> 
+                                                    <div className="text-white prose prose-invert max-w-none text-sm">
+                                                        <ReactMarkdown>{action.feedback}</ReactMarkdown>
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
                                     </div>
                                 </div>
                             ))}

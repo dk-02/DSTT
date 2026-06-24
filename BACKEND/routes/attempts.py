@@ -10,9 +10,15 @@ from sqlmodel import Session, select
 from routes.auth import get_current_active_user, get_current_teacher
 from database import engine
 from models import Assignment, AssignmentCase, AttemptLog, AttemptStart, Case, ChatRequest, DiagnosisRequest, DiagnosisSubmission, DiagnosticUnit, Group, GroupAssignment, GroupMember, Hint, OverrideVerdictRequest, SolveAttempt, TeacherCommentRequest, User
+from google import genai
 
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 OPENROUTER_MODEL = os.getenv("OPENROUTER_MODEL")
+
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+GEMINI_MODEL = os.getenv("GEMINI_MODEL")
+
+client = genai.Client()
 
 router = APIRouter(prefix="/attempts", tags=["Attempts"])
 
@@ -134,6 +140,15 @@ def check_is_unjustified_jump(session: Session, attempt_id: uuid.UUID, requested
 
     return False
 
+def format_time(time_seconds: int):
+    hours = time_seconds // 3600
+    minutes = (time_seconds % 3600) // 60
+    seconds = time_seconds % 60
+    
+    if hours > 0:
+        return f"{hours:02d}:{minutes:02d}:{seconds:02d}"
+    else:
+        return f"{minutes:02d}:{seconds:02d}"
 
 def generate_evaluation_report(attempt_id: uuid.UUID, session: Session) -> Dict[str, Any]:
     """ Prolazi kroz povijest pokušaja, izračunava metriku na 4 osi i sprema konačni JSON izvještaj u SolveAttempt tablicu. """
@@ -293,6 +308,11 @@ def generate_evaluation_report(attempt_id: uuid.UUID, session: Session) -> Dict[
 
     desc = ""
     for log in all_logs:
+        log_time = getattr(log, 'event_timestamp', start).replace(tzinfo=None)
+
+        rel_seconds = max(0, int((log_time - start).total_seconds()))
+        rel_str = format_time(rel_seconds)
+
         if log.event_type == "du_request":
             desc = log.event_result_data.get("student_question", "Nepoznat upit za DU")
         elif log.event_type == "mentor_request":
@@ -305,6 +325,9 @@ def generate_evaluation_report(attempt_id: uuid.UUID, session: Session) -> Dict[
             desc = "Nepoznata akcija"
 
         action_history.append({
+            "timestamp": log_time,
+            "relative_time_seconds": rel_seconds,
+            "relative_time_str": rel_str,
             "type": log.event_type,
             "status": log.status,
             "description": desc,
@@ -312,12 +335,25 @@ def generate_evaluation_report(attempt_id: uuid.UUID, session: Session) -> Dict[
         })
 
     for sub in submissions:
+        sub_time = sub.submitted_at.replace(tzinfo=None)
+
+        rel_seconds = max(0, int((sub_time - start).total_seconds()))
+        rel_str = format_time(rel_seconds)
+
         action_history.append({
+            "timestamp": sub_time,
+            "relative_time_seconds": rel_seconds,
+            "relative_time_str": rel_str,
             "type": "diagnosis_submission",
             "status": sub.verdict,
             "description": f"Pokušaj dijagnoze: {sub.diagnosis_text}",
             "feedback": sub.feedback_given
         })
+
+    action_history.sort(key=lambda x: x["timestamp"])
+
+    for action in action_history:
+        action["timestamp"] = action["timestamp"].isoformat()
 
     report = {
         "generated_at": datetime.now().isoformat(),
@@ -638,24 +674,30 @@ async def get_DU(attempt_id: uuid.UUID, request: ChatRequest, session: Session =
 
     combined_content = f"INSTRUCTION: {system_prompt}\n\nUSER QUESTION: {request.message}"
 
-    response = requests.post(
-        url="https://openrouter.ai/api/v1/chat/completions",
-        headers={
-            "Authorization": f"Bearer {OPENROUTER_API_KEY}", 
-            "Content-Type": "application/json"
-        },
-        data=json.dumps({
-            "model": OPENROUTER_MODEL,
-            "messages": [
-                {
-                    "role": "user", 
-                    "content": combined_content
-                }
-            ]
-        })
+    # response = requests.post(
+    #     url="https://openrouter.ai/api/v1/chat/completions",
+    #     headers={
+    #         "Authorization": f"Bearer {OPENROUTER_API_KEY}", 
+    #         "Content-Type": "application/json"
+    #     },
+    #     data=json.dumps({
+    #         "model": OPENROUTER_MODEL,
+    #         "messages": [
+    #             {
+    #                 "role": "user", 
+    #                 "content": combined_content
+    #             }
+    #         ]
+    #     })
+    # )
+    # raw_content = response.json()['choices'][0]['message']['content'].strip()
+
+    response = client.interactions.create(
+        model=GEMINI_MODEL,
+        input=combined_content
     )
     
-    raw_content = response.json()['choices'][0]['message']['content'].strip()
+    raw_content = response.output_text
 
     uuid_pattern = re.compile(r'[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}', re.IGNORECASE)
     match = uuid_pattern.search(raw_content)
@@ -811,16 +853,25 @@ async def submit_diagnosis(attempt_id: uuid.UUID, data: DiagnosisRequest, sessio
         {feedback_rules}
     """
 
-    response = requests.post(
-        url="https://openrouter.ai/api/v1/chat/completions",
-        headers={"Authorization": f"Bearer {OPENROUTER_API_KEY}", "Content-Type": "application/json"},
-        data=json.dumps({
-            "model": OPENROUTER_MODEL,
-            "messages": [{"role": "user", "content": system_prompt}]
-        })
-    )
+    # response = requests.post(
+    #     url="https://openrouter.ai/api/v1/chat/completions",
+    #     headers={
+    #         "Authorization": f"Bearer {OPENROUTER_API_KEY}", 
+    #         "Content-Type": "application/json"},
+    #     data=json.dumps({
+    #         "model": OPENROUTER_MODEL,
+    #         "messages": [{"role": "user", "content": system_prompt}]
+    #     })
+    # )
 
-    llm_judgement = response.json()['choices'][0]['message']['content']
+    # llm_judgement = response.json()['choices'][0]['message']['content']
+
+    response = client.interactions.create(
+        model=GEMINI_MODEL,
+        input=system_prompt
+    )
+    
+    llm_judgement = response.output_text
     
     verdict = "incorrect"
     feedback = llm_judgement
@@ -985,16 +1036,26 @@ async def ask_llm_mentor(data: ChatRequest, attempt_id: uuid.UUID, session: Sess
     Answer their questions, provide advice and guide them on the right path. UNDER NO CIRCUMSTANCES are you allowed to reveal the final correct diagnosis or the direct solution.
     """
   
-    response = requests.post(
-        url="https://openrouter.ai/api/v1/chat/completions",
-        headers={"Authorization": f"Bearer {OPENROUTER_API_KEY}", "Content-Type": "application/json"},
-        data=json.dumps({
-            "model": OPENROUTER_MODEL,
-            "messages": [{"role": "user", "content": prompt}]
-        })
-    )
+    # response = requests.post(
+    #     url="https://openrouter.ai/api/v1/chat/completions",
+    #     headers={
+    #         "Authorization": f"Bearer {OPENROUTER_API_KEY}", 
+    #         "Content-Type": "application/json"
+    #     },
+    #     data=json.dumps({
+    #         "model": OPENROUTER_MODEL,
+    #         "messages": [{"role": "user", "content": prompt}]
+    #     })
+    # )
 
-    mentor_response = response.json()['choices'][0]['message']['content']
+    # mentor_response = response.json()['choices'][0]['message']['content']
+
+    response = client.interactions.create(
+        model=GEMINI_MODEL,
+        input=prompt
+    )
+    
+    mentor_response = response.output_text
 
     new_log = AttemptLog(
         attempt_id=attempt_id,
