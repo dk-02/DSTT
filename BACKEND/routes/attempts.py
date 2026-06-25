@@ -10,9 +10,15 @@ from sqlmodel import Session, select
 from routes.auth import get_current_active_user, get_current_teacher
 from database import engine
 from models import Assignment, AssignmentCase, AttemptLog, AttemptStart, Case, ChatRequest, DiagnosisRequest, DiagnosisSubmission, DiagnosticUnit, Group, GroupAssignment, GroupMember, Hint, OverrideVerdictRequest, SolveAttempt, TeacherCommentRequest, User
+from google import genai
 
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 OPENROUTER_MODEL = os.getenv("OPENROUTER_MODEL")
+
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+GEMINI_MODEL = os.getenv("GEMINI_MODEL")
+
+client = genai.Client()
 
 router = APIRouter(prefix="/attempts", tags=["Attempts"])
 
@@ -134,6 +140,15 @@ def check_is_unjustified_jump(session: Session, attempt_id: uuid.UUID, requested
 
     return False
 
+def format_time(time_seconds: int):
+    hours = time_seconds // 3600
+    minutes = (time_seconds % 3600) // 60
+    seconds = time_seconds % 60
+    
+    if hours > 0:
+        return f"{hours:02d}:{minutes:02d}:{seconds:02d}"
+    else:
+        return f"{minutes:02d}:{seconds:02d}"
 
 def generate_evaluation_report(attempt_id: uuid.UUID, session: Session) -> Dict[str, Any]:
     """ Prolazi kroz povijest pokušaja, izračunava metriku na 4 osi i sprema konačni JSON izvještaj u SolveAttempt tablicu. """
@@ -293,6 +308,11 @@ def generate_evaluation_report(attempt_id: uuid.UUID, session: Session) -> Dict[
 
     desc = ""
     for log in all_logs:
+        log_time = getattr(log, 'event_timestamp', start).replace(tzinfo=None)
+
+        rel_seconds = max(0, int((log_time - start).total_seconds()))
+        rel_str = format_time(rel_seconds)
+
         if log.event_type == "du_request":
             desc = log.event_result_data.get("student_question", "Nepoznat upit za DU")
         elif log.event_type == "mentor_request":
@@ -305,6 +325,9 @@ def generate_evaluation_report(attempt_id: uuid.UUID, session: Session) -> Dict[
             desc = "Nepoznata akcija"
 
         action_history.append({
+            "timestamp": log_time,
+            "relative_time_seconds": rel_seconds,
+            "relative_time_str": rel_str,
             "type": log.event_type,
             "status": log.status,
             "description": desc,
@@ -312,12 +335,25 @@ def generate_evaluation_report(attempt_id: uuid.UUID, session: Session) -> Dict[
         })
 
     for sub in submissions:
+        sub_time = sub.submitted_at.replace(tzinfo=None)
+
+        rel_seconds = max(0, int((sub_time - start).total_seconds()))
+        rel_str = format_time(rel_seconds)
+
         action_history.append({
+            "timestamp": sub_time,
+            "relative_time_seconds": rel_seconds,
+            "relative_time_str": rel_str,
             "type": "diagnosis_submission",
             "status": sub.verdict,
             "description": f"Pokušaj dijagnoze: {sub.diagnosis_text}",
             "feedback": sub.feedback_given
         })
+
+    action_history.sort(key=lambda x: x["timestamp"])
+
+    for action in action_history:
+        action["timestamp"] = action["timestamp"].isoformat()
 
     report = {
         "generated_at": datetime.now().isoformat(),
@@ -638,24 +674,30 @@ async def get_DU(attempt_id: uuid.UUID, request: ChatRequest, session: Session =
 
     combined_content = f"INSTRUCTION: {system_prompt}\n\nUSER QUESTION: {request.message}"
 
-    response = requests.post(
-        url="https://openrouter.ai/api/v1/chat/completions",
-        headers={
-            "Authorization": f"Bearer {OPENROUTER_API_KEY}", 
-            "Content-Type": "application/json"
-        },
-        data=json.dumps({
-            "model": OPENROUTER_MODEL,
-            "messages": [
-                {
-                    "role": "user", 
-                    "content": combined_content
-                }
-            ]
-        })
+    # response = requests.post(
+    #     url="https://openrouter.ai/api/v1/chat/completions",
+    #     headers={
+    #         "Authorization": f"Bearer {OPENROUTER_API_KEY}", 
+    #         "Content-Type": "application/json"
+    #     },
+    #     data=json.dumps({
+    #         "model": OPENROUTER_MODEL,
+    #         "messages": [
+    #             {
+    #                 "role": "user", 
+    #                 "content": combined_content
+    #             }
+    #         ]
+    #     })
+    # )
+    # raw_content = response.json()['choices'][0]['message']['content'].strip()
+
+    response = client.interactions.create(
+        model=GEMINI_MODEL,
+        input=combined_content
     )
     
-    raw_content = response.json()['choices'][0]['message']['content'].strip()
+    raw_content = response.output_text
 
     uuid_pattern = re.compile(r'[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}', re.IGNORECASE)
     match = uuid_pattern.search(raw_content)
@@ -671,6 +713,7 @@ async def get_DU(attempt_id: uuid.UUID, request: ChatRequest, session: Session =
     result_text = "Nažalost, ne razumijem vaš zahtjev."
     log_status = "no_mistake"
     applied_consequence = {}
+    du_cost = {"money": 0, "time": 0, "penalty_money": 0, "penalty_time": 0}
 
     if du_id != "NONE":
         try:
@@ -691,6 +734,7 @@ async def get_DU(attempt_id: uuid.UUID, request: ChatRequest, session: Session =
 
                 if consequence:
                     attempt.penalty_cost_money += consequence.get("penalty_money", 0.0)
+                    du_cost["penalty_money"] = consequence.get("penalty_money", 0.0)
 
                     unit = consequence.get("penalty_time_unit", "")
                     penalty_cost_time_raw = consequence.get("penalty_time", 0)
@@ -707,6 +751,7 @@ async def get_DU(attempt_id: uuid.UUID, request: ChatRequest, session: Session =
                             penalty_cost_time_seconds *= 86400
 
                     attempt.penalty_cost_time += penalty_cost_time_seconds
+                    du_cost["penalty_time"] = penalty_cost_time_seconds
 
                 if indicator_status == "fatal_mistake":
                     if not attempt.settings.get("ignore_terminating_consequences"):
@@ -733,6 +778,7 @@ async def get_DU(attempt_id: uuid.UUID, request: ChatRequest, session: Session =
                 media_list = [{"file_path": m.file_path, "file_type": m.file_type, "title": m.title} for m in selected_du.media]
 
                 attempt.total_cost_money += selected_du.resources.get("money", 0)
+                du_cost["money"] = selected_du.resources.get("money", 0)
 
                 unit = selected_du.resources.get("time_unit")
                 time = selected_du.resources.get("time", 0)
@@ -742,6 +788,7 @@ async def get_DU(attempt_id: uuid.UUID, request: ChatRequest, session: Session =
                 elif unit == "minutes": time *= 60
 
                 attempt.total_cost_time += time
+                du_cost["time"] = time
 
     new_log = AttemptLog(
         attempt_id=attempt_id,
@@ -764,10 +811,15 @@ async def get_DU(attempt_id: uuid.UUID, request: ChatRequest, session: Session =
         generate_evaluation_report(attempt_id, session)
 
     return {
-        "du_id": selected_du.id if selected_du else None, 
+        "du_id": selected_du.id if selected_du else None,
         "result": result_text,
         "media": media_list,
-        "attempt_status": attempt.status
+        "attempt_status": attempt.status,
+        "cost": du_cost, 
+        "attempt_total_cost_time": format_time(attempt.total_cost_time),
+        "attempt_total_cost_money": attempt.total_cost_money,
+        "attempt_total_penalty_time": format_time(attempt.penalty_cost_time),
+        "attempt_total_penalty_money": attempt.penalty_cost_money
     }
 
 
@@ -786,41 +838,56 @@ async def submit_diagnosis(attempt_id: uuid.UUID, data: DiagnosisRequest, sessio
 
     is_strict_mode = not attempt.is_practice or (assignment is not None and assignment.type != "practice") or attempt.settings.get("allow_diagnosis_retry") == False
     
+    keywords_section = ""
+    if case.diagnosis_keywords and case.diagnosis_keywords.strip():
+        keywords_section = f"MANDATORY KEYWORDS/CONCEPTS: {case.diagnosis_keywords}\nThe student's answer MUST contain these exact concepts or their clear technical synonyms to be considered CORRECT."
+
     if is_strict_mode:
         feedback_rules = """
-        - If the student correctly identified the core issue (even with different words), respond with 'CORRECT.' followed by a short confirmation.
-        - If they missed some details but got the main direction, respond with 'PARTIAL.' Provide a very brief generic explanation, but DO NOT reveal exactly what is missing and DO NOT give hints.
-        - If they are completely wrong, respond with 'INCORRECT.' DO NOT give any hints and DO NOT reveal the correct answer.
+        - If the student correctly identified the core issue and provided ALL keywords (even with different words), respond with 'CORRECT.' followed by a short confirmation.
+        - If they missed some keywords but got the main direction, respond with 'PARTIAL.' Provide a very brief generic explanation, but DO NOT reveal exactly what is missing and DO NOT give hints.
+        - If they are completely wrong (missing all keywords), respond with 'INCORRECT.' DO NOT give any hints and DO NOT reveal the correct answer.
         """
     else:
         feedback_rules = """
-        - If the student correctly identified the core issue (even with different words), respond with 'CORRECT.' followed by short feedback.
-        - If they missed some details but got the main direction, respond with 'PARTIAL.' followed by exactly what is missing.
-        - If they are completely wrong, respond with 'INCORRECT.' and a brief hint to guide them.
+        - If the student correctly identified the core issue and provided ALL keywords (even with different words), respond with 'CORRECT.' followed by short feedback.
+        - If they missed some keywords but got the main direction, respond with 'PARTIAL.' followed by exactly what is missing.
+        - If they are completely wrong (missing all keywords), respond with 'INCORRECT.' and a brief hint to guide them.
         """
 
     system_prompt = f"""
         If you can, answer in CROATIAN.
-        You are an expert instructor evaluating student's diagnosis. 
+        You are an expert instructor evaluating student's diagnosis on a case with this initial situation: {case.initial_info}. 
         Correct diagnosis reference: {case.correct_diagnosis}
+        {keywords_section}
+        
         Student's answer: {data.student_diagnosis}
         
         Compare them. Focus on the core meaning and technical substance, NOT on the exact wording. 
-        Accept synonyms, slight spelling mistakes, or alternative phrasing if the student clearly understands the root cause.
+        Accept synonyms, slight spelling mistakes, or alternative phrasing if the student clearly understands the root cause and has provided the keywords.
         
         {feedback_rules}
     """
 
-    response = requests.post(
-        url="https://openrouter.ai/api/v1/chat/completions",
-        headers={"Authorization": f"Bearer {OPENROUTER_API_KEY}", "Content-Type": "application/json"},
-        data=json.dumps({
-            "model": OPENROUTER_MODEL,
-            "messages": [{"role": "user", "content": system_prompt}]
-        })
-    )
+    # response = requests.post(
+    #     url="https://openrouter.ai/api/v1/chat/completions",
+    #     headers={
+    #         "Authorization": f"Bearer {OPENROUTER_API_KEY}", 
+    #         "Content-Type": "application/json"},
+    #     data=json.dumps({
+    #         "model": OPENROUTER_MODEL,
+    #         "messages": [{"role": "user", "content": system_prompt}]
+    #     })
+    # )
 
-    llm_judgement = response.json()['choices'][0]['message']['content']
+    # llm_judgement = response.json()['choices'][0]['message']['content']
+
+    response = client.interactions.create(
+        model=GEMINI_MODEL,
+        input=system_prompt
+    )
+    
+    llm_judgement = response.output_text
     
     verdict = "incorrect"
     feedback = llm_judgement
@@ -985,16 +1052,26 @@ async def ask_llm_mentor(data: ChatRequest, attempt_id: uuid.UUID, session: Sess
     Answer their questions, provide advice and guide them on the right path. UNDER NO CIRCUMSTANCES are you allowed to reveal the final correct diagnosis or the direct solution.
     """
   
-    response = requests.post(
-        url="https://openrouter.ai/api/v1/chat/completions",
-        headers={"Authorization": f"Bearer {OPENROUTER_API_KEY}", "Content-Type": "application/json"},
-        data=json.dumps({
-            "model": OPENROUTER_MODEL,
-            "messages": [{"role": "user", "content": prompt}]
-        })
-    )
+    # response = requests.post(
+    #     url="https://openrouter.ai/api/v1/chat/completions",
+    #     headers={
+    #         "Authorization": f"Bearer {OPENROUTER_API_KEY}", 
+    #         "Content-Type": "application/json"
+    #     },
+    #     data=json.dumps({
+    #         "model": OPENROUTER_MODEL,
+    #         "messages": [{"role": "user", "content": prompt}]
+    #     })
+    # )
 
-    mentor_response = response.json()['choices'][0]['message']['content']
+    # mentor_response = response.json()['choices'][0]['message']['content']
+
+    response = client.interactions.create(
+        model=GEMINI_MODEL,
+        input=prompt
+    )
+    
+    mentor_response = response.output_text
 
     new_log = AttemptLog(
         attempt_id=attempt_id,

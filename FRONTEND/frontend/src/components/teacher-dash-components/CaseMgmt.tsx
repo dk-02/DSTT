@@ -111,6 +111,8 @@ function CaseMgmt() {
 
             const dataForStore = {
                 ...fullCaseData,
+                keywords: fullCaseData.diagnosis_keywords ? fullCaseData.diagnosis_keywords.split(",").map((kw: string) => kw.trim()).filter((kw: string) => kw.length > 0) : [],
+                diagnosis_keywords: undefined,
                 media: [], 
                 diagnostic_units: fullCaseData.diagnostic_units.map((du: DiagnosticUnit) => ({
                     ...du,

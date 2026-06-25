@@ -3,23 +3,11 @@ import { useEffect, useState, type KeyboardEvent } from "react"
 import { useNavigate, useParams } from "react-router-dom";
 import { Modal } from "../components/UI/Modal";
 import { useAuthStore } from "../store/useAuthStore";
-import { useCaseSolvingStore } from "../store/useCaseSolveStore";
+import { useCaseSolvingStore, type UserMsg, type Media, type Hint } from "../store/useCaseSolveStore";
 import { jwtDecode } from "jwt-decode";
+import ReactMarkdown from 'react-markdown';
 
 const backendURL = import.meta.env.VITE_APP_BACKEND;
-
-interface userMsg {
-  sender: 'korisnik' | 'llm-mentor' | 'sustav';
-  text: string;
-  du?: string;
-  media?: Media[];
-}
-
-interface Media {
-    file_path: string;
-    file_type: string;
-    title: string;
-}
 
 interface Case {
     id: string;
@@ -31,11 +19,6 @@ interface Case {
 interface Feedback {
     verdict: string;
     feedback: string;
-}
-
-interface Hint {
-    sequence_no: number;
-    text: string;
 }
 
 interface MyTokenPayload {
@@ -81,12 +64,32 @@ function CaseSolving() {
     // FINISH
     const [finishModalOpen, setFinishModalOpen] = useState<boolean>(false);
 
-    const [isStoreReady, setIsStoreReady] = useState(false);
+    const [isStoreReady, setIsStoreReady] = useState<boolean>(false);
+
+    // LOADING PORUKA ZA LLM
+    const [isTyping, setIsTyping] = useState<boolean>(false);
+    const [typingMessage, setTypingMessage] = useState<string>("");
 
     const navigate = useNavigate();
 
     const token = useAuthStore((state) => state.token);
-    const { unlockedHints, addHint, reset, messages, addMessage, setAttempt, undoLastAction } = useCaseSolvingStore();
+    const { 
+        unlockedHints, 
+        messages, 
+        totalCostMoney,
+        totalCostTime,
+        totalPenaltyMoney,
+        totalPenaltyTime,
+        addHint, 
+        reset, 
+        addMessage, 
+        setAttempt, 
+        undoLastAction,
+        setTotalCostMoney,
+        setTotalCostTime,
+        setTotalPenaltyMoney,
+        setTotalPenaltyTime
+    } = useCaseSolvingStore();
 
     useEffect(() => {
         const fetchIds = async () => {
@@ -162,8 +165,12 @@ function CaseSolving() {
 
     const handleSend = async () => {
         try {
-            const userMessage: userMsg = { sender: "korisnik", text: input };
+            const userMessage: UserMsg = { sender: "korisnik", text: input };
             addMessage(userMessage);
+            setInput("");
+
+            setIsTyping(true);
+            setTypingMessage("Traženje dijagnostičke jedinice");
 
             const response = await fetch(`${backendURL}/attempts/${attemptId}/getDU`, {
                 method: "POST",
@@ -176,22 +183,32 @@ function CaseSolving() {
             }
 
             const data = await response.json();
-            const aiMsg: userMsg = { 
-                sender: "sustav", 
+            const aiMsg: UserMsg = { 
+                sender: "odgovor", 
                 text: data.result, 
                 du: data.du_id,
-                media: data.media
+                media: data.media,
+                cost: data.cost
             };
             addMessage(aiMsg);
-            setInput("");
+            setTotalCostMoney(data.total_cost_money);
+            setTotalCostTime(data.total_cost_time);
+            setTotalPenaltyTime(data.attempt_total_penalty_time);
+            setTotalPenaltyMoney(data.attempt_total_penalty_money);
 
         } catch (error) {
             console.error("Greška pri dohvatu DU-a: ", error);
+        } finally {
+            setIsTyping(false);
         }
     };
 
     const handleVerifyDiagnosis = async () => {
         try {
+            setDiagnosis("");
+            setIsTyping(true);
+            setTypingMessage("Evaluiranje pokušaja dijagnoze");
+
             const response = await fetch(`${backendURL}/attempts/${attemptId}/submit`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
@@ -209,13 +226,19 @@ function CaseSolving() {
 
         } catch(err) {
             console.error(err);
+        } finally {
+            setIsTyping(false);
         }
     }
 
-    const handleKeyDown = (event: KeyboardEvent) => {
+    const handleKeyDown = (event: KeyboardEvent, src: "du" | "diagnosis") => {
         if (event.key === 'Enter') {
             event.preventDefault(); 
-            handleSend();
+            if (src === "du") {
+                handleSend();
+            } else if (src === "diagnosis") {
+                handleVerifyDiagnosis();
+            }
         }
     };
 
@@ -302,9 +325,12 @@ function CaseSolving() {
         if (!input) return;
 
         try {
-            const userMsg: userMsg = { sender: "korisnik", text: `[Pitanje za mentora]: ${input}` };
+            const userMsg: UserMsg = { sender: "korisnik", text: `[Pitanje za mentora] ${input}` };
             addMessage(userMsg);
             setInput("");
+
+            setIsTyping(true);
+            setTypingMessage("Mentor razmišlja");
     
             const response = await fetch(`${backendURL}/attempts/${attemptId}/ask-llm-mentor`, {
                 method: "POST",
@@ -317,12 +343,14 @@ function CaseSolving() {
             }
 
             const data = await response.json();    
-            const aiMsg: userMsg = { sender: "llm-mentor", text: data.result };
+            const aiMsg: UserMsg = { sender: "llm-mentor", text: data.result };
             addMessage(aiMsg);                     
 
         } catch (error) {
             console.error("Greška pri upitu LLM mentoru: ", error);
-        }        
+        } finally {
+            setIsTyping(false);
+        } 
     };
 
     const handleQuit = async () => {
@@ -382,19 +410,22 @@ function CaseSolving() {
             <div className="p-5 relative flex justify-center items-center h-fit w-full shrink-0">
                 <ArrowNarrowLeft onClick={handleNavigateBack} className="absolute left-5 top-1/2 -translate-y-1/2 scale-130 text-gray-50 hover:cursor-pointer" />
                 <h1 className="text-white font-bold text-2xl">{caseInfo?.title}</h1>
-                <div className="absolute right-5 top-1/2 -translate-y-1/4 text-white  flex flex-col gap-3">
+                <div className="absolute right-5 top-1/2 -translate-y-1/4 text-white flex flex-col gap-3">
                     <div className="font-mono flex gap-3 bg-gray-800 px-4 py-2 rounded-lg border border-gray-600">
                         <Clock /> {elapsedTime}
                     </div>
-                    <button 
-                        onClick={() => setFinishModalOpen(true)} 
-                        className="bg-orange-500 text-white font-bold text-sm px-2 py-1.5 rounded hover:cursor-pointer"
-                    >
-                        Predaj i završi
-                    </button>
-                    <button onClick={() => setCancelModalOpen(true)} className="bg-red-600 text-white text-sm font-bold px-2 py-1.5 rounded hover:cursor-pointer">
-                        Prekini rješavanje
-                    </button>
+                    {attemptStatus === "in_progress" && <div className="flex flex-col gap-3">
+                        <button 
+                            onClick={() => setFinishModalOpen(true)} 
+                            className="bg-orange-500 text-white font-bold text-sm px-2 py-1.5 rounded hover:cursor-pointer"
+                        >
+                            Predaj i završi
+                        </button>
+                        <button onClick={() => setCancelModalOpen(true)} className="bg-red-600 text-white text-sm font-bold px-2 py-1.5 rounded hover:cursor-pointer">
+                            Prekini rješavanje
+                        </button>
+                    </div>}
+                    
                 </div>
             </div>
             <div className="p-5 flex gap-5 flex-1 overflow-hidden min-h-0">
@@ -434,9 +465,14 @@ function CaseSolving() {
                     <div className="flex-1 min-h-0 border border-gray-500 overflow-y-auto p-2.5 w-full bg-gray-800 rounded-lg shadow-inner mb-4">
                         {messages.map((m, i) => (
                             <div key={i} className="flex flex-col">
-                                <p  className={m.sender === "korisnik" ? "text-orange-400" : m.sender === "sustav" ? "text-gray-100" : "text-green-400"}>
-                                    <strong>{m.sender}:</strong> {m.text}
-                                </p>
+                                {m.sender === "llm-mentor" ?
+                                    <div className="text-green-400 prose prose-invert max-w-none">
+                                        <strong>{m.sender}:</strong> <ReactMarkdown>{m.text}</ReactMarkdown>
+                                    </div> : 
+                                    <p  className={m.sender === "korisnik" ? "text-orange-400" : "text-gray-100"}>
+                                        <strong>{m.sender}:</strong> {m.text} ({m.cost && `€ ${m.cost.money}, `}{m.cost && m.cost.time})
+                                    </p>
+                                }
 
                                 {m.media && m.media.length > 0 && (
                                     <div className="flex flex-wrap gap-2 mt-2 ml-4">
@@ -452,9 +488,22 @@ function CaseSolving() {
                                     </div>
                                 )}
                             </div>
-
-                            
                         ))}
+
+                        {isTyping && (
+                            <div className="flex items-center gap-3 animate-fadeIn">
+                                <div className="flex items-center gap-3 w-fit">
+                                    <span className="font-medium text-gray-300/80">
+                                        {typingMessage}
+                                    </span>
+                                    <div className="flex items-center gap-1.5">
+                                        <div className="w-1.5 h-1.5 bg-gray-300/80 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
+                                        <div className="w-1.5 h-1.5 bg-gray-300/80 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
+                                        <div className="w-1.5 h-1.5 bg-gray-300/80 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
                     </div>
 
                     <div className="w-full shrink-0 flex flex-col items-center gap-1">
@@ -465,7 +514,7 @@ function CaseSolving() {
                                         type="text" 
                                         value={input} 
                                         onChange={(e) => setInput(e.target.value)} 
-                                        onKeyDown={handleKeyDown}
+                                        onKeyDown={(e) => handleKeyDown(e, "du")}
                                         className="border border-gray-400 rounded px-3 py-2 flex-1 text-white focus:ring-2 focus:ring-orange-500 outline-none"
                                         placeholder={settings?.enable_LLM_mentor ? "Zatraži DU ili pitaj LLM mentora..." : "Zatraži DU..."}
                                     />
@@ -484,6 +533,7 @@ function CaseSolving() {
                                         type="text" 
                                         value={diagnosis} 
                                         onChange={(e) => setDiagnosis(e.target.value)}
+                                        onKeyDown={(e) => handleKeyDown(e, "diagnosis")}
                                         className="border border-gray-400 rounded px-3 py-2 w-full text-white focus:ring-2 focus:ring-orange-500 outline-none"
                                         placeholder="Pokušaj dijagnoze..."
                                     />
@@ -518,6 +568,20 @@ function CaseSolving() {
                                 )}
                             </div>
                         )}
+                    </div>
+                </div>
+                <div className="w-1/6 flex flex-col justify-center text-gray-50 font-semibold">
+                    <div className="w-full h-1/3 flex flex-col items-center bg-gray-800 p-5 rounded-lg border border-gray-500">
+                        <h3>Utrošeni resursi</h3>
+                        <div className="flex flex-col justify-center gap-2 w-full flex-1">
+                            <span>VRIJEME: {totalCostTime || 0}</span>
+                            <span>NOVAC: € {totalCostMoney || 0}</span>
+                        </div>
+                        <h3>Kazne</h3>
+                        <div className="flex flex-col justify-center gap-2 w-full flex-1">
+                            <span>VRIJEME: {totalPenaltyTime || 0}</span>
+                            <span>NOVAC: € {totalPenaltyMoney || 0}</span>
+                        </div>
                     </div>
                 </div>
             </div>

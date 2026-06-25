@@ -92,7 +92,9 @@ function CaseForm() {
                 hints: processedHints,
                 status: targetStatus,
                 change_log: finalChangeLog || "Promjena vidljivosti u 'private'.",
-                budget: caseData.budget
+                budget: caseData.budget,
+                diagnosis_keywords: caseData.keywords.join(","),
+                keywords: undefined
             };
 
             const response = await fetch(url, {

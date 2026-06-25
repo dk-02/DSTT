@@ -445,6 +445,7 @@ def get_full_case_details(case_id: uuid.UUID, current_user: User = Depends(get_c
         "is_public": case.is_public,
         "initial_info": case.initial_info,
         "correct_diagnosis": case.correct_diagnosis,
+        "diagnosis_keywords": case.diagnosis_keywords,
         "category_id": category_id,
         "status": case.status,
         "version": case.version,

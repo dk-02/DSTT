@@ -625,7 +625,6 @@ function ExamineeDashboard() {
                         <div className="flex justify-between items-center p-6 border-b border-gray-700">
                             <div>
                                 <h2 className="text-2xl font-bold text-white">{selectedAssignment.title}</h2>
-                                <p className="text-gray-400 text-sm mt-1">Nastavnik: {selectedAssignment.teacher_name}</p>
                             </div>
                             <button onClick={closeAssignmentModal} className="text-gray-400 hover:text-white text-2xl font-bold cursor-pointer">&times;</button>
                         </div>
