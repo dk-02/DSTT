@@ -10,9 +10,10 @@ import {DropdownDotsButton} from "../base/dropdown/dropdown";
 interface CaseDropdownProps {
     onArchive: () => void;
     onEdit?: () => void;
+    onExport?: () => void;
 }
 
-export const Dropdown = ({ onArchive, onEdit }: CaseDropdownProps) => (
+export const Dropdown = ({ onArchive, onEdit, onExport }: CaseDropdownProps) => (
     <DropdownRoot>
         <DropdownDotsButton className={"absolute top-2 right-1"} />
 
@@ -20,7 +21,8 @@ export const Dropdown = ({ onArchive, onEdit }: CaseDropdownProps) => (
             <DropdownMenu>
                 <DropdownSeparator />
                 <DropdownSection>
-                    {onEdit ? <DropdownItem onAction={onEdit}>Uredi</DropdownItem> : <></>}
+                    {onEdit && <DropdownItem onAction={onEdit}>Uredi</DropdownItem>}
+                    {onExport && <DropdownItem onAction={onExport}>Izvezi kao JSON</DropdownItem>}
                     <DropdownItem onAction={onArchive}>Arhiviraj</DropdownItem>
                 </DropdownSection>
                 <DropdownSeparator />

@@ -5,6 +5,7 @@ import { useCaseStore, type DiagnosticUnit } from "../../store/useCaseStore";
 import { Modal } from "../UI/Modal";
 import { useAuthStore } from "../../store/useAuthStore";
 import { useCaseSolvingStore } from "../../store/useCaseSolveStore";
+import { Upload01 } from "@untitledui/icons";
 
 interface Case {
     id: string;
@@ -33,6 +34,8 @@ function CaseMgmt() {
     const [selectedPracticeMode, setSelectedPracticeMode] = useState<"practice" | "practice_exam">("practice");
     const [caseToStartId, setCaseToStartId] = useState<string | null>(null);
     const [startCaseModalOpen, setStartCaseModalOpen] = useState<boolean>(false);
+
+    const [refreshKey, setRefreshKey] = useState<number>(0);
 
     const navigate = useNavigate();
     const token = useAuthStore((state) => state.token);
@@ -83,7 +86,7 @@ function CaseMgmt() {
         };
 
         fetchCases();
-    }, [token]);
+    }, [token, refreshKey]);
 
 
 
@@ -227,6 +230,78 @@ function CaseMgmt() {
         }
     };
 
+    const handleExportCase = async (caseId: string) => {
+        try {
+            const response = await fetch(`${backendURL}/cases/${caseId}/export`, {
+                method: "GET",
+                headers: { 
+                    "Authorization": `Bearer ${token}` 
+                }
+            });
+
+            if (!response.ok) throw new Error("Neuspješan export slučaja.");
+
+            const blob = await response.blob();
+            
+            let filename = "export_slucaja.json";
+            const disposition = response.headers.get('content-disposition');
+
+            if (disposition && disposition.indexOf('attachment') !== -1) {
+                const filenameRegex = /filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/;
+                const matches = filenameRegex.exec(disposition);
+                if (matches != null && matches[1]) { 
+                    filename = matches[1].replace(/['"]/g, '');
+                }
+            }
+
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            
+            a.remove();
+            window.URL.revokeObjectURL(url);
+            
+        } catch (error) {
+            console.error("Greška pri exportu:", error);
+            alert("Dogodila se greška prilikom preuzimanja JSON datoteke.");
+        }
+    };
+
+    const handleImportCase = async (event: React.ChangeEvent<HTMLInputElement>) => {
+        const file = event.target.files?.[0];
+        if (!file) return;
+
+        const formData = new FormData();
+        formData.append("file", file);
+
+        try {
+            const response = await fetch(`${backendURL}/cases/import`, {
+                method: "POST",
+                headers: { 
+                    "Authorization": `Bearer ${token}`
+                },
+                body: formData
+            });
+
+            const result = await response.json();
+
+            if (response.ok) {
+                alert("Slučaj je uspješno uvezen!");
+                setRefreshKey(prev => prev + 1);
+            } else {
+                alert(`Greška pri uvozu: ${result.detail}`);
+            }
+        } catch (error) {
+            console.error("Greška pri uvozu slučaja:", error);
+            alert("Dogodila se neočekivana greška pri uvozu.");
+        } finally {
+            event.target.value = '';
+        }
+    };
+
     const renderEmptyState = (title: string, message: string) => (
         <div className="flex flex-col items-center justify-center h-64 bg-gray-700/30 rounded-2xl border border-gray-600 border-dashed">
             <h3 className="text-xl font-bold text-gray-300 mb-2">{title}</h3>
@@ -241,12 +316,29 @@ function CaseMgmt() {
                     <h2 className="text-xl font-bold text-white">Pregled dostupnih slučajeva</h2>
                     <p className="text-sm text-gray-400 mt-1">Upravljajte svojim slučajevima, rješavajte dostupne</p>
                 </div>
-                <button 
-                    onClick={() => navigate("/case/create")} 
-                    className="bg-green-600 hover:bg-green-500 text-white px-5 py-2.5 rounded-lg font-bold transition-colors shadow-md cursor-pointer flex items-center justify-center gap-2"
-                >
-                    Novi slučaj
-                </button>
+                <div className="flex gap-3">
+                    <div>
+                        <input 
+                            type="file" 
+                            accept=".json" 
+                            id="import-case-input" 
+                            className="hidden" 
+                            onChange={handleImportCase} 
+                        />
+                        <label 
+                            htmlFor="import-case-input" 
+                            className="flex gap-2 bg-gray-600 text-white px-5 py-2.5 rounded-lg font-bold cursor-pointer shadow-md"
+                        >
+                            <Upload01 className="w-5"/> Uvezi slučaj
+                        </label>
+                    </div>
+                    <button 
+                        onClick={() => navigate("/case/create")} 
+                        className="bg-green-600 text-white px-5 py-2.5 rounded-lg font-bold shadow-md cursor-pointer flex items-center justify-center gap-2"
+                    >
+                        Novi slučaj
+                    </button>
+                </div>
             </div>
             <div className="flex gap-4 mt-5 items-center">                
                 <div className="flex bg-gray-700 p-1 rounded-lg border border-gray-600">
@@ -282,9 +374,10 @@ function CaseMgmt() {
                                 {c.type === "exam" && <span className="bg-red-900/30 text-red-300 text-[10px] px-2 py-1 rounded font-bold uppercase">Ispit</span>}
                             </div>
                             
-                            {!myCases.some(m => m.id === c.id) ? <></> : 
+                            {myCases.some(m => m.id === c.id) && 
                                 <Dropdown 
                                     onEdit={() => handleEditCase(c.id)}
+                                    onExport={() => handleExportCase(c.id)}
                                     onArchive={() => {
                                         setCaseToArchiveId(c.id);
                                         setCaseArchiveModalOpen(true);

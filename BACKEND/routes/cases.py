@@ -1,5 +1,8 @@
 import os
-from fastapi import APIRouter, Depends, HTTPException
+import re
+import json
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
+from fastapi.responses import JSONResponse
 from sqlalchemy import delete, func, or_
 from sqlmodel import Session, select
 from typing import List
@@ -640,3 +643,111 @@ def edit_case(case_id: uuid.UUID, case_data: CaseEditRequest, current_user: User
         session.rollback()
         raise HTTPException(status_code=400, detail=f"Greška pri ažuriranju: {str(e)}")
     
+
+@router.get("/{case_id}/export")
+def export_case_to_json(case_id: uuid.UUID, current_user: User = Depends(get_current_active_user), session: Session = Depends(get_session)):
+    case = session.get(Case, case_id)
+    if not case:
+        raise HTTPException(status_code=404, detail="Slučaj nije pronađen.")
+    
+    if case.created_by != current_user.id:
+        raise HTTPException(status_code=403, detail="Nemate ovlasti za izvoz ovog slučaja.")
+
+    category_link = session.exec(
+        select(CaseCategory).where(CaseCategory.case_id == case_id)
+    ).first()
+    category_id = str(category_link.category_id) if category_link else ""
+
+    case_media_ids = [str(m.id) for m in case.media]
+
+    hints_data = [
+        {
+            "sequence_no": h.sequence_no,
+            "text": h.text
+        } for h in sorted(case.hints, key=lambda x: x.sequence_no)
+    ]
+
+    du_data = []
+    for du in case.diagnostic_units:
+        du_data.append({
+            "id": str(du.id),
+            "label": du.label,
+            "name": du.name,
+            "type": du.type,
+            "level": du.level,
+            "result_text": du.result_text,
+            "provides": du.provides,
+            "resources": du.resources,
+            "consequences": du.consequences,
+            "required_units": [str(req.id) for req in du.required_units],
+            "media_ids": [str(m.id) for m in du.media]
+        })
+
+    export_data = {
+        "title": case.title,
+        "level": case.level,
+        "type": case.type,
+        "status": case.status,
+        "is_public": case.is_public,
+        "initial_info": case.initial_info,
+        "correct_diagnosis": case.correct_diagnosis,
+        "diagnosis_keywords": case.diagnosis_keywords,
+        "category_id": category_id,
+        "hints": hints_data,
+        "diagnostic_units": du_data,
+        "media_ids": case_media_ids,
+        "budget": case.budget or {}
+    }
+    
+    safe_title = re.sub(r'\W+', '_', case.title).strip('_')
+    filename = f"slucaj_export_{safe_title}.json"
+    
+    headers = {
+        "Content-Disposition": f'attachment; filename="{filename}"'
+    }
+    
+    return JSONResponse(content=export_data, headers=headers)
+
+
+@router.post("/import")
+async def import_case_from_json(file: UploadFile = File(...), current_user: User = Depends(get_current_active_user), session: Session = Depends(get_session)):
+    if not file.filename.endswith(".json"):
+        raise HTTPException(status_code=400, detail="Datoteka mora biti u JSON formatu.")
+
+    try:
+        contents = await file.read()
+        json_data = json.loads(contents)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Neispravan ili oštećen JSON format datoteke.")
+
+    try:
+        case_data = CaseCreate(**json_data)
+    except Exception as e:
+        raise HTTPException(
+            status_code=400, 
+            detail="Podatci u datoteci ne odgovaraju strukturi slučaja. Možda je datoteka stara ili izmijenjena."
+        )
+
+    try:
+        computed_defaults = get_default_settings(case_data)
+        
+        new_case_id = uuid.uuid4()
+        db_case = Case(
+            id=new_case_id,
+            **case_data.model_dump(exclude={"hints", "diagnostic_units", "media_ids", "category_id", "status", "change_log"}),
+            default_settings=computed_defaults,
+            created_by=current_user.id,
+            version=1,
+            status=case_data.status
+        )
+        session.add(db_case)        
+        session.flush()
+
+        populate_case_content(session, new_case_id, case_data, force_new_ids=True)
+
+        session.commit()
+        return {"status": "success", "message": "Slučaj uspješno uvezen.", "case_id": str(new_case_id)}
+
+    except Exception as e:
+        session.rollback()
+        raise HTTPException(status_code=400, detail=f"Greška pri spremanju u bazu. Provjerite postoje li referencirane kategorije i mediji. Detalji: {str(e)}")

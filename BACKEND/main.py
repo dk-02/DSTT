@@ -6,9 +6,6 @@ from database import engine
 from fastapi.middleware.cors import CORSMiddleware
 from routes import cases, media, templates, categories, auth, attempts, users, institutions, groups, assignments, contact, updates, statistics
 from config import UPLOAD_DIR
-from slowapi import _rate_limit_exceeded_handler
-from slowapi.errors import RateLimitExceeded
-from routes.auth import limiter
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -19,9 +16,6 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(lifespan=lifespan)
 
-app.state.limiter = limiter
-app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
-
 app.mount("/uploads", StaticFiles(directory=UPLOAD_DIR), name="uploads")
 
 app.add_middleware(
@@ -30,6 +24,7 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["Content-Disposition"]
 )
 
 # ROUTES
