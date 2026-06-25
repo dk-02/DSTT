@@ -3,24 +3,11 @@ import { useEffect, useState, type KeyboardEvent } from "react"
 import { useNavigate, useParams } from "react-router-dom";
 import { Modal } from "../components/UI/Modal";
 import { useAuthStore } from "../store/useAuthStore";
-import { useCaseSolvingStore } from "../store/useCaseSolveStore";
+import { useCaseSolvingStore, type UserMsg, type Media, type Hint } from "../store/useCaseSolveStore";
 import { jwtDecode } from "jwt-decode";
 import ReactMarkdown from 'react-markdown';
 
 const backendURL = import.meta.env.VITE_APP_BACKEND;
-
-interface userMsg {
-  sender: 'korisnik' | 'llm-mentor' | 'odgovor';
-  text: string;
-  du?: string;
-  media?: Media[];
-}
-
-interface Media {
-    file_path: string;
-    file_type: string;
-    title: string;
-}
 
 interface Case {
     id: string;
@@ -32,11 +19,6 @@ interface Case {
 interface Feedback {
     verdict: string;
     feedback: string;
-}
-
-interface Hint {
-    sequence_no: number;
-    text: string;
 }
 
 interface MyTokenPayload {
@@ -91,7 +73,23 @@ function CaseSolving() {
     const navigate = useNavigate();
 
     const token = useAuthStore((state) => state.token);
-    const { unlockedHints, addHint, reset, messages, addMessage, setAttempt, undoLastAction } = useCaseSolvingStore();
+    const { 
+        unlockedHints, 
+        messages, 
+        totalCostMoney,
+        totalCostTime,
+        totalPenaltyMoney,
+        totalPenaltyTime,
+        addHint, 
+        reset, 
+        addMessage, 
+        setAttempt, 
+        undoLastAction,
+        setTotalCostMoney,
+        setTotalCostTime,
+        setTotalPenaltyMoney,
+        setTotalPenaltyTime
+    } = useCaseSolvingStore();
 
     useEffect(() => {
         const fetchIds = async () => {
@@ -167,7 +165,7 @@ function CaseSolving() {
 
     const handleSend = async () => {
         try {
-            const userMessage: userMsg = { sender: "korisnik", text: input };
+            const userMessage: UserMsg = { sender: "korisnik", text: input };
             addMessage(userMessage);
             setInput("");
 
@@ -185,13 +183,18 @@ function CaseSolving() {
             }
 
             const data = await response.json();
-            const aiMsg: userMsg = { 
+            const aiMsg: UserMsg = { 
                 sender: "odgovor", 
                 text: data.result, 
                 du: data.du_id,
-                media: data.media
+                media: data.media,
+                cost: data.cost
             };
             addMessage(aiMsg);
+            setTotalCostMoney(data.total_cost_money);
+            setTotalCostTime(data.total_cost_time);
+            setTotalPenaltyTime(data.attempt_total_penalty_time);
+            setTotalPenaltyMoney(data.attempt_total_penalty_money);
 
         } catch (error) {
             console.error("Greška pri dohvatu DU-a: ", error);
@@ -322,7 +325,7 @@ function CaseSolving() {
         if (!input) return;
 
         try {
-            const userMsg: userMsg = { sender: "korisnik", text: `[Pitanje za mentora] ${input}` };
+            const userMsg: UserMsg = { sender: "korisnik", text: `[Pitanje za mentora] ${input}` };
             addMessage(userMsg);
             setInput("");
 
@@ -340,7 +343,7 @@ function CaseSolving() {
             }
 
             const data = await response.json();    
-            const aiMsg: userMsg = { sender: "llm-mentor", text: data.result };
+            const aiMsg: UserMsg = { sender: "llm-mentor", text: data.result };
             addMessage(aiMsg);                     
 
         } catch (error) {
@@ -467,7 +470,7 @@ function CaseSolving() {
                                         <strong>{m.sender}:</strong> <ReactMarkdown>{m.text}</ReactMarkdown>
                                     </div> : 
                                     <p  className={m.sender === "korisnik" ? "text-orange-400" : "text-gray-100"}>
-                                        <strong>{m.sender}:</strong> {m.text}
+                                        <strong>{m.sender}:</strong> {m.text} ({m.cost && `€ ${m.cost.money}, `}{m.cost && m.cost.time})
                                     </p>
                                 }
 
@@ -565,6 +568,20 @@ function CaseSolving() {
                                 )}
                             </div>
                         )}
+                    </div>
+                </div>
+                <div className="w-1/6 flex flex-col justify-center text-gray-50 font-semibold">
+                    <div className="w-full h-1/3 flex flex-col items-center bg-gray-800 p-5 rounded-lg border border-gray-500">
+                        <h3>Utrošeni resursi</h3>
+                        <div className="flex flex-col justify-center gap-2 w-full flex-1">
+                            <span>VRIJEME: {totalCostTime || 0}</span>
+                            <span>NOVAC: € {totalCostMoney || 0}</span>
+                        </div>
+                        <h3>Kazne</h3>
+                        <div className="flex flex-col justify-center gap-2 w-full flex-1">
+                            <span>VRIJEME: {totalPenaltyTime || 0}</span>
+                            <span>NOVAC: € {totalPenaltyMoney || 0}</span>
+                        </div>
                     </div>
                 </div>
             </div>

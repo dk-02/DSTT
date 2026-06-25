@@ -62,6 +62,7 @@ class Case(SQLModel, table=True):
     is_public: bool = Field(default=False)
     initial_info: str
     correct_diagnosis: str = Field(max_length=150)
+    diagnosis_keywords: str = Field()
     default_settings: Dict[str, Any] = Field(default={}, sa_column=SAColumn(JSONB))     
     created_by: uuid.UUID = Field(default=None, foreign_key="users.id")    
     budget: Dict[str, Any] = Field(default={}, sa_column=SAColumn(JSONB))
@@ -170,6 +171,7 @@ class CaseCreate(BaseModel):
     is_public: bool
     initial_info: str
     correct_diagnosis: str
+    diagnosis_keywords: str = ""
     category_id: str
     hints: List[HintReadCreate] = []
     diagnostic_units: List[DUCreate] = []

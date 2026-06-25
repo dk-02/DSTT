@@ -55,9 +55,7 @@ export const DiagnosticUnits = () => {
     const handleRemoveProvides = (du: DiagnosticUnit, value: string | undefined) => {
         if(!value || !du || !du.provides) return;
 
-        const updatedProvides = du.provides.filter(item => item !== value);
-
-        updateDU(du.id, { provides: updatedProvides });
+        if (du.provides.includes(value)) updateDU(du.id, { provides: du.provides.filter(item => item !== value) });
     }
 
     const timeUnits = [
@@ -300,7 +298,7 @@ export const DiagnosticUnits = () => {
                         </div>
                     </div>
 
-                    <div className='w-1/2 overflow-y-scroll max-h-32'>
+                    <div className='w-1/2 overflow-y-scroll max-h-32 flex gap-1'>
                         {du.provides?.map((p, idx) => (
                             <div key={idx} className='bg-gray-700 rounded w-fit pl-3 py-1 flex items-center gap-2'>
                                 <span>{p}</span>

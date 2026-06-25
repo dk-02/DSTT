@@ -39,6 +39,7 @@ interface CaseData {
     is_public: boolean;
     initial_info: string;
     correct_diagnosis: string;
+    keywords: string[];
     category_id: string;
     hints: { 
         sequence_no: number; 
@@ -87,6 +88,7 @@ const initialCaseData : CaseData = {
     is_public: false,
     initial_info: '',
     correct_diagnosis: '',
+    keywords: [],
     category_id: '',
     hints: [],
     diagnostic_units: [],

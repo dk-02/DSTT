@@ -713,6 +713,7 @@ async def get_DU(attempt_id: uuid.UUID, request: ChatRequest, session: Session =
     result_text = "Nažalost, ne razumijem vaš zahtjev."
     log_status = "no_mistake"
     applied_consequence = {}
+    du_cost = {"money": 0, "time": 0, "penalty_money": 0, "penalty_time": 0}
 
     if du_id != "NONE":
         try:
@@ -733,6 +734,7 @@ async def get_DU(attempt_id: uuid.UUID, request: ChatRequest, session: Session =
 
                 if consequence:
                     attempt.penalty_cost_money += consequence.get("penalty_money", 0.0)
+                    du_cost["penalty_money"] = consequence.get("penalty_money", 0.0)
 
                     unit = consequence.get("penalty_time_unit", "")
                     penalty_cost_time_raw = consequence.get("penalty_time", 0)
@@ -749,6 +751,7 @@ async def get_DU(attempt_id: uuid.UUID, request: ChatRequest, session: Session =
                             penalty_cost_time_seconds *= 86400
 
                     attempt.penalty_cost_time += penalty_cost_time_seconds
+                    du_cost["penalty_time"] = penalty_cost_time_seconds
 
                 if indicator_status == "fatal_mistake":
                     if not attempt.settings.get("ignore_terminating_consequences"):
@@ -775,6 +778,7 @@ async def get_DU(attempt_id: uuid.UUID, request: ChatRequest, session: Session =
                 media_list = [{"file_path": m.file_path, "file_type": m.file_type, "title": m.title} for m in selected_du.media]
 
                 attempt.total_cost_money += selected_du.resources.get("money", 0)
+                du_cost["money"] = selected_du.resources.get("money", 0)
 
                 unit = selected_du.resources.get("time_unit")
                 time = selected_du.resources.get("time", 0)
@@ -784,6 +788,7 @@ async def get_DU(attempt_id: uuid.UUID, request: ChatRequest, session: Session =
                 elif unit == "minutes": time *= 60
 
                 attempt.total_cost_time += time
+                du_cost["time"] = time
 
     new_log = AttemptLog(
         attempt_id=attempt_id,
@@ -806,10 +811,15 @@ async def get_DU(attempt_id: uuid.UUID, request: ChatRequest, session: Session =
         generate_evaluation_report(attempt_id, session)
 
     return {
-        "du_id": selected_du.id if selected_du else None, 
+        "du_id": selected_du.id if selected_du else None,
         "result": result_text,
         "media": media_list,
-        "attempt_status": attempt.status
+        "attempt_status": attempt.status,
+        "cost": du_cost, 
+        "attempt_total_cost_time": format_time(attempt.total_cost_time),
+        "attempt_total_cost_money": attempt.total_cost_money,
+        "attempt_total_penalty_time": format_time(attempt.penalty_cost_time),
+        "attempt_total_penalty_money": attempt.penalty_cost_money
     }
 
 
@@ -828,27 +838,33 @@ async def submit_diagnosis(attempt_id: uuid.UUID, data: DiagnosisRequest, sessio
 
     is_strict_mode = not attempt.is_practice or (assignment is not None and assignment.type != "practice") or attempt.settings.get("allow_diagnosis_retry") == False
     
+    keywords_section = ""
+    if case.diagnosis_keywords and case.diagnosis_keywords.strip():
+        keywords_section = f"MANDATORY KEYWORDS/CONCEPTS: {case.diagnosis_keywords}\nThe student's answer MUST contain these exact concepts or their clear technical synonyms to be considered CORRECT."
+
     if is_strict_mode:
         feedback_rules = """
-        - If the student correctly identified the core issue (even with different words), respond with 'CORRECT.' followed by a short confirmation.
-        - If they missed some details but got the main direction, respond with 'PARTIAL.' Provide a very brief generic explanation, but DO NOT reveal exactly what is missing and DO NOT give hints.
-        - If they are completely wrong, respond with 'INCORRECT.' DO NOT give any hints and DO NOT reveal the correct answer.
+        - If the student correctly identified the core issue and provided ALL keywords (even with different words), respond with 'CORRECT.' followed by a short confirmation.
+        - If they missed some keywords but got the main direction, respond with 'PARTIAL.' Provide a very brief generic explanation, but DO NOT reveal exactly what is missing and DO NOT give hints.
+        - If they are completely wrong (missing all keywords), respond with 'INCORRECT.' DO NOT give any hints and DO NOT reveal the correct answer.
         """
     else:
         feedback_rules = """
-        - If the student correctly identified the core issue (even with different words), respond with 'CORRECT.' followed by short feedback.
-        - If they missed some details but got the main direction, respond with 'PARTIAL.' followed by exactly what is missing.
-        - If they are completely wrong, respond with 'INCORRECT.' and a brief hint to guide them.
+        - If the student correctly identified the core issue and provided ALL keywords (even with different words), respond with 'CORRECT.' followed by short feedback.
+        - If they missed some keywords but got the main direction, respond with 'PARTIAL.' followed by exactly what is missing.
+        - If they are completely wrong (missing all keywords), respond with 'INCORRECT.' and a brief hint to guide them.
         """
 
     system_prompt = f"""
         If you can, answer in CROATIAN.
-        You are an expert instructor evaluating student's diagnosis. 
+        You are an expert instructor evaluating student's diagnosis on a case with this initial situation: {case.initial_info}. 
         Correct diagnosis reference: {case.correct_diagnosis}
+        {keywords_section}
+        
         Student's answer: {data.student_diagnosis}
         
         Compare them. Focus on the core meaning and technical substance, NOT on the exact wording. 
-        Accept synonyms, slight spelling mistakes, or alternative phrasing if the student clearly understands the root cause.
+        Accept synonyms, slight spelling mistakes, or alternative phrasing if the student clearly understands the root cause and has provided the keywords.
         
         {feedback_rules}
     """

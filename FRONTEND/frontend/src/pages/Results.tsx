@@ -262,7 +262,7 @@ function Results() {
                         {isTeacher && (
                             <div className="mt-2 pt-4 border-t border-gray-700 flex flex-col gap-2">
                                 <label className="text-xs font-bold text-orange-400 uppercase tracking-wider">
-                                    Ručna korekcija točnosti (Admin/Nastavnik)
+                                    Ručna korekcija točnosti
                                 </label>
                                 <div className="flex gap-2">
                                     <select 
@@ -354,12 +354,6 @@ function Results() {
                             </div>
                         </div>
 
-                        {/* {efficiency.budget_money_limit && (
-                            <p className={`text-sm font-medium mt-2 text-center ${efficiency.budget_exceeded ? 'text-red-500' : 'text-gray-500'}`}>
-                                Budžet: ${efficiency.budget_money_limit} 
-                            </p>
-                        )} */}
-
                         {(efficiency.budget_money_limit !== null || efficiency.budget_time_limit !== null) && (
                             <div className="bg-gray-700 p-3 rounded-lg text-sm text-gray-300 mb-2">
                                 <p className="font-bold mb-1 text-gray-100">Dopušteni budžet slučaja {efficiency.budget_exceeded ? <span className="text-red-400">(Prekoračeno)</span>  : <span className="text-blue-400">(U granicama)</span>}</p>
@@ -419,7 +413,7 @@ function Results() {
                         
                         <div className="relative border-l-2 border-gray-500 ml-3 md:ml-4 space-y-8">
                             <div className="ml-6 bg-gray-900/50 rounded-lg p-4 border border-gray-700 flex justify-center items-center font-semibold">
-                                Početak (00:00:00)
+                                Početak
                             </div>
 
                             {report.action_history && report.action_history.map((action, index) => (
