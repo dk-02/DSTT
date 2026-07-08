@@ -207,7 +207,6 @@ function CaseForm() {
             </Modal>
         </div>
     );
-
 }
 
 export default CaseForm;

@@ -385,7 +385,6 @@ function CaseMgmt() {
                                 />
                             }
                             
-                            
                             <div className="mt-4 flex-1">
                                 <h3 className="text-lg font-bold text-white leading-tight">{c.title}</h3>
                                 <p className="text-sm text-gray-300 mt-1">{c.topic_name} • v{c.version}</p>

@@ -11,16 +11,19 @@ def get_session():
     with Session(engine) as session:
         yield session
 
+
 @router.get("/", response_model=List[CategoryRead])
 def get_categories(session: Session = Depends(get_session)):
     categories = session.exec(select(Category)).all()
     return categories
+
 
 @router.get("/{category_id}", response_model=CategoryRead)
 def get_categories(category_id: uuid.UUID, session: Session = Depends(get_session)):
     category = session.get(Category, category_id)
     
     return category
+
 
 @router.post("/", response_model=CategoryRead)
 def create_category(category: Category, session: Session = Depends(get_session)):
@@ -29,10 +32,7 @@ def create_category(category: Category, session: Session = Depends(get_session))
     ).first()
     
     if existing_category:
-        raise HTTPException(
-            status_code=400, 
-            detail=f"Kategorija s imenom '{category.name}' već postoji."
-        )
+        raise HTTPException(status_code=400, detail=f"Kategorija s imenom '{category.name}' već postoji.")
 
     if category.parent_id:
         parent = session.get(Category, category.parent_id)

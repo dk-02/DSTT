@@ -1,8 +1,6 @@
 import os
-import json
 import re
 from typing import Any, Dict
-import requests
 import uuid
 from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException
@@ -11,9 +9,6 @@ from routes.auth import get_current_active_user, get_current_teacher
 from database import engine
 from models import Assignment, AssignmentCase, AttemptLog, AttemptStart, Case, ChatRequest, DiagnosisRequest, DiagnosisSubmission, DiagnosticUnit, Group, GroupAssignment, GroupMember, Hint, OverrideVerdictRequest, SolveAttempt, TeacherCommentRequest, User
 from google import genai
-
-OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
-OPENROUTER_MODEL = os.getenv("OPENROUTER_MODEL")
 
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 GEMINI_MODEL = os.getenv("GEMINI_MODEL")
@@ -27,7 +22,6 @@ def get_session():
         yield session
 
 
-# HELPER FUNCTIONS
 def check_is_redundant(session: Session, attempt_id: uuid.UUID, requested_du: DiagnosticUnit) -> bool:
     """ Provjerava je li ispitanik već dobio informacije koje pruža traženi DU. """
 
@@ -108,12 +102,8 @@ def check_logical_indicators(session: Session, attempt_id: uuid.UUID, requested_
 def check_is_unjustified_jump(session: Session, attempt_id: uuid.UUID, requested_du: DiagnosticUnit) -> bool:
     """ Provjerava je li trenutni zahtjev neopravdani skok na L2/L3 bez ikakvih prethodnih L1 pretraga. """
 
-    # Ako je level 1, nije skok
+    # Ako je L1, nije skok
     if requested_du.level == 1:
-        return False
-    
-    # Skok je opravdan SAMO ako taj DU nema nikakve required_units (preduvjete)
-    if not requested_du.required_units:
         return False
 
     past_logs = session.exec(
@@ -140,6 +130,7 @@ def check_is_unjustified_jump(session: Session, attempt_id: uuid.UUID, requested
 
     return False
 
+
 def format_time(time_seconds: int):
     hours = time_seconds // 3600
     minutes = (time_seconds % 3600) // 60
@@ -149,6 +140,7 @@ def format_time(time_seconds: int):
         return f"{hours:02d}:{minutes:02d}:{seconds:02d}"
     else:
         return f"{minutes:02d}:{seconds:02d}"
+
 
 def generate_evaluation_report(attempt_id: uuid.UUID, session: Session) -> Dict[str, Any]:
     """ Prolazi kroz povijest pokušaja, izračunava metriku na 4 osi i sprema konačni JSON izvještaj u SolveAttempt tablicu. """
@@ -255,7 +247,7 @@ def generate_evaluation_report(attempt_id: uuid.UUID, session: Session) -> Dict[
         methodology_score = 0                            # 0% ako je bilo fatalnih pogreški
 
     if du_requests_count == 0:
-        methodology_score = 0
+        methodology_score = 0                            # 0% ako nije dohvaćen nijedan DU
         
     methodology_score = max(0, methodology_score)        
 
@@ -405,7 +397,6 @@ def generate_evaluation_report(attempt_id: uuid.UUID, session: Session) -> Dict[
 
 @router.get("/my-history")
 def get_my_solve_history(current_user: User = Depends(get_current_active_user), session: Session = Depends(get_session)):
-    # Outer join s Assignment tablicom jer slobodna vježba nema zadaću
     stmt = (
         select(SolveAttempt, Case.title, Assignment.title, Assignment.type)
         .join(Case, SolveAttempt.case_id == Case.id)
@@ -602,7 +593,7 @@ async def start_attempt(data: AttemptStart, current_user: User = Depends(get_cur
                 )
                 preceding_case_ids = session.exec(preceding_cases_stmt).all()
 
-                # Jesu li svi ti slučajevi završeni?
+                # Provjera jesu li svi ti slučajevi završeni
                 for prev_case_id in preceding_case_ids:
                     finished_attempt = session.exec(
                         select(SolveAttempt).where(
@@ -674,24 +665,6 @@ async def get_DU(attempt_id: uuid.UUID, request: ChatRequest, session: Session =
 
     combined_content = f"INSTRUCTION: {system_prompt}\n\nUSER QUESTION: {request.message}"
 
-    # response = requests.post(
-    #     url="https://openrouter.ai/api/v1/chat/completions",
-    #     headers={
-    #         "Authorization": f"Bearer {OPENROUTER_API_KEY}", 
-    #         "Content-Type": "application/json"
-    #     },
-    #     data=json.dumps({
-    #         "model": OPENROUTER_MODEL,
-    #         "messages": [
-    #             {
-    #                 "role": "user", 
-    #                 "content": combined_content
-    #             }
-    #         ]
-    #     })
-    # )
-    # raw_content = response.json()['choices'][0]['message']['content'].strip()
-
     response = client.interactions.create(
         model=GEMINI_MODEL,
         input=combined_content
@@ -707,7 +680,7 @@ async def get_DU(attempt_id: uuid.UUID, request: ChatRequest, session: Session =
     else:
         du_id = "NONE"
 
-    # Obrada rezultata i LOGIRANJE
+    # Obrada rezultata i logiranje dohvata
     selected_du = None
     media_list = []
     result_text = "Nažalost, ne razumijem vaš zahtjev."
@@ -717,19 +690,25 @@ async def get_DU(attempt_id: uuid.UUID, request: ChatRequest, session: Session =
 
     if du_id != "NONE":
         try:
-            # Još jedna sigurnosna provjera pretvaranjem u UUID objekt
             valid_uuid = uuid.UUID(du_id)
             selected_du = session.get(DiagnosticUnit, valid_uuid)
         except ValueError:
             selected_du = None
-
-        # selected_du = session.get(DiagnosticUnit, du_id)
         
         if selected_du:
             indicator_status, consequence = check_logical_indicators(session, attempt_id, selected_du)
+            is_redundant = check_is_redundant(session, attempt_id, selected_du)
+            is_unjustified = check_is_unjustified_jump(session, attempt_id, selected_du)
+
+            if is_redundant:
+                log_status = "redundant"
+            elif is_unjustified:
+                log_status = "unjustified_jump"
 
             if indicator_status in ["fatal_mistake", "consequence_mistake"]:
-                log_status = indicator_status
+                if log_status == "no_mistake":
+                    log_status = indicator_status
+                # log_status = indicator_status
                 applied_consequence = consequence
 
                 if consequence:
@@ -766,14 +745,6 @@ async def get_DU(attempt_id: uuid.UUID, request: ChatRequest, session: Session =
                     result_text = consequence.get("value", "Nedostaje logički preduvjet")
 
             else:
-                is_redundant = check_is_redundant(session, attempt_id, selected_du)
-                is_unjustified = check_is_unjustified_jump(session, attempt_id, selected_du)
-
-                if is_redundant:
-                    log_status = "redundant"
-                elif is_unjustified:
-                    log_status = "unjustified_jump"
-
                 result_text = selected_du.result_text
                 media_list = [{"file_path": m.file_path, "file_type": m.file_type, "title": m.title} for m in selected_du.media]
 
@@ -869,19 +840,6 @@ async def submit_diagnosis(attempt_id: uuid.UUID, data: DiagnosisRequest, sessio
         {feedback_rules}
     """
 
-    # response = requests.post(
-    #     url="https://openrouter.ai/api/v1/chat/completions",
-    #     headers={
-    #         "Authorization": f"Bearer {OPENROUTER_API_KEY}", 
-    #         "Content-Type": "application/json"},
-    #     data=json.dumps({
-    #         "model": OPENROUTER_MODEL,
-    #         "messages": [{"role": "user", "content": system_prompt}]
-    #     })
-    # )
-
-    # llm_judgement = response.json()['choices'][0]['message']['content']
-
     response = client.interactions.create(
         model=GEMINI_MODEL,
         input=system_prompt
@@ -911,7 +869,7 @@ async def submit_diagnosis(attempt_id: uuid.UUID, data: DiagnosisRequest, sessio
     )
     session.add(submission)
 
-    # AŽURIRANJE SOLVE_ATTEMPT-a
+    # Ažuriranje pokušaja rješavanja
     if verdict == "correct":
         attempt.status = "completed"
         attempt.finished_at = datetime.now()
@@ -1051,20 +1009,6 @@ async def ask_llm_mentor(data: ChatRequest, attempt_id: uuid.UUID, session: Sess
     
     Answer their questions, provide advice and guide them on the right path. UNDER NO CIRCUMSTANCES are you allowed to reveal the final correct diagnosis or the direct solution.
     """
-  
-    # response = requests.post(
-    #     url="https://openrouter.ai/api/v1/chat/completions",
-    #     headers={
-    #         "Authorization": f"Bearer {OPENROUTER_API_KEY}", 
-    #         "Content-Type": "application/json"
-    #     },
-    #     data=json.dumps({
-    #         "model": OPENROUTER_MODEL,
-    #         "messages": [{"role": "user", "content": prompt}]
-    #     })
-    # )
-
-    # mentor_response = response.json()['choices'][0]['message']['content']
 
     response = client.interactions.create(
         model=GEMINI_MODEL,
@@ -1210,7 +1154,6 @@ def add_teacher_comment(attempt_id: uuid.UUID, data: TeacherCommentRequest, curr
     session.commit()
     
     return {"status": "success", "message": "Komentar je spremljen."}
-
 
 
 @router.patch("/{attempt_id}/override-verdict")

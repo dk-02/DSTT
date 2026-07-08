@@ -134,7 +134,6 @@ function Contact() {
                             Pošalji poruku
                         </button>
                     </form>
-
                 </div>
             </main>
         </div>

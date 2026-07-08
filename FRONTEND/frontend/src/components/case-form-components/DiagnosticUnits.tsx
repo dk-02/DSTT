@@ -60,20 +60,20 @@ export const DiagnosticUnits = () => {
 
     const timeUnits = [
         {
-        value: 'seconds',
-        name: 'Sekunde'
+            value: 'seconds',
+            name: 'Sekunde'
         },
         {
-        value: 'minutes',
-        name: 'Minute'
+            value: 'minutes',
+            name: 'Minute'
         },
         {
-        value: 'hours',
-        name: 'Sati'
+            value: 'hours',
+            name: 'Sati'
         },
         {
-        value: 'days',
-        name: 'Dani'
+            value: 'days',
+            name: 'Dani'
         }
     ]
 

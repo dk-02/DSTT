@@ -300,9 +300,7 @@ function SolveHistory() {
                 </div>
             )}
         </div>
-            
     )
-
 }
 
 export default SolveHistory;

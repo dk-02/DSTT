@@ -339,9 +339,10 @@ function Results() {
                                 <p className="text-2xl font-black text-blue-900">{efficiency.readable_time_total}</p>
                                 {efficiency.penalty_cost_time_seconds > 0 && (
                                     <p className="text-xs text-red-600 mt-1 font-semibold">
-                                        (+ {Math.floor(efficiency.penalty_cost_time_seconds / 60)} min kazne)
+                                        (+ {Math.floor(efficiency.penalty_cost_time_seconds / 3600)}h {Math.floor((efficiency.penalty_cost_time_seconds % 3600) / 60)}m kazne)
                                     </p>
                                 )}
+                                <p className="text-blue-700 mt-2 text-sm">UKUPNO: {Math.floor((efficiency.total_cost_time_seconds + efficiency.penalty_cost_time_seconds) / 3600)}h {Math.floor((efficiency.total_cost_time_seconds + efficiency.penalty_cost_time_seconds) % 3600 / 60)}m</p>
                             </div>
                             <div className="bg-green-50 border border-green-100 p-4 rounded-xl text-center">
                                 <p className="text-green-500 text-xs font-bold uppercase mb-1">Potrošeni Novac</p>
@@ -351,6 +352,7 @@ function Results() {
                                         (+ €{efficiency.penalty_cost_money} kazne)
                                     </p>
                                 )}
+                                <p className="text-green-700 mt-2 text-sm">UKUPNO: €{efficiency.total_cost_money + efficiency.penalty_cost_money}</p>
                             </div>
                         </div>
 
@@ -425,22 +427,24 @@ function Results() {
                                         <div className="w-full">
                                             <div className="flex justify-between items-start mb-2">
                                                 <div className="w-full font-bold text-gray-200 flex justify-between">
-                                                    <span>
-                                                    {
-                                                        action.type === "du_request" ? "Zatražena dijagnostička jedinica" 
-                                                        : action.type === "hint_request" ? "Korišten hint" 
-                                                        : action.type === "mentor_request" ? "Pitanje mentoru" 
-                                                        : action.type === "diagnosis_submission" ? "Pokušaj dijagnoze"
-                                                        : action.type === "undo_request" ? "Zatražen UNDO" 
-                                                        : "Nepoznata akcija"
-                                                    }
-                                                    </span>
+                                                    <div className="flex gap-3">
+                                                        <span>
+                                                            {
+                                                                action.type === "du_request" ? "Zatražena dijagnostička jedinica" 
+                                                                : action.type === "hint_request" ? "Korišten hint" 
+                                                                : action.type === "mentor_request" ? "Pitanje mentoru" 
+                                                                : action.type === "diagnosis_submission" ? "Pokušaj dijagnoze"
+                                                                : action.type === "undo_request" ? "Zatražen UNDO" 
+                                                                : "Nepoznata akcija"
+                                                            }
+                                                        </span>
+                                                        {action.status === "redundant" && <span className="px-2 py-1 bg-yellow-900/50 text-yellow-500 text-xs rounded border border-yellow-800">Redundantno</span>}
+                                                        {action.status === "unjustified_jump" && <span className="px-2 py-1 bg-yellow-900/50 text-yellow-500 text-xs rounded border border-yellow-800">Neopravdani skok</span>}
+                                                        {action.status === "consequence_mistake" && <span className="px-2 py-1 bg-yellow-900/50 text-yellow-500 text-xs rounded border border-yellow-800">Preskočen preduvjet</span>}
+                                                        {action.status === "fatal_mistake" && <span className="px-2 py-1 bg-red-900/50 text-red-500 text-xs rounded border border-red-800">Fatalna pogreška</span>}
+                                                    </div>
                                                     <span className="text-sm text-gray-400">Proteklo vrijeme: {action.relative_time_str}</span>
                                                 </div>
-
-                                                {action.status === "redundant" && <span className="px-2 py-1 bg-yellow-900/50 text-yellow-500 text-xs rounded border border-yellow-800">Redundantno</span>}
-                                                {action.status === "consequence_mistake" && <span className="px-2 py-1 bg-yellow-900/50 text-yellow-500 text-xs rounded border border-yellow-800">Upozorenje</span>}
-                                                {action.status === "fatal_mistake" && <span className="px-2 py-1 bg-red-900/50 text-red-500 text-xs rounded border border-red-800">Fatalna pogreška</span>}
                                             </div>
 
                                             {action.type === "du_request" || action.type == "mentor_request" ?

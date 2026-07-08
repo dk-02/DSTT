@@ -14,17 +14,14 @@ def get_session():
 
 
 @router.get("/", response_model=List[Institution])
-def get_all_institutions(
-    current_admin: User = Depends(get_current_admin),
-    session: Session = Depends(get_session), 
-):
+def get_all_institutions(current_admin: User = Depends(get_current_admin), session: Session = Depends(get_session)):
     statement = select(Institution).order_by(Institution.name)
     results = session.exec(statement).all()
     
     return results
 
 
-@router.post("/register", status_code=status.HTTP_201_CREATED)
+@router.post("/register", status_code=201)
 def create_institution(data: InstitutionCreate, current_admin: User = Depends(get_current_admin), session: Session = Depends(get_session)):
     try:
         new_inst = Institution(
@@ -62,13 +59,8 @@ def update_institution(institution_id: uuid.UUID, data: InstitutionUpdate, curre
     return {"message": "Podaci institucije su uspješno ažurirani.", "institution": target_inst}
 
 
-# --- 3. DEAKTIVACIJA INSTITUCIJE ---
 @router.post("/{institution_id}/deactivate")
-def deactivate_institution(
-    institution_id: uuid.UUID,
-    current_admin: User = Depends(get_current_admin),
-    session: Session = Depends(get_session)
-):
+def deactivate_institution(institution_id: uuid.UUID, current_admin: User = Depends(get_current_admin), session: Session = Depends(get_session)):
     target_inst = session.get(Institution, institution_id)
     if not target_inst:
         raise HTTPException(status_code=404, detail="Institucija nije pronađena.")
@@ -83,13 +75,8 @@ def deactivate_institution(
     return {"message": f"Institucija '{target_inst.name}' je uspješno deaktivirana."}
 
 
-# --- 4. REAKTIVACIJA INSTITUCIJE ---
 @router.post("/{institution_id}/reactivate")
-def reactivate_institution(
-    institution_id: uuid.UUID,
-    current_admin: User = Depends(get_current_admin),
-    session: Session = Depends(get_session)
-):
+def reactivate_institution(institution_id: uuid.UUID, current_admin: User = Depends(get_current_admin), session: Session = Depends(get_session)):
     target_inst = session.get(Institution, institution_id)
     if not target_inst:
         raise HTTPException(status_code=404, detail="Institucija nije pronađena.")
@@ -104,13 +91,8 @@ def reactivate_institution(
     return {"message": f"Institucija '{target_inst.name}' je ponovno aktivirana."}
 
 
-# --- 5. BRISANJE INSTITUCIJE ---
 @router.delete("/{institution_id}")
-def delete_institution(
-    institution_id: uuid.UUID,
-    current_admin: User = Depends(get_current_admin),
-    session: Session = Depends(get_session)
-):
+def delete_institution(institution_id: uuid.UUID, current_admin: User = Depends(get_current_admin), session: Session = Depends(get_session)):
     target_inst = session.get(Institution, institution_id)
     if not target_inst:
         raise HTTPException(status_code=404, detail="Institucija nije pronađena.")
@@ -118,8 +100,9 @@ def delete_institution(
     try:
         session.delete(target_inst)
         session.commit()
+
         return {"message": f"Institucija '{target_inst.name}' je trajno obrisana."}
+    
     except Exception as e:
         session.rollback()
-        # Hvatanje greške npr. ako institucija ima vezane korisnike, a kaskadno brisanje nije riješeno
         raise HTTPException(status_code=500, detail=f"Greška pri brisanju institucije: {str(e)}")

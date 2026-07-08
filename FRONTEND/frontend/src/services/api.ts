@@ -7,7 +7,7 @@ export const apiRequest = async (endpoint: string, options: RequestInit = {}) =>
     const token = useAuthStore.getState().token;
 
     const isFormData = options.body instanceof FormData;
-    const hasBody = !!options.body; // For POST, PUT, PATCH
+    const hasBody = !!options.body; // POST, PUT, PATCH
 
     const headers: Record<string, string> = {
         ...(token ? { "Authorization": `Bearer ${token}` } : {}),

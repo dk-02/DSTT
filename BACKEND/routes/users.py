@@ -1,9 +1,7 @@
 import uuid
-
 from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import Session, select
 from typing import List
-
 from database import engine
 from models import User, UserEdit, UserRole, Role
 from routes.auth import get_current_admin 
@@ -14,15 +12,12 @@ def get_session():
     with Session(engine) as session:
         yield session
 
+
 @router.get("/", response_model=List[dict])
 def get_all_users(session: Session = Depends(get_session), current_admin: User = Depends(get_current_admin)):
-    """
-    Dohvaća popis svih korisnika iz baze zajedno s njihovim ulogama.
-    Dostupno samo administratorima.
-    """
+    """ Dohvaća popis svih korisnika iz baze zajedno s njihovim ulogama. Dostupno samo administratorima. """
 
-    users = session.exec(select(User)).all()
-    
+    users = session.exec(select(User)).all()    
     result = []
     
     for user in users:
@@ -44,6 +39,7 @@ def get_all_users(session: Session = Depends(get_session), current_admin: User =
         })
         
     return result
+
 
 @router.patch("/edit/{user_id}")
 def edit_user(user_id: uuid.UUID, user_data: UserEdit, current_admin: User = Depends(get_current_admin), session: Session = Depends(get_session)):
@@ -82,10 +78,7 @@ def edit_user(user_id: uuid.UUID, user_data: UserEdit, current_admin: User = Dep
         session.commit()
         session.refresh(existing_user)
 
-        return {
-            "status": "success", 
-            "message": "Uspješno uređeni podatci."
-        }
+        return {"status": "success", "message": "Uspješno uređeni podatci."}
 
     except Exception as e:
         session.rollback()
@@ -93,11 +86,7 @@ def edit_user(user_id: uuid.UUID, user_data: UserEdit, current_admin: User = Dep
     
 
 @router.delete("/delete/{user_id}")
-def delete_user(
-    user_id: uuid.UUID, 
-    current_admin: User = Depends(get_current_admin), 
-    session: Session = Depends(get_session)
-):
+def delete_user(user_id: uuid.UUID, current_admin: User = Depends(get_current_admin), session: Session = Depends(get_session)):
     target_user = session.get(User, user_id)
     if not target_user:
         raise HTTPException(status_code=404, detail="Korisnik nije pronađen")

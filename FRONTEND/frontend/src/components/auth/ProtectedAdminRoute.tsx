@@ -3,7 +3,6 @@ import { useEffect, type JSX } from "react";
 import { useNavigate } from "react-router-dom";
 import { useRole } from "../../hooks/useRole";
 
-
 export const ProtectedAdminRoute = ({ children }: { children: JSX.Element }) => {
     const token = useAuthStore((state) => state.token);
     const navigate = useNavigate();

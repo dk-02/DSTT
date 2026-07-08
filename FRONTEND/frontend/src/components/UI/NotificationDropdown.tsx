@@ -37,9 +37,6 @@ export const NotificationDropdown = () => {
         };
 
         fetchNotifications();
-        // const interval = setInterval(fetchNotifications, 5000);
-        
-        // return () => clearInterval(interval); // Očisti pri gašenju
     }, [token]);
 
     const handleAction = async (notifId: string, action: string) => {

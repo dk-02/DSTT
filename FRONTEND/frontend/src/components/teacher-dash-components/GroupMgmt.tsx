@@ -326,7 +326,6 @@ function GroupMgmt() {
         }
     };
 
-
     return (
         <>
             <div className="mt-5 flex flex-col gap-6 animate-fadeIn">
@@ -450,17 +449,6 @@ function GroupMgmt() {
                                                     </p>
                                                 </div>
                                             </div>
-
-                                            {/* <div className="flex items-center justify-between pt-4 border-t border-gray-600 mt-5">
-                                                <span className="bg-blue-900/40 text-blue-400 text-[11px] font-bold px-2.5 py-1 rounded-md uppercase tracking-wider">
-                                                    {m.expertise_level || "NEMA RAZINE"}
-                                                </span>
-                                                
-                                                <span className="flex items-center gap-1.5 text-sm font-bold text-orange-400 bg-orange-900/20 px-2 py-1 rounded-lg">
-                                                    <Star01 className="w-4" /> {m.xp_points || 0} XP
-                                                </span>
-                                            </div> */}
-
                                         </div>
                                     );
                                 })}

@@ -1,9 +1,8 @@
 import os
 import re
 from datetime import datetime, timedelta, timezone
-from typing import Dict
 import uuid
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from jose import jwt
 from passlib.context import CryptContext
@@ -11,15 +10,10 @@ from sqlalchemy import func
 from sqlmodel import Session, select
 from database import engine
 from models import AdminUserRegister, Institution, PasswordChange, PasswordChangeAdmin, User, UserRole, Role, UserRegister
-from slowapi import Limiter
-from slowapi.util import get_remote_address
-import resend
 
 SECRET_KEY = os.getenv("SECRET_KEY")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 1440  # 24 sata
-
-limiter = Limiter(key_func=get_remote_address)
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
 pwd_context = CryptContext(schemes=["argon2"], deprecated="auto")
@@ -35,11 +29,7 @@ async def get_current_user(
     token: str = Depends(oauth2_scheme), 
     session: Session = Depends(get_session)
 ):
-    credentials_exception = HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Nije moguće potvrditi identitet",
-        headers={"WWW-Authenticate": "Bearer"},
-    )
+    credentials_exception = HTTPException(status_code=401, detail="Nije moguće potvrditi identitet", headers={"WWW-Authenticate": "Bearer"})
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         user_id: str = payload.get("sub")
@@ -88,30 +78,15 @@ def verify_password(plain_password: str, hashed_password: str):
 
 def validate_password_strength(password: str) -> None:
     if len(password) < 8:
-        raise HTTPException(
-            status_code=400, 
-            detail="Lozinka mora sadržavati minimalno 8 znakova."
-        )
+        raise HTTPException(status_code=400, detail="Lozinka mora sadržavati minimalno 8 znakova.")
     if not re.search(r"[A-Z]", password):
-        raise HTTPException(
-            status_code=400, 
-            detail="Lozinka mora sadržavati barem jedno veliko slovo."
-        )
+        raise HTTPException(status_code=400, detail="Lozinka mora sadržavati barem jedno veliko slovo.")
     if not re.search(r"[a-z]", password):
-        raise HTTPException(
-            status_code=400, 
-            detail="Lozinka mora sadržavati barem jedno malo slovo."
-        )
+        raise HTTPException(status_code=400, detail="Lozinka mora sadržavati barem jedno malo slovo.")
     if not re.search(r"[0-9]", password):
-        raise HTTPException(
-            status_code=400, 
-            detail="Lozinka mora sadržavati barem jedan broj."
-        )
+        raise HTTPException(status_code=400, detail="Lozinka mora sadržavati barem jedan broj.")
     if not re.search(r"[!@#$%^&*(),.?\":{}|<>_+\-\[\]\/\\]", password):
-        raise HTTPException(
-            status_code=400, 
-            detail="Lozinka mora sadržavati barem jedan posebni znak."
-        )
+        raise HTTPException(status_code=400, detail="Lozinka mora sadržavati barem jedan posebni znak.")
 
 def create_access_token(data: dict):
     to_encode = data.copy()
@@ -142,7 +117,6 @@ def register(user_data: UserRegister, session: Session = Depends(get_session)):
 
     inst_stmt = select(Institution).where(Institution.domain == domain)
     inst = session.exec(inst_stmt).first()
-
 
     try:
         clean_email = user_data.email.lower().strip()
@@ -189,7 +163,6 @@ def admin_register(user_data: AdminUserRegister, current_admin: User = Depends(g
 
     try:
         is_examinee = "examinee" in user_data.roles
-
         clean_email = user_data.email.lower().strip()
 
         new_user = User(
@@ -225,11 +198,7 @@ def login(request: Request, user_data: OAuth2PasswordRequestForm = Depends(), se
     user = session.exec(statement).first()
 
     if not user or not verify_password(user_data.password, user.password_hash):
-        raise HTTPException(
-            status_code=401,
-            detail="Pogrešan email ili lozinka.",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
+        raise HTTPException(status_code=401, detail="Pogrešan email ili lozinka.", headers={"WWW-Authenticate": "Bearer"})
 
     if not user.is_active:
         raise HTTPException(status_code=400, detail="Korisnički račun je deaktiviran")
@@ -270,6 +239,7 @@ async def deactivate_user(user_id: uuid.UUID = None, current_user: User = Depend
 
     return {"message": "Profil je uspješno deaktiviran."}
 
+
 @router.post("/reactivate/{user_id}")
 def reactivate_user(user_id: uuid.UUID, current_admin: User = Depends(get_current_admin), session: Session = Depends(get_session)):
     target_user = session.get(User, user_id)
@@ -286,10 +256,7 @@ def reactivate_user(user_id: uuid.UUID, current_admin: User = Depends(get_curren
 @router.post("/change-password")
 def change_password(data: PasswordChange, current_user: User = Depends(get_current_active_user), session: Session = Depends(get_session)):
     if not verify_password(data.old_password, current_user.password_hash):
-        raise HTTPException(
-            status_code=400, 
-            detail="Trenutna lozinka nije ispravna."
-        )
+        raise HTTPException(status_code=400, detail="Trenutna lozinka nije ispravna.")
     
     validate_password_strength(data.new_password)
 
@@ -306,8 +273,6 @@ def change_password_admin(data: PasswordChangeAdmin, current_user: User = Depend
 
     if not user:
         raise HTTPException(status_code=404, detail="Korisnik nije pronađen.")
-    
-    # validate_password_strength(data.new_password)
 
     user.password_hash = hash_password(data.new_password)
 
@@ -315,57 +280,3 @@ def change_password_admin(data: PasswordChangeAdmin, current_user: User = Depend
     session.commit()
 
     return {"message": f"Lozinka korisnika {user.email} uspješno promijenjena."}
-
-
-# @router.post("/forgot-password")
-# async def forgot_password(email_data: Dict[str, str], session: Session = Depends(get_session)):
-#     email = email_data.get("email")
-#     user = session.exec(select(User).where(User.email == email)).first()
-    
-#     if not user:
-#         return {"message": "Ako račun postoji, upute su poslane na mail."}
-
-#     reset_token = create_reset_token(
-#         data={"sub": str(user.id), "type": "password_reset"}, 
-#         expires_delta=15
-#     )
-
-#     reset_link = f"http://localhost:5173/reset-password?token={reset_token}"
-
-#     try:
-#         resend.api_key = os.getenv("RESEND_API_KEY")
-#         resend.Emails.send({
-#             "from": "onboarding@resend.dev",
-#             "to": [user.email],
-#             "subject": "Resetiranje lozinke - DSTT",
-#             "html": f"<p>Kliknite na link za promjenu lozinke: <a href='{reset_link}'>Resetiraj lozinku</a></p>"
-#         })
-#     except Exception as e:
-#         raise HTTPException(status_code=500, detail=f"Greška pri slanju maila {e}")
-
-#     return {"message": "Upute su poslane na mail."}
-
-
-# @router.post("/reset-password-confirm")
-# def reset_password_confirm(data: Dict[str, str], session: Session = Depends(get_session)):
-#     token = data.get("token")
-#     new_password = data.get("new_password")
-
-#     try:
-#         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-#         if payload.get("type") != "password_reset":
-#             raise HTTPException(status_code=400, detail="Neispravan tip tokena")
-        
-#         user_id = payload.get("sub")
-#         user = session.get(User, uuid.UUID(user_id))
-        
-#         if not user:
-#             raise HTTPException(status_code=404, detail="Korisnik nije pronađen")
-
-#         user.password_hash = hash_password(new_password)
-#         session.add(user)
-#         session.commit()
-        
-#         return {"message": "Lozinka uspješno promijenjena."}
-#     except Exception:
-#         raise HTTPException(status_code=400, detail="Link je istekao ili je nevaljan.")

@@ -1,9 +1,9 @@
 import uuid
 from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import Session, select
-from typing import List, Dict, Any
+from typing import List, Dict
 from database import engine
-from models import CaseCategory, Category, PersonalStatsResponse, TopicStat, User, Role, UserRole, Group, GroupMember, SolveAttempt, AttemptLog, Case, DiagnosisSubmission, Institution, Assignment, GroupAssignment
+from models import CaseCategory, Category, PersonalStatsResponse, TopicStat, User, Role, UserRole, Group, GroupMember, SolveAttempt, AttemptLog, Case, DiagnosisSubmission, Institution, GroupAssignment
 from routes.auth import get_current_active_user
 
 router = APIRouter(prefix="/statistics", tags=["Statistics"])
@@ -12,13 +12,14 @@ def get_session():
     with Session(engine) as session:
         yield session
 
+
 def get_user_roles(session: Session, user_id: uuid.UUID) -> List[str]:
     return session.exec(select(Role.name).join(UserRole).where(UserRole.user_id == user_id)).all()
 
 
 @router.get("/me", response_model=PersonalStatsResponse)
 def get_my_statistics(is_practice: bool = True, current_user: User = Depends(get_current_active_user), session: Session = Depends(get_session)):
-    # Dohvaćanje svih završenih/terminiranih pokušaja ovog korisnika uz naziv kategorije slučaja
+    # Dohvaćanje svih završenih/terminiranih pokušaja korisnika uz naziv kategorije slučaja
     stmt = (
         select(SolveAttempt, Category.name)
         .join(Case, SolveAttempt.case_id == Case.id)
@@ -33,7 +34,6 @@ def get_my_statistics(is_practice: bool = True, current_user: User = Depends(get
     
     total_attempts = len(results)
     
-    # Ako student nema još nijedan riješen slučaj, vraćamo nule
     if total_attempts == 0:
         return PersonalStatsResponse(
             total_completed_cases=0,
@@ -48,7 +48,6 @@ def get_my_statistics(is_practice: bool = True, current_user: User = Depends(get
     sum_methodology = 0.0
     sum_independence = 0.0
     
-    # Rječnik za praćenje statistike po temama (kategorijama)
     topic_data: Dict[str, Dict[str, int]] = {}
 
     for attempt, cat_name in results:
@@ -58,7 +57,6 @@ def get_my_statistics(is_practice: bool = True, current_user: User = Depends(get
             
         topic_data[topic]["total"] += 1
         
-        # Čitanje JSON izvještaja
         report = attempt.evaluation_report or {}
         metrics = report.get("metrics", {})
         
@@ -71,7 +69,6 @@ def get_my_statistics(is_practice: bool = True, current_user: User = Depends(get
         sum_methodology += metrics.get("methodology", {}).get("score_percentage", 0)
         sum_independence += metrics.get("independence", {}).get("score_percentage", 0)
 
-    # Izrada liste objekata za tematsku analizu
     topic_stats_list = []
     for topic, data in topic_data.items():
         topic_stats_list.append(
@@ -106,26 +103,22 @@ def get_my_statistics(is_practice: bool = True, current_user: User = Depends(get
     )
 
 
-
 @router.get("/group-analytics")
 def get_group_statistics(is_practice: bool = True, current_user: User = Depends(get_current_active_user), session: Session = Depends(get_session)):
     roles = get_user_roles(session, current_user.id)
     if "teacher" not in roles:
         raise HTTPException(status_code=403, detail="Nemate ovlasti nastavnika.")
 
-    # 1. Pronađi sve grupe ovog nastavnika
     groups = session.exec(select(Group).where(Group.teacher_id == current_user.id)).all()
     
     group_stats = []
     mistakes_counter = {}
 
     for group in groups:
-        # Dohvati studente u grupi
         students = session.exec(select(User).join(GroupMember).where(GroupMember.group_id == group.id)).all()
         student_stats_list = []
 
         for student in students:
-            # Dohvati sve pokušaje ovog studenta za zadaće koje su dodijeljene ovoj grupi
             stmt = (
                 select(SolveAttempt)
                 .join(GroupAssignment, SolveAttempt.assignment_id == GroupAssignment.assignment_id)
@@ -183,7 +176,7 @@ def get_group_statistics(is_practice: bool = True, current_user: User = Depends(
             "student_stats": student_stats_list
         })
 
-    # Sortiranje grešaka (Top 3 najčešće)
+    # Sortiranje grešaka (3 najčešće)
     sorted_mistakes = sorted(mistakes_counter.items(), key=lambda x: x[1]["count"], reverse=True)[:3]
     top_mistakes = [
         {
@@ -203,9 +196,7 @@ def get_case_statistics(is_practice: bool = True, current_user: User = Depends(g
     if "teacher" not in roles and "expert" not in roles:
         raise HTTPException(status_code=403, detail="Nemate ovlasti za pristup ovim podatcima.")
 
-    # Dohvati sve objavljene slučajeve ovog korisnika
-    cases = session.exec(select(Case).where(Case.created_by == current_user.id, Case.status == "published")).all()
-    
+    cases = session.exec(select(Case).where(Case.created_by == current_user.id, Case.status == "published")).all()    
     case_stats = []
 
     for case in cases:
@@ -234,7 +225,6 @@ def get_case_statistics(is_practice: bool = True, current_user: User = Depends(g
             
             eff = metrics.get("efficiency", {})
 
-            # Računamo ukupni trošak (osnovno + kazne)
             sum_money += eff.get("total_cost_money", 0) + eff.get("penalty_cost_money", 0)
             sum_time += eff.get("total_cost_time_seconds", 0) + eff.get("penalty_cost_time_seconds", 0)
 

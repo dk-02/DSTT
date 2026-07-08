@@ -116,10 +116,6 @@ export const Register = ({ isAdminMode = false, onSuccess } : RegisterProps) => 
 
             return updatedData;
         });
-        // setFormData((prev) => ({
-        //     ...prev,
-        //     [name]: value 
-        // }));
     };
 
     const handleRegister = async () => {

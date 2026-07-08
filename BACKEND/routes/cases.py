@@ -40,8 +40,8 @@ def create_update_notifications(session: Session, case_id: uuid.UUID, update_id:
 
 
 def clear_case_content(session: Session, case_id: uuid.UUID):
-    """Briše sve hinteve, DU-ove, ovisnosti i medijske linkove vezane uz case_id."""
-    # Dohvaćanje ID-ova DU-ova za brisanje ovisnosti i medija
+    """Briše sve hintove, DU-ove, ovisnosti i medijske linkove vezane uz case_id."""
+
     du_ids = session.exec(select(DiagnosticUnit.id).where(DiagnosticUnit.case_id == case_id)).all()
     
     if du_ids:
@@ -49,14 +49,13 @@ def clear_case_content(session: Session, case_id: uuid.UUID):
         session.exec(delete(DUMediaFile).where(DUMediaFile.du_id.in_(du_ids)))
         session.exec(delete(DiagnosticUnit).where(DiagnosticUnit.case_id == case_id))
     
-    # Brisanje hintova i linkova medija samog slučaja
     session.exec(delete(Hint).where(Hint.case_id == case_id))
     session.exec(delete(CaseMediaFile).where(CaseMediaFile.case_id == case_id))
     session.exec(delete(CaseCategory).where(CaseCategory.case_id == case_id))
     
 
 def populate_case_content(session: Session, case_id: uuid.UUID, case_data: CaseCreate, force_new_ids: bool = False):
-    """Puni hinteve, medije, DU-ove i ovisnosti za zadani case_id."""
+    """Puni hintove, medije, DU-ove i ovisnosti za zadani case_id."""
 
     if case_data.category_id:
         session.add(CaseCategory(case_id=case_id, category_id=uuid.UUID(case_data.category_id)))
@@ -144,7 +143,6 @@ def get_default_settings(case_data: CaseCreate):
     return computed_defaults
 
 
-
 @router.post("/")
 def create_case(case_data: CaseCreate, current_user: User = Depends(get_current_active_user), session: Session = Depends(get_session)):
     try:
@@ -172,9 +170,7 @@ def create_case(case_data: CaseCreate, current_user: User = Depends(get_current_
         raise HTTPException(status_code=400, detail=str(e))
 
 
-
-
-# CASEOVI NEKOG NASTAVNIKA
+# SLUČAJEVI NEKOG NASTAVNIKA
 @router.get("/authored")
 def get_authored_cases(session: Session = Depends(get_session), current_user: User = Depends(get_current_active_user)):
     user_roles = session.exec(select(Role.name).join(UserRole).where(UserRole.user_id == current_user.id)).all()
@@ -263,7 +259,7 @@ def get_authored_archived_cases(session: Session = Depends(get_session), current
     ]
 
 
-# --- SVI CASEOVI DOSTUPNI SVIM KORISNICIMA (practice) ---
+# SVI CASEOVI DOSTUPNI SVIM KORISNICIMA (practice)
 @router.get("/available", response_model=List[AssignmentCasePreview])
 def get_available_cases(session: Session = Depends(get_session), current_user: User = Depends(get_current_active_user)):
     visibility_filter = or_(
@@ -322,7 +318,7 @@ def get_available_cases(session: Session = Depends(get_session), current_user: U
     ]
 
 
-# ---- KOD KREIRANJA ZADAĆE - preview za nastavnike pri biranju slučajeva ----
+# KOD KREIRANJA ZADAĆE - preview za nastavnike pri biranju slučajeva
 @router.get("/picker", response_model=List[AssignmentCasePreview])
 def get_cases_for_picker(assignment_type: str = None, session: Session = Depends(get_session), current_user: User = Depends(get_current_active_user)):
     visibility_filter = or_(
@@ -379,6 +375,7 @@ def get_cases_for_picker(assignment_type: str = None, session: Session = Depends
         ) for row in results
     ]
 
+
 # PRIKAZ U SOLVERU
 @router.get("/{case_id}", response_model=CaseReadWithMedia)
 def get_case_details(case_id: str, current_user: User = Depends(get_current_active_user), session: Session = Depends(get_session)):
@@ -399,6 +396,7 @@ def get_case_details(case_id: str, current_user: User = Depends(get_current_acti
         "initial_info": case.initial_info, 
         "media": media_list
     }
+
 
 # EDIT
 @router.get("/{case_id}/full")
@@ -539,8 +537,7 @@ def delete_case(case_id: uuid.UUID, current_user: User = Depends(get_current_act
         raise HTTPException(status_code=500, detail=f"Greška pri brisanju: {str(e)}")
 
 
-# -------- EDIT ---------
-
+# EDIT
 @router.put("/{case_id}")
 def edit_case(case_id: uuid.UUID, case_data: CaseEditRequest, current_user: User = Depends(get_current_active_user), session: Session = Depends(get_session)):
     user_roles = session.exec(select(Role.name).join(UserRole).where(UserRole.user_id == current_user.id)).all()
@@ -570,7 +567,7 @@ def edit_case(case_id: uuid.UUID, case_data: CaseEditRequest, current_user: User
             target_id = case_id
 
         elif old_case.status == "published":
-            # Zaštita od višestrukih verzija s istim brojem (ne mogu postojati dvije verzije 3 nekog slučaja)
+            # Zaštita od višestrukih verzija s istim brojem (ne mogu postojati npr. dvije verzije 3 nekog slučaja)
             latest_version = session.exec(
                 select(func.max(Case.version))
                 .where(func.coalesce(Case.original_case_id, Case.id) == original_group_id)

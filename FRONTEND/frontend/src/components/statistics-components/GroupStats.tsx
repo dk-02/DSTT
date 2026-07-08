@@ -49,7 +49,7 @@ function GroupStats({ isPractice }: GroupStatsProps) {
     const [stats, setStats] = useState<Statistics>();
     const [loading, setLoading] = useState<boolean>(true);
     const [selectedGroupId, setSelectedGroupId] = useState<string>("");
-    // STANJA ZA MODAL I DETALJE STUDENTA
+    // MODAL I DETALJI STUDENTA
     const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
     const [studentAttempts, setStudentAttempts] = useState<StudentAttempt[]>([]);
     const [loadingAttempts, setLoadingAttempts] = useState<boolean>(false);

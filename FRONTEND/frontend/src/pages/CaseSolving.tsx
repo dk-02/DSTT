@@ -1,5 +1,5 @@
 import { ArrowNarrowLeft, Clock, File06, Recording01, ReverseLeft } from "@untitledui/icons";
-import { useEffect, useState, type KeyboardEvent } from "react"
+import { useEffect, useRef, useState, type KeyboardEvent } from "react"
 import { useNavigate, useParams } from "react-router-dom";
 import { Modal } from "../components/UI/Modal";
 import { useAuthStore } from "../store/useAuthStore";
@@ -72,6 +72,8 @@ function CaseSolving() {
 
     const navigate = useNavigate();
 
+    const messagesEndRef = useRef<HTMLDivElement | null>(null);
+
     const token = useAuthStore((state) => state.token);
     const { 
         unlockedHints, 
@@ -90,6 +92,10 @@ function CaseSolving() {
         setTotalPenaltyMoney,
         setTotalPenaltyTime
     } = useCaseSolvingStore();
+
+    useEffect(() => {
+        messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    }, [messages, isTyping]);
 
     useEffect(() => {
         const fetchIds = async () => {
@@ -183,6 +189,9 @@ function CaseSolving() {
             }
 
             const data = await response.json();
+
+            console.log(data)
+
             const aiMsg: UserMsg = { 
                 sender: "odgovor", 
                 text: data.result, 
@@ -191,8 +200,8 @@ function CaseSolving() {
                 cost: data.cost
             };
             addMessage(aiMsg);
-            setTotalCostMoney(data.total_cost_money);
-            setTotalCostTime(data.total_cost_time);
+            setTotalCostMoney(data.attempt_total_cost_money);
+            setTotalCostTime(data.attempt_total_cost_time);
             setTotalPenaltyTime(data.attempt_total_penalty_time);
             setTotalPenaltyMoney(data.attempt_total_penalty_money);
 
@@ -205,10 +214,9 @@ function CaseSolving() {
 
     const handleVerifyDiagnosis = async () => {
         try {
-            setDiagnosis("");
             setIsTyping(true);
             setTypingMessage("Evaluiranje pokušaja dijagnoze");
-
+            
             const response = await fetch(`${backendURL}/attempts/${attemptId}/submit`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
@@ -216,12 +224,17 @@ function CaseSolving() {
                     student_diagnosis: diagnosis
                 })
             });
-
+            
             const data = await response.json()
+            setDiagnosis("");
             setFeedback(data);
 
             if (data.status) {
                 setAttemptStatus(data.status);
+
+                if (data.status !== "in_progress") {
+                    reset();
+                }
             }
 
         } catch(err) {
@@ -405,6 +418,23 @@ function CaseSolving() {
         }
     };
 
+    const formatTime = (timeSeconds: number) => {
+        const days = Math.floor(timeSeconds / 86400);
+        const hours = Math.floor(timeSeconds / 3600);
+        const minutes = Math.floor((timeSeconds % 3600) / 60);
+        const seconds = (timeSeconds % 60);
+        
+        if (days > 0) {
+            return `${days} dana`;
+        } else if (hours > 0) {
+            return `${hours} sati`;
+        } else if (minutes > 0) {
+            return`${minutes} minuta`;
+        } else {
+            return `${seconds} sekundi`;
+        }
+    }
+
     return (
         <div className="flex flex-col w-screen h-screen overflow-hidden bg-gray-700">
             <div className="p-5 relative flex justify-center items-center h-fit w-full shrink-0">
@@ -469,8 +499,14 @@ function CaseSolving() {
                                     <div className="text-green-400 prose prose-invert max-w-none">
                                         <strong>{m.sender}:</strong> <ReactMarkdown>{m.text}</ReactMarkdown>
                                     </div> : 
-                                    <p  className={m.sender === "korisnik" ? "text-orange-400" : "text-gray-100"}>
-                                        <strong>{m.sender}:</strong> {m.text} ({m.cost && `€ ${m.cost.money}, `}{m.cost && m.cost.time})
+
+                                    m.sender === "odgovor" ?
+                                    <p className={"text-gray-100"}>
+                                        <strong>{m.sender}:</strong> {m.text} ({m.cost && `€ ${m.cost.money}, `}{m.cost && formatTime(m.cost.time)})
+                                    </p>
+                                    :
+                                    <p className={"text-orange-400"}>
+                                        <strong>{m.sender}:</strong> {m.text}
                                     </p>
                                 }
 
@@ -504,6 +540,8 @@ function CaseSolving() {
                                 </div>
                             </div>
                         )}
+
+                        <div ref={messagesEndRef} />
                     </div>
 
                     <div className="w-full shrink-0 flex flex-col items-center gap-1">
@@ -574,12 +612,12 @@ function CaseSolving() {
                     <div className="w-full h-1/3 flex flex-col items-center bg-gray-800 p-5 rounded-lg border border-gray-500">
                         <h3>Utrošeni resursi</h3>
                         <div className="flex flex-col justify-center gap-2 w-full flex-1">
-                            <span>VRIJEME: {totalCostTime || 0}</span>
+                            <span>VRIJEME: {totalCostTime || "00:00"}</span>
                             <span>NOVAC: € {totalCostMoney || 0}</span>
                         </div>
                         <h3>Kazne</h3>
-                        <div className="flex flex-col justify-center gap-2 w-full flex-1">
-                            <span>VRIJEME: {totalPenaltyTime || 0}</span>
+                        <div className="flex flex-col justify-center gap-2 w-full flex-1 text-red-400">
+                            <span>VRIJEME: {totalPenaltyTime || "00:00"}</span>
                             <span>NOVAC: € {totalPenaltyMoney || 0}</span>
                         </div>
                     </div>
@@ -685,7 +723,6 @@ function CaseSolving() {
                     </div>
                 )}
             </Modal>
-
         </div>
     );
 }

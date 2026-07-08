@@ -5,7 +5,6 @@ import {DropdownSection} from "../base/dropdown/dropdown";
 import {DropdownItem} from "../base/dropdown/dropdown";
 import {DropdownSeparator} from "../base/dropdown/dropdown";
 import {DropdownDotsButton} from "../base/dropdown/dropdown";
-// import {DropdownSectionHeader} from "../base/dropdown/dropdown";
 
 interface CaseDropdownProps {
     onArchive: () => void;

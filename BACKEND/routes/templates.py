@@ -11,7 +11,7 @@ async def download_template(filename: str):
     file_path = os.path.join(TEMPLATES_DIR, filename)
     
     if not os.path.exists(file_path):
-        raise HTTPException(status_code=404, detail="Template not found")
+        raise HTTPException(status_code=404, detail="Predložak nije pronađen")
     
     return FileResponse(
         path=file_path, 

@@ -1,9 +1,8 @@
-from typing import List
 import uuid
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import func, or_
 from sqlmodel import Session, select, delete
-from models import AddCasesToAssignment, AssignToGroupsData, Assignment, AssignmentCase, AssignmentCasePreview, AssignmentCreate, AssignmentSettings, AssignmentUpdate, Case, CaseCategory, Category, Group, GroupAssignment, GroupAssignmentLink, GroupMember, RandomCasePickerSettings, RemoveCasesFromAssignment, Role, SolveAttempt, UnassignFromGroupsData, User, UserRole
+from models import AddCasesToAssignment, AssignToGroupsData, Assignment, AssignmentCase, AssignmentCasePreview, AssignmentCreate, AssignmentSettings, AssignmentUpdate, Case, CaseCategory, Category, Group, GroupAssignment, GroupMember, RemoveCasesFromAssignment, Role, SolveAttempt, UnassignFromGroupsData, User, UserRole
 from routes.auth import get_current_active_user, get_current_teacher
 from database import engine
 
@@ -117,7 +116,6 @@ def get_my_archived_assignments(session: Session = Depends(get_session), current
     return response
 
 
-
 @router.post("/", status_code=201)
 def create_assignment(data: AssignmentCreate, session: Session = Depends(get_session), current_user: User = Depends(get_current_teacher)):
     final_settings = data.settings
@@ -158,7 +156,7 @@ def create_assignment(data: AssignmentCreate, session: Session = Depends(get_ses
 def update_assignment(assignment_id: uuid.UUID, data: AssignmentUpdate, session: Session = Depends(get_session), current_user: User = Depends(get_current_teacher)):
     assignment = session.get(Assignment, assignment_id)
     if not assignment: 
-        raise HTTPException(404, "Zadaća nije pronađena.")
+        raise HTTPException(status_code=404, detail="Zadaća nije pronađena.")
     
     update_data = data.model_dump(exclude_unset=True)
     
@@ -208,10 +206,7 @@ def archive_assignment(assignment_id: uuid.UUID, session: Session = Depends(get_
         raise HTTPException(status_code=404, detail="Zadaća nije pronađena.")
     
     if assignment.teacher_id != current_user.id:
-        raise HTTPException(
-            status_code=403, 
-            detail="Možete arhivirati samo svoje zadaće."
-        )
+        raise HTTPException(status_code=403, detail="Možete arhivirati samo svoje zadaće.")
 
     try:
         assignment.status = "archived"
@@ -231,17 +226,15 @@ def unarchive_assignment(assignment_id: uuid.UUID, session: Session = Depends(ge
         raise HTTPException(status_code=404, detail="Zadaća nije pronađena.")
     
     if assignment.teacher_id != current_user.id:
-        raise HTTPException(
-            status_code=403, 
-            detail="Možete vratiti samo svoje zadaće."
-        )
+        raise HTTPException(status_code=403, detail="Možete vratiti samo svoje zadaće.")
 
     try:
-        assignment.status = "active"
-        
+        assignment.status = "active"        
         session.add(assignment)
         session.commit()
+
         return {"message": "Zadaća je uspješno vraćena."}
+    
     except Exception as e:
         session.rollback()
         raise HTTPException(status_code=500, detail=f"Greška pri arhiviranju: {str(e)}")
@@ -254,15 +247,14 @@ def delete_assignment(assignment_id: uuid.UUID, session: Session = Depends(get_s
         raise HTTPException(status_code=404, detail="Zadaća nije pronađena.")
     
     if assignment.teacher_id != current_user.id:
-        raise HTTPException(
-            status_code=403, 
-            detail="Možete obrisati samo svoje zadaće."
-        )
+        raise HTTPException(status_code=403, detail="Možete obrisati samo svoje zadaće.")
 
     try:
         session.delete(assignment)
         session.commit()
+
         return {"message": "Zadaća je trajno obrisana."}
+    
     except Exception as e:
         session.rollback()
         raise HTTPException(status_code=500, detail=f"Greška pri brisanju: {str(e)}")
@@ -486,10 +478,7 @@ def remove_assignment_from_group(assignment_id: uuid.UUID, data: UnassignFromGro
     )
 
     if session.exec(existing_attempts_stmt).first():
-        raise HTTPException(
-            status_code=400, 
-            detail="Ne možete ukloniti zadaću jer su je neki studenti iz odabranih grupa već počeli rješavati. Umjesto toga, možete promijeniti rok."
-        )
+        raise HTTPException(status_code=400, detail="Ne možete ukloniti zadaću jer su je neki studenti iz odabranih grupa već počeli rješavati.")
 
     try:
         delete_stmt = delete(GroupAssignment).where(
@@ -506,7 +495,6 @@ def remove_assignment_from_group(assignment_id: uuid.UUID, data: UnassignFromGro
         session.rollback()
         raise HTTPException(status_code=500, detail=f"Greška pri uklanjanju zadaće iz grupa: {str(e)}")
     
-
 
 @router.get("/{assignment_id}")
 def get_assignment_details(assignment_id: uuid.UUID, session: Session = Depends(get_session), current_user: User = Depends(get_current_active_user)):
@@ -605,7 +593,7 @@ def get_assignment_details(assignment_id: uuid.UUID, session: Session = Depends(
                 (SolveAttempt.user_id == current_user.id) &
                 (SolveAttempt.assignment_id == assignment_id)
             )
-            .distinct(SolveAttempt.case_id) # Postgres DISTINCT ON
+            .distinct(SolveAttempt.case_id)
             .order_by(SolveAttempt.case_id, SolveAttempt.started_at.desc())
         ).subquery()
 

@@ -63,7 +63,16 @@ export const useCaseSolvingStore = create<CaseSolvingState>()(
             setAttempt: (id, startedAt) => set({ attemptId: id, startTime: startedAt }),
             addMessage: (msg) => set((state) => ({ messages: [...state.messages, msg] })),
             addHint: (hint) => set((state) => ({ unlockedHints: [...state.unlockedHints, hint] })),
-            reset: () => set({ attemptId: null, messages: [], unlockedHints: [], startTime: null }),
+            reset: () => set({ 
+                attemptId: null, 
+                messages: [], 
+                unlockedHints: [], 
+                startTime: null, 
+                totalCostMoney: null, 
+                totalCostTime: null,
+                totalPenaltyMoney: null,
+                totalPenaltyTime: null
+            }),
             undoLastAction: (duId) => set((state) => {
                 const index = state.messages.findIndex(m => m.du === duId);
                 

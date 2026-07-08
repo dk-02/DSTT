@@ -55,7 +55,7 @@ class Case(SQLModel, table=True):
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
     original_case_id: Optional[uuid.UUID] = Field(default=None, foreign_key="cases.id")
     version: int = Field(default=1)
-    status: str = Field(default="published") # ili draft ili archived
+    status: str = Field(default="published") # published, draft ili archived
     title: str = Field(max_length=150)
     level: str = Field(max_length=50)
     type: str = Field(max_length=50)
@@ -414,7 +414,7 @@ class User(SQLModel, table=True):
     managed_groups: List["Group"] = Relationship(back_populates="teacher")
     groups: List["Group"] = Relationship(back_populates="students", link_model=GroupMember)
 
-    # aai_edu_uid: str - DODATI KAD SE OSPOSOBI AAI_EDU
+    # aai_edu_uid: str
 
 
 class Role(SQLModel, table=True):

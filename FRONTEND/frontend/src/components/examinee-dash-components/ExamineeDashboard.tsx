@@ -493,7 +493,7 @@ function ExamineeDashboard() {
                                     );
                                 })()}
 
-                                {/* PROŠLE / ISTEKLE ZADAĆE */}
+                                {/* PROŠLE/ISTEKLE ZADAĆE */}
                                 {(() => {
                                     const past = studentAssignments.filter(a => a.available_until && new Date() >= new Date(a.available_until));
                                     if (past.length === 0) return null;

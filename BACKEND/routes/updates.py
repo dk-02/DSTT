@@ -23,7 +23,6 @@ def get_my_notifications(session: Session = Depends(get_session), current_user: 
     )
     
     notifications = session.exec(statement).all()
-
     response = []
 
     for notif in notifications:
@@ -99,7 +98,6 @@ def resolve_notification(notification_id: uuid.UUID, data: DecisionRequest, sess
         elif notification.type == "revoked":
             if data.decision != "read":
                 raise HTTPException(status_code=400, detail="Za povučene slučajeve jedina akcija je 'read'.")
-
 
         notification.status = data.decision
         notification.decision_at = datetime.now()

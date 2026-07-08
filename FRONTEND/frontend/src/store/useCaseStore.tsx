@@ -181,8 +181,7 @@ export const useCaseStore = create<CaseState>()(
         }))
         }),
         {
-            name: 'case-creator-storage', 
-            // storage: createJSONStorage(() => localStorage),
+            name: 'case-creator-storage',
             storage: createJSONStorage(() => {
                 const authData = localStorage.getItem('auth-storage');
                 let userId = 'guest';

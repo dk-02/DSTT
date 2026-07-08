@@ -155,66 +155,47 @@ function Profile() {
                         <span className="select-none text-gray-100">{user?.first_name?.at(0)?.toUpperCase()}{user?.last_name?.at(0)?.toUpperCase()}</span>
                         <div className="absolute bottom-2 right-4 w-5 h-5 bg-green-500 border-4 border-gray-800 rounded-full"></div>
                     </div>
-                    {/* {isExaminee ?                         
-                        <div className="flex gap-3 text-xl w-full">
-                            <div className="flex flex-col justify-center items-center border border-gray-600 bg-gray-700/50 w-[50%] h-24 rounded-xl shadow-sm">
-                                <span className="flex items-end text-xl h-1/2 font-black text-orange-400">{user?.xp_points || 0}</span>
-                                <span className="text-[10px] h-1/2 text-gray-400 uppercase font-bold tracking-widest mt-1">XP Bodova</span>
+                    <div className="w-full flex flex-col gap-3 mt-5">
+                        {isExaminee && 
+                            <div className="w-full flex flex-col gap-3">
+                                <div className={"flex justify-center items-center border w-full py-3 rounded-xl shadow-sm bg-green-500/10 border-green-500/30"}>
+                                    <span className={"text-sm font-bold uppercase tracking-widest text-green-400"}>
+                                        Ispitanik/student
+                                    </span>
+                                </div>
                             </div>
-                            <div className="flex flex-col justify-center items-center border border-gray-600 bg-gray-700/50 w-[50%] h-24 rounded-xl shadow-sm px-2 text-center">
-                                <span className="flex items-end text-lg h-1/2 font-black text-blue-400 leading-tight">
-                                    {user?.expertise_level === "novice" ? "POČETNIK" : user?.expertise_level === "intermediate" ? "NAPREDNI" : "STRUČNJAK"}
-                                </span>
-                                <span className="text-[10px] h-1/2 text-gray-400 uppercase font-bold tracking-widest mt-1">Razina</span>
+                        }
+
+                        {isAdmin && 
+                            <div className="w-full flex flex-col gap-3">
+                                <div className={"flex justify-center items-center border w-full py-3 rounded-xl shadow-sm bg-purple-500/10 border-purple-500/30"}>
+                                    <span className={"text-sm font-bold uppercase tracking-widest text-purple-400"}>
+                                        Administrator
+                                    </span>
+                                </div>
                             </div>
-                        </div>
-                                
-                        : <></>
-                    } */}
-                        <div className="w-full flex flex-col gap-3 mt-5">
-                            {isExaminee && 
-                                <div className="w-full flex flex-col gap-3">
-                                    <div className={"flex justify-center items-center border w-full py-3 rounded-xl shadow-sm bg-green-500/10 border-green-500/30"}>
-                                        <span className={"text-sm font-bold uppercase tracking-widest text-green-400"}>
-                                            Ispitanik/student
-                                        </span>
-                                    </div>
-                                </div>
-                            }
+                        }
 
-                            {isAdmin && 
-                                <div className="w-full flex flex-col gap-3">
-                                    <div className={"flex justify-center items-center border w-full py-3 rounded-xl shadow-sm bg-purple-500/10 border-purple-500/30"}>
-                                        <span className={"text-sm font-bold uppercase tracking-widest text-purple-400"}>
-                                            Administrator
-                                        </span>
-                                    </div>
+                        {isTeacher && 
+                            <div className="w-full flex flex-col gap-3">
+                                <div className={"flex justify-center items-center border w-full py-3 rounded-xl shadow-sm bg-blue-500/10 border-blue-500/30"}>
+                                    <span className={"text-sm font-bold uppercase tracking-widest text-blue-400"}>
+                                        Nastavnik 
+                                    </span>
                                 </div>
-                            }
-
-                            {isTeacher && 
-                                <div className="w-full flex flex-col gap-3">
-                                    <div className={"flex justify-center items-center border w-full py-3 rounded-xl shadow-sm bg-blue-500/10 border-blue-500/30"}>
-                                        <span className={"text-sm font-bold uppercase tracking-widest text-blue-400"}>
-                                            Nastavnik 
-                                        </span>
-                                    </div>
-                                </div>
-                            }
-                            
-                            {isExpert && 
-                                <div className="w-full flex flex-col gap-3">
-                                    <div className={"flex justify-center items-center border w-full py-3 rounded-xl shadow-sm bg-orange-500/10 border-orange-500/30"}>
-                                        <span className={"text-sm font-bold uppercase tracking-widest text-orange-400"}>
-                                            Stručnjak
-                                        </span>
-                                    </div>
-                                </div>
-                            }
-                            
-                            
-                        </div>
+                            </div>
+                        }
                         
+                        {isExpert && 
+                            <div className="w-full flex flex-col gap-3">
+                                <div className={"flex justify-center items-center border w-full py-3 rounded-xl shadow-sm bg-orange-500/10 border-orange-500/30"}>
+                                    <span className={"text-sm font-bold uppercase tracking-widest text-orange-400"}>
+                                        Stručnjak
+                                    </span>
+                                </div>
+                            </div>
+                        }
+                    </div>
                 </div>
 
                 <div className="w-full">

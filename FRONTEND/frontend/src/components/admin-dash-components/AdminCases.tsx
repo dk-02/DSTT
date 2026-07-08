@@ -51,7 +51,6 @@ function AdminCases() {
     }, [token]);
 
     
-    // HANDLERS
     const handleStartCase = async (caseId: string, assignmentId: string | null = null, assignmentType: string | null = null, selectedPracticeMode: string) => {
         const isPractice = assignmentId === null || assignmentType === "practice" || assignmentType === "practice_exam";
         const isExamSimulation = (assignmentId && assignmentType === "practice_exam") || (!assignmentId && selectedPracticeMode === "practice_exam");

@@ -280,10 +280,7 @@ def update_group(group_id: uuid.UUID, data: GroupUpdate, session: Session = Depe
     is_teacher = "teacher" in user_roles
 
     if not is_teacher and not is_admin:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Nemate ovlasti za ovu akciju (potrebna je uloga nastavnika ili administratora)."
-        )
+        raise HTTPException(status_code=403, detail="Nemate ovlasti za ovu akciju (potrebna je uloga nastavnika ili administratora).")
     
     if is_teacher and not is_admin and group.teacher_id != current_user.id:
         raise HTTPException(status_code=403, detail="Možete uređivati samo svoje grupe.")
@@ -328,16 +325,10 @@ def delete_group(group_id: uuid.UUID, session: Session = Depends(get_session), c
     is_teacher = "teacher" in user_roles
 
     if not is_teacher and not is_admin:
-        raise HTTPException(
-            status_code=403,
-            detail="Nemate ovlasti za ovu akciju."
-        )
+        raise HTTPException(status_code=403, detail="Nemate ovlasti za ovu akciju.")
 
     if not is_admin and group.teacher_id != current_user.id:
-        raise HTTPException(
-            status_code=403, 
-            detail="Nemate ovlasti za brisanje ove grupe jer niste njezin vlasnik."
-        )
+        raise HTTPException(status_code=403, detail="Nemate ovlasti za brisanje ove grupe jer niste njezin vlasnik.")
 
     try:
         session.exec(delete(GroupMember).where(GroupMember.group_id == group_id))
@@ -361,18 +352,11 @@ def add_students_to_group(group_id: uuid.UUID, data: AddStudentToGroup, session:
     is_teacher = "teacher" in user_roles
 
     if not is_teacher and not is_admin:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Nemate ovlasti za ovu akciju (potrebna je uloga nastavnika ili administratora)."
-        )
+        raise HTTPException(status_code=403, detail="Nemate ovlasti za ovu akciju (potrebna je uloga nastavnika ili administratora).")
 
     if not is_admin and group.teacher_id != current_user.id:
-        raise HTTPException(
-            status_code=403, 
-            detail="Nemate ovlasti za upravljanje ovom grupom jer niste njezin vlasnik."
-        )
+        raise HTTPException(status_code=403, detail="Nemate ovlasti za upravljanje ovom grupom jer niste njezin vlasnik.")
     
-
     statement = select(GroupMember.student_id).where(GroupMember.group_id == group_id)
     existing_members = session.exec(statement).all()
     
@@ -402,7 +386,6 @@ def add_students_to_group(group_id: uuid.UUID, data: AddStudentToGroup, session:
         raise HTTPException(status_code=500, detail=f"Greška pri dodavanju studenata: {str(e)}")
 
 
-
 @router.delete("/{group_id}/members")
 def remove_students_from_group(group_id: uuid.UUID, data: RemoveStudentFromGroup, session: Session = Depends(get_session), current_user: User = Depends(get_current_active_user)):
     group = session.get(Group, group_id)
@@ -414,16 +397,10 @@ def remove_students_from_group(group_id: uuid.UUID, data: RemoveStudentFromGroup
     is_teacher = "teacher" in user_roles
 
     if not is_teacher and not is_admin:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Nemate ovlasti za ovu akciju (potrebna je uloga nastavnika ili administratora)."
-        )
+        raise HTTPException(status_code=403, detail="Nemate ovlasti za ovu akciju (potrebna je uloga nastavnika ili administratora).")
 
     if not is_admin and group.teacher_id != current_user.id:
-        raise HTTPException(
-            status_code=403, 
-            detail="Nemate ovlasti za upravljanje ovom grupom jer niste njezin vlasnik."
-        )
+        raise HTTPException(status_code=403, detail="Nemate ovlasti za upravljanje ovom grupom jer niste njezin vlasnik.")
     
     try:
         statement = delete(GroupMember).where(

@@ -389,15 +389,12 @@ export function AssignmentCreator({ onClose, onSuccess }: AssignmentCreatorProps
                                                 )
                                             })}
                                         </>
-                                        }
-
-                                        
+                                        }                                        
                                     </div>
                                 </>
                             )}
                         </div>
                     </div>
-
                 </div>
             </div>
 

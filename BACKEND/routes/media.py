@@ -13,6 +13,7 @@ def get_session():
     with Session(engine) as session:
         yield session
 
+
 @router.post("/upload")
 async def upload_media(file: UploadFile = File(...), session: Session = Depends(get_session)):
     try:

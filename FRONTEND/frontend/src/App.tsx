@@ -41,7 +41,6 @@ function App() {
             }
         }
     }, [token, logout]);
-
     
     return(
         <Router>

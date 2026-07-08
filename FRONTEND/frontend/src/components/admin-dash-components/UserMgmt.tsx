@@ -29,7 +29,6 @@ interface Institution {
     name: string;
 }
 
-
 type SortConfig = { key: keyof User | ""; direction: "asc" | "desc" };
 
 const backendURL = import.meta.env.VITE_APP_BACKEND;
@@ -38,7 +37,7 @@ export const UserMgmt = () => {
     const [users, setUsers] = useState<User[]>();
     const [institutions, setInstitutions] = useState<Institution[]>([]);
 
-    // SORT, SEARCH AND FILTER
+    // SORT, SEARCH I FILTER
     const [sortConfig, setSortConfig] = useState<SortConfig>({ key: "", direction: "asc" });
     const [searchTerm, setSearchTerm] = useState<string>("");
     const [filters, setFilters] = useState({ status: "all", role: "all" });
@@ -113,13 +112,6 @@ export const UserMgmt = () => {
 
     const handleDeactivate = async (targetUser : User) => {
         try {
-            // const res = await fetch(`${backendURL}/auth/deactivate?user_id=${targetUser?.id}`, {
-            //     method: "POST",
-            //     headers: { 
-            //         "Content-Type": "application/json", 
-            //         "Authorization": `Bearer ${token}` 
-            //     },
-            // });
             const res = await apiRequest(`/auth/deactivate?user_id=${targetUser.id}`, {
                 method: "POST"
             });
