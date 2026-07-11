@@ -83,6 +83,9 @@ export const HelpContent = () => (
             <div className="space-y-2">
                 <p><strong>Definicija ispravne dijagnoze (correct_diagnosis): </strong>Ispravna dijagnoza koju se očekuje da će ispitanik postaviti.</p>
             </div>
+            <div className="space-y-2">
+                <p><strong>Definicija ključnih riječi (diagnosis_keywords): </strong>Ključne riječi koje obavezno mora sadržavati ispitanikova dijagnoza kako bi se mogla smatrati ispravnom.</p>
+            </div>
         </section>
 
         {/* Savjeti */}
