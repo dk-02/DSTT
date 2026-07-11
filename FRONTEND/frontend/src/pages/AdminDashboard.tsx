@@ -4,8 +4,9 @@ import { UserMgmt } from "../components/admin-dash-components/UserMgmt";
 import { useState } from "react";
 import { InstitutionMgmt } from "../components/admin-dash-components/InstitutionMgmt";
 import Header from "../components/UI/Header";
+import { LlmMgmt } from "../components/admin-dash-components/LlmMgmt";
 
-type TabName = "users" | "cases" | "institutions";
+type TabName = "users" | "cases" | "institutions" | "llm";
 
 function AdminDashboard() {
     const [menuTab, setMenuTab] = useState<TabName>("users");
@@ -20,6 +21,10 @@ function AdminDashboard() {
         {
             name: "institutions",
             label: "Institucije"
+        },
+        {
+            name: "llm",
+            label: "LLM"
         }
     ]
 
@@ -34,7 +39,7 @@ function AdminDashboard() {
     return (
         <>
             <Header />
-            <div className="flex w-full h-screen bg-gray-700 text-gray-100 overflow-hidden">
+            <div className="flex w-full h-[calc(100vh-72px)] bg-gray-700 text-gray-100 overflow-hidden">
                 <div className="w-1/5 p-8 bg-gray-800 border-r border-gray-700 flex flex-col justify-between items-center">
                     <div className="flex flex-col items-center gap-6 w-full">
                         <ArrowNarrowLeft 
@@ -54,6 +59,7 @@ function AdminDashboard() {
 
                 {menuTab === "users" && <UserMgmt />}
                 {menuTab === "institutions" && <InstitutionMgmt />}
+                {menuTab === "llm" && <LlmMgmt />}
 
             </div>
         </>

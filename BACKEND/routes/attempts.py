@@ -4,10 +4,11 @@ from typing import Any, Dict
 import uuid
 from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException
+from litellm import completion
 from sqlmodel import Session, select
 from routes.auth import get_current_active_user, get_current_teacher
 from database import engine
-from models import Assignment, AssignmentCase, AttemptLog, AttemptStart, Case, ChatRequest, DiagnosisRequest, DiagnosisSubmission, DiagnosticUnit, Group, GroupAssignment, GroupMember, Hint, OverrideVerdictRequest, SolveAttempt, TeacherCommentRequest, User
+from models import Assignment, AssignmentCase, AttemptLog, AttemptStart, Case, ChatRequest, DiagnosisRequest, DiagnosisSubmission, DiagnosticUnit, Group, GroupAssignment, GroupMember, Hint, LLMConfig, OverrideVerdictRequest, SolveAttempt, TeacherCommentRequest, User
 from google import genai
 
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
@@ -665,12 +666,37 @@ async def get_DU(attempt_id: uuid.UUID, request: ChatRequest, session: Session =
 
     combined_content = f"INSTRUCTION: {system_prompt}\n\nUSER QUESTION: {request.message}"
 
-    response = client.interactions.create(
-        model=GEMINI_MODEL,
-        input=combined_content
-    )
+    active_config = session.exec(select(LLMConfig).where(LLMConfig.is_active == True)).first()
     
-    raw_content = response.output_text
+    if not active_config:
+        raise HTTPException(status_code=500, detail="LLM API nije konfiguriran u sustavu.")
+
+    litellm_model = f"{active_config.provider_name.lower()}/{active_config.model_name}"
+    is_llm_error = False
+
+    try:
+        response = completion(
+            model=litellm_model,
+            api_key=active_config.api_key,
+            base_url=active_config.base_url if active_config.base_url else None,
+            messages=[{"role": "user", "content": combined_content}],
+        )
+        
+        raw_content = response.choices[0].message.content
+
+    except Exception as e:
+        print(f"LiteLLM Error: {str(e)}")
+        raw_content = "NONE"
+        is_llm_error = True
+
+    # print("CONTENT: ", raw_content)
+
+    # response = client.interactions.create(
+    #     model=GEMINI_MODEL,
+    #     input=combined_content
+    # )
+    
+    # raw_content = response.output_text
 
     uuid_pattern = re.compile(r'[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}', re.IGNORECASE)
     match = uuid_pattern.search(raw_content)
@@ -781,10 +807,13 @@ async def get_DU(attempt_id: uuid.UUID, request: ChatRequest, session: Session =
     if attempt.status == "terminated":
         generate_evaluation_report(attempt_id, session)
 
+    error_msg = "Javila se greška pri komunikaciji s jezičnim modelom. Što prije kontaktirajte administratora putem maila ili kontakt forme." if is_llm_error else None
+
     return {
         "du_id": selected_du.id if selected_du else None,
         "result": result_text,
         "media": media_list,
+        "error_msg": error_msg,
         "attempt_status": attempt.status,
         "cost": du_cost, 
         "attempt_total_cost_time": format_time(attempt.total_cost_time),
@@ -840,12 +869,35 @@ async def submit_diagnosis(attempt_id: uuid.UUID, data: DiagnosisRequest, sessio
         {feedback_rules}
     """
 
-    response = client.interactions.create(
-        model=GEMINI_MODEL,
-        input=system_prompt
-    )
+    active_config = session.exec(select(LLMConfig).where(LLMConfig.is_active == True)).first()
     
-    llm_judgement = response.output_text
+    if not active_config:
+        raise HTTPException(status_code=500, detail="LLM API nije konfiguriran u sustavu.")
+
+    litellm_model = f"{active_config.provider_name.lower()}/{active_config.model_name}"
+    is_llm_error = False
+
+    try:
+        response = completion(
+            model=litellm_model,
+            api_key=active_config.api_key,
+            base_url=active_config.base_url if active_config.base_url else None,
+            messages=[{"role": "user", "content": system_prompt}],
+        )
+        
+        llm_judgement = response.choices[0].message.content
+
+    except Exception as e:
+        print(f"LiteLLM Error: {str(e)}")
+        llm_judgement = "NONE"
+        is_llm_error = True
+
+    # response = client.interactions.create(
+    #     model=GEMINI_MODEL,
+    #     input=system_prompt
+    # )
+    
+    # llm_judgement = response.output_text
     
     verdict = "incorrect"
     feedback = llm_judgement
@@ -897,10 +949,13 @@ async def submit_diagnosis(attempt_id: uuid.UUID, data: DiagnosisRequest, sessio
     
     session.commit()
     
+    error_msg = "Javila se greška pri komunikaciji s jezičnim modelom. Što prije kontaktirajte administratora putem maila ili kontakt forme." if is_llm_error else None
+
     return {
-        "verdict": verdict,
+        "verdict": None if is_llm_error else verdict,
         "feedback": feedback,
-        "status": attempt.status
+        "status": attempt.status,
+        "error_msg": error_msg,
     }
 
 
@@ -1010,12 +1065,35 @@ async def ask_llm_mentor(data: ChatRequest, attempt_id: uuid.UUID, session: Sess
     Answer their questions, provide advice and guide them on the right path. UNDER NO CIRCUMSTANCES are you allowed to reveal the final correct diagnosis or the direct solution.
     """
 
-    response = client.interactions.create(
-        model=GEMINI_MODEL,
-        input=prompt
-    )
+    active_config = session.exec(select(LLMConfig).where(LLMConfig.is_active == True)).first()
     
-    mentor_response = response.output_text
+    if not active_config:
+        raise HTTPException(status_code=500, detail="LLM API nije konfiguriran u sustavu.")
+
+    litellm_model = f"{active_config.provider_name.lower()}/{active_config.model_name}"
+    is_llm_error = False
+
+    try:
+        response = completion(
+            model=litellm_model,
+            api_key=active_config.api_key,
+            base_url=active_config.base_url if active_config.base_url else None,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        
+        mentor_response = response.choices[0].message.content
+
+    except Exception as e:
+        print(f"LiteLLM Error: {str(e)}")
+        mentor_response = "NONE"
+        is_llm_error = True
+
+    # response = client.interactions.create(
+    #     model=GEMINI_MODEL,
+    #     input=prompt
+    # )
+    
+    # mentor_response = response.output_text
 
     new_log = AttemptLog(
         attempt_id=attempt_id,
@@ -1029,7 +1107,13 @@ async def ask_llm_mentor(data: ChatRequest, attempt_id: uuid.UUID, session: Sess
     session.add(new_log)
     session.commit()
     
-    return {"status": "success", "result": mentor_response}
+    error_msg = "Javila se greška pri komunikaciji s jezičnim modelom. Što prije kontaktirajte administratora putem maila ili kontakt forme." if is_llm_error else None
+
+    return {
+        "status": "success", 
+        "result": "Mentor nedostupan" if is_llm_error else mentor_response,
+        "error_msg": error_msg
+    }
 
 
 @router.post("/{attempt_id}/undo")

@@ -191,11 +191,10 @@ export const InstitutionMgmt = () => {
             </div>
 
             {institutions.length > 0 ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 overflow-y-auto">
                     {filteredInstitutions.map((i) => (
-                        <div key={i.id} className={`flex flex-col bg-gray-800 rounded-2xl shadow-lg border overflow-hidden transition-all ${i.is_active ? 'border-gray-600 hover:border-gray-500' : 'border-red-900/50 opacity-80'}`}>
-                            
-                            <div className="flex justify-between items-start p-5 border-b border-gray-700/50 bg-gray-900/30">
+                        <div key={i.id} className={`flex flex-col bg-gray-800 rounded-2xl shadow-lg border transition-all ${i.is_active ? 'border-gray-600 hover:border-gray-500' : 'border-red-900/50 opacity-80'}`}>
+                            <div className="flex justify-between items-start p-5 border-b border-gray-700/50 bg-gray-900/30 rounded-t-2xl">
                                 <div className="flex items-center gap-3">
                                     <div className="w-10 h-10 rounded-lg bg-gray-700 flex items-center justify-center border border-gray-600">
                                         {i.logo_url ? (

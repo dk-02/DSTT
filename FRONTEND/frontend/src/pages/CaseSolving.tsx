@@ -17,7 +17,7 @@ interface Case {
 }
 
 interface Feedback {
-    verdict: string;
+    verdict: string | null;
     feedback: string;
 }
 
@@ -190,8 +190,6 @@ function CaseSolving() {
 
             const data = await response.json();
 
-            console.log(data)
-
             const aiMsg: UserMsg = { 
                 sender: "odgovor", 
                 text: data.result, 
@@ -204,6 +202,10 @@ function CaseSolving() {
             setTotalCostTime(data.attempt_total_cost_time);
             setTotalPenaltyTime(data.attempt_total_penalty_time);
             setTotalPenaltyMoney(data.attempt_total_penalty_money);
+
+            if (data.error_msg) {
+                alert(data.error_msg);
+            }
 
         } catch (error) {
             console.error("Greška pri dohvatu DU-a: ", error);
@@ -235,6 +237,10 @@ function CaseSolving() {
                 if (data.status !== "in_progress") {
                     reset();
                 }
+            }
+
+            if (data.error_msg) {
+                alert(data.error_msg);
             }
 
         } catch(err) {
@@ -357,7 +363,11 @@ function CaseSolving() {
 
             const data = await response.json();    
             const aiMsg: UserMsg = { sender: "llm-mentor", text: data.result };
-            addMessage(aiMsg);                     
+            addMessage(aiMsg);             
+            
+            if (data.error_msg) {
+                alert(data.error_msg);
+            }
 
         } catch (error) {
             console.error("Greška pri upitu LLM mentoru: ", error);
@@ -483,7 +493,7 @@ function CaseSolving() {
                         ))}
                     </div>
                     <div>
-                        {feedback && (
+                        {feedback && feedback.verdict && (
                             <div className={feedback.verdict === "correct" ? "mt-5 p-3 bg-green-200 rounded" : feedback.verdict === "incorrect" ? "mt-5 p-3 bg-red-200 rounded" : "mt-5 p-3 bg-orange-200 rounded"}>
                                 <strong>{feedback.verdict === "correct" ? "Točno!" : feedback.verdict === "incorrect" ? "Netočno" : "Parcijalno točno"}</strong>
                                 <p>{feedback.feedback}</p>

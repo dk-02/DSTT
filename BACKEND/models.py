@@ -7,6 +7,26 @@ from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy import Column as SAColumn, UniqueConstraint
 
 
+# --------- LLM ----------
+
+class LLMConfig(SQLModel, table=True):
+    id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
+    provider_name: str = Field(default="gemini", description="Npr. gemini, openai")
+    model_name: str = Field(default="gemini-3.5-flash", description="Npr. gpt-4, gemini-3.5-flash")
+    api_key: str = Field(default="")
+    base_url: Optional[str] = Field(default="", description="Koristi se za lokalne/custom modele")
+    is_active: bool = Field(default=False)
+
+
+class LLMProvider(SQLModel, table=True):
+    id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
+    name: str = Field(unique=True, description="Prikazno ime na sučelju (npr. Google Gemini)")
+    prefix: str = Field(unique=True, description="Točan LiteLLM prefiks (npr. gemini, openai)")
+
+class ProviderCreate(BaseModel):
+    name: str
+    prefix: str
+
 # --------- MEDIA ------------
 
 class CaseMediaFile(SQLModel, table=True):
